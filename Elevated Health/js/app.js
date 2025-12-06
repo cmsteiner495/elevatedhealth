@@ -61,22 +61,14 @@ console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
 );
 
-initThemeToggle();
-initModal();
-initAIDinnerCards();
-initInstallState();
-
-// Show / hide auth vs app
-
-function showAuth() {
-  if (authSection) authSection.style.display = "block";
-  if (appSection) appSection.style.display = "none";
-}
-
-function showApp() {
-  if (authSection) authSection.style.display = "none";
-  if (appSection) appSection.style.display = "block";
-}
+// Global UI/install state
+let activeTabId;
+let displayNameValue;
+let displayNavMenu;
+let deferredInstallPrompt;
+let isStandaloneMode;
+let isAppInstalled;
+let selectedThemeStyle;
 
 const TAB_TITLE_MAP = {
   "dashboard-tab": "Overview",
@@ -94,6 +86,7 @@ function createInitialState() {
   return {
     activeTabId: "dashboard-tab",
     displayNameValue: "",
+    displayNavMenu: false,
     deferredInstallPrompt: null,
     isStandaloneMode: false,
     isAppInstalled: false,
@@ -101,16 +94,33 @@ function createInitialState() {
   };
 }
 
-const initialState = createInitialState();
-
 function initInitialState() {
   const next = createInitialState();
   activeTabId = next.activeTabId;
   displayNameValue = next.displayNameValue;
+  displayNavMenu = next.displayNavMenu;
   deferredInstallPrompt = next.deferredInstallPrompt;
   isStandaloneMode = next.isStandaloneMode;
   isAppInstalled = next.isAppInstalled;
   selectedThemeStyle = next.selectedThemeStyle;
+}
+
+initInitialState();
+initThemeToggle();
+initModal();
+initAIDinnerCards();
+initInstallState();
+
+// Show / hide auth vs app
+
+function showAuth() {
+  if (authSection) authSection.style.display = "block";
+  if (appSection) appSection.style.display = "none";
+}
+
+function showApp() {
+  if (authSection) authSection.style.display = "none";
+  if (appSection) appSection.style.display = "block";
 }
 
 function triggerAIDigestPlaceholder() {
@@ -120,13 +130,6 @@ function triggerAIDigestPlaceholder() {
     primaryLabel: "Got it",
   });
 }
-
-let activeTabId = initialState.activeTabId;
-let displayNameValue = initialState.displayNameValue;
-let deferredInstallPrompt = initialState.deferredInstallPrompt;
-let isStandaloneMode = initialState.isStandaloneMode;
-let isAppInstalled = initialState.isAppInstalled;
-let selectedThemeStyle = initialState.selectedThemeStyle;
 
 function getDisplayName() {
   return (
