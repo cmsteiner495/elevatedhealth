@@ -9,6 +9,7 @@
   --color-teal-dark: #005f63;
   --color-orange: #ff6b1a;
   --color-accent-orange: #ff6b1a;
+  --color-accent-primary: #ff7a2f;
   --color-on-accent: #ffffff;
   --color-neutral-light: #f4f4f4;
   --color-white: #ffffff;
@@ -213,6 +214,15 @@ body {
   padding: 0 var(--content-padding);
 }
 
+.app-content {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: 0 var(--content-padding);
+  display: grid;
+  gap: var(--space-16);
+}
+
 .page-content {
   width: 100%;
   min-height: calc(100vh - 120px);
@@ -292,6 +302,7 @@ body {
 
 .top-bar-mobile-stack {
   text-align: center;
+  max-width: 76vw;
 }
 
 .logo-mark {
@@ -323,6 +334,12 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: var(--text-muted);
+}
+
+@media (max-width: 899px) {
+  .mobile-overline {
+    display: none;
+  }
 }
 
 .install-btn {
@@ -507,7 +524,7 @@ body {
 }
 
 .tab-button.active {
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  background: var(--color-accent-primary);
   color: #ffffff;
   border-color: transparent;
   box-shadow: var(--shadow-soft);
@@ -892,6 +909,12 @@ ul {
   font-size: var(--font-size-sm);
 }
 
+.list-removing {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
 /* Delete buttons */
 
 button.grocery-delete,
@@ -996,7 +1019,7 @@ input[type="submit"] {
   padding: var(--space-12) var(--space-20);
   font-size: var(--font-size-md);
   font-weight: 700;
-  background: var(--color-accent-orange);
+  background: var(--color-accent-primary);
   color: var(--color-on-accent);
   cursor: pointer;
   box-shadow: 0 18px 32px rgba(255, 107, 26, 0.35);
@@ -1015,6 +1038,12 @@ input[type="submit"] {
 .btn-primary:active {
   transform: translateY(0);
   box-shadow: 0 12px 24px rgba(255, 107, 26, 0.36);
+}
+
+.primary:focus-visible,
+.btn-primary:focus-visible {
+  outline: 2px solid #ffe1d0;
+  outline-offset: 2px;
 }
 
 .full-width {
@@ -1291,11 +1320,16 @@ input[type="submit"] {
 
 .bottom-nav-item.active .nav-label,
 .bottom-nav-item.active .nav-icon {
-  color: var(--accent);
+  color: var(--color-accent-primary);
 }
 
 .bottom-nav-item.active {
   transform: translateY(-2px);
+}
+
+.bottom-nav-item:focus-visible {
+  outline: 2px solid rgba(255, 122, 47, 0.7);
+  outline-offset: 4px;
 }
 
 .bottom-nav-item .nav-icon svg {
@@ -1314,7 +1348,7 @@ input[type="submit"] {
   border: none;
   cursor: pointer;
   margin-top: -32px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  background: var(--color-accent-primary);
   box-shadow: 0 18px 36px rgba(255, 140, 50, 0.7);
   display: flex;
   align-items: center;

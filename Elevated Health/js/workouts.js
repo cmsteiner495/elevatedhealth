@@ -15,6 +15,8 @@ import {
 } from "./dom.js";
 import { currentUser, currentFamilyId } from "./state.js";
 
+let workoutsCache = [];
+
 export function setWorkoutsFamilyState() {
   if (!workoutsNoFamily || !workoutsHasFamily) return;
 
@@ -24,6 +26,7 @@ export function setWorkoutsFamilyState() {
   } else {
     workoutsNoFamily.style.display = "block";
     workoutsHasFamily.style.display = "none";
+    workoutsCache = [];
     if (workoutsList) workoutsList.innerHTML = "";
     if (workoutsMessage) {
       workoutsMessage.textContent = "";
@@ -52,7 +55,8 @@ export async function loadWorkouts() {
     console.error("Error loading workouts:", error);
     workoutsList.innerHTML = "<li>Could not load workouts.</li>";
   } else {
-    renderWorkouts(data || []);
+    workoutsCache = data || [];
+    renderWorkouts();
   }
 }
 
@@ -75,7 +79,7 @@ export async function fetchWorkoutsByDate(dateValue) {
   return data || [];
 }
 
-function renderWorkouts(items) {
+function renderWorkouts(items = workoutsCache) {
   if (!workoutsList) return;
 
   if (!items.length) {
@@ -239,7 +243,11 @@ if (workoutsList) {
 
     if (e.target.classList.contains("workout-completed-checkbox")) {
       const completed = e.target.checked;
-
+      const updated = workoutsCache.map((workout) =>
+        workout.id === workoutId ? { ...workout, completed } : workout
+      );
+      workoutsCache = updated;
+      renderWorkouts();
       const { error } = await supabase
         .from("family_workouts")
         .update({ completed, updated_at: new Date().toISOString() })
@@ -247,10 +255,12 @@ if (workoutsList) {
 
       if (error) {
         console.error("Error updating workout:", error);
+        workoutsCache = workoutsCache.map((workout) =>
+          workout.id === workoutId ? { ...workout, completed: !completed } : workout
+        );
+        renderWorkouts();
         return;
       }
-
-      await loadWorkouts();
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
@@ -258,6 +268,7 @@ if (workoutsList) {
     }
 
     if (e.target.classList.contains("workout-delete")) {
+      li.classList.add("list-removing");
       const { error } = await supabase
         .from("family_workouts")
         .delete()
@@ -265,10 +276,12 @@ if (workoutsList) {
 
       if (error) {
         console.error("Error deleting workout:", error);
+        li.classList.remove("list-removing");
         return;
       }
 
-      await loadWorkouts();
+      workoutsCache = workoutsCache.filter((workout) => workout.id !== workoutId);
+      setTimeout(() => renderWorkouts(), 160);
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
