@@ -25,6 +25,29 @@ export const welcomeText = document.getElementById("welcome-text");
 export const tabButtons = document.querySelectorAll(".tab-button");
 export const tabPanels = document.querySelectorAll(".tab-panel");
 
+// Log / diary
+export const diaryPrevDayBtn = document.getElementById("diary-prev-day");
+export const diaryNextDayBtn = document.getElementById("diary-next-day");
+export const diaryTodayBtn = document.getElementById("diary-today-btn");
+export const diaryDateLabel = document.getElementById("diary-date-label");
+export const diaryDateSub = document.getElementById("diary-date-sub");
+export const diaryAddButtons = document.querySelectorAll("[data-diary-add]");
+export const diaryBreakfastList = document.getElementById(
+  "diary-breakfast-list"
+);
+export const diaryLunchList = document.getElementById("diary-lunch-list");
+export const diaryDinnerList = document.getElementById("diary-dinner-list");
+export const diarySnacksList = document.getElementById("diary-snacks-list");
+export const diaryExerciseList = document.getElementById("diary-exercise-list");
+export const diaryCaloriesGoal = document.getElementById("diary-calories-goal");
+export const diaryCaloriesFood = document.getElementById("diary-calories-food");
+export const diaryCaloriesExercise = document.getElementById(
+  "diary-calories-exercise"
+);
+export const diaryCaloriesRemaining = document.getElementById(
+  "diary-calories-remaining"
+);
+
 // Family
 export const familyStatus = document.getElementById("family-status");
 

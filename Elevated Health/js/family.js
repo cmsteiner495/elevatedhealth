@@ -20,6 +20,9 @@ export async function loadFamilyState(user) {
   setMealsFamilyState();
   setWorkoutsFamilyState();
   setProgressFamilyState();
+  document.dispatchEvent(
+    new CustomEvent("family:changed", { detail: { familyId: null } })
+  );
 
   const { data: memberships, error } = await supabase
     .from("family_members")
@@ -53,12 +56,19 @@ export async function loadFamilyState(user) {
     setWorkoutsFamilyState();
     setProgressFamilyState();
     await loadCoachHistory();
+    document.dispatchEvent(
+      new CustomEvent("family:changed", { detail: { familyId: null } })
+    );
   } else {
     const m = memberships[0];
     const familyName = m.family_groups?.name || "Your Family Group";
     const role = m.role;
 
     setCurrentFamilyId(m.family_group_id);
+
+    document.dispatchEvent(
+      new CustomEvent("family:changed", { detail: { familyId: m.family_group_id } })
+    );
 
     familyStatus.innerHTML = `
       <div class="card">

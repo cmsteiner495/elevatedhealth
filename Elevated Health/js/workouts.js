@@ -56,6 +56,25 @@ export async function loadWorkouts() {
   }
 }
 
+export async function fetchWorkoutsByDate(dateValue) {
+  if (!currentFamilyId || !dateValue) return [];
+
+  const { data, error } = await supabase
+    .from("family_workouts")
+    .select("*")
+    .eq("family_group_id", currentFamilyId)
+    .eq("workout_date", dateValue)
+    .order("workout_date", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error loading workouts for date:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
 function renderWorkouts(items) {
   if (!workoutsList) return;
 
@@ -201,6 +220,11 @@ if (workoutsForm) {
 
     workoutsForm.reset();
     await loadWorkouts();
+    document.dispatchEvent(
+      new CustomEvent("diary:refresh", {
+        detail: { date: dateValue, entity: "exercise" },
+      })
+    );
   });
 }
 
@@ -227,6 +251,9 @@ if (workoutsList) {
       }
 
       await loadWorkouts();
+      document.dispatchEvent(
+        new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
+      );
       return;
     }
 
@@ -242,6 +269,9 @@ if (workoutsList) {
       }
 
       await loadWorkouts();
+      document.dispatchEvent(
+        new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
+      );
       return;
     }
   });
