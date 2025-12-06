@@ -94,7 +94,7 @@
                   <span class="logo-mark-initials">EH</span>
                 </div>
                 <button
-                  class="icon-button notification-button"
+                  class="icon-button notification-button mobile-only"
                   type="button"
                   aria-label="Notifications"
                 >
@@ -117,10 +117,10 @@
                   >Welcome</span
                 >
                 <div class="top-bar-mobile-stack mobile-only">
-                  <span id="mobile-overline" class="mobile-overline">Today</span>
                   <span
                     id="mobile-page-title"
                     class="top-bar-title mobile-header-title"
+                    aria-live="polite"
                     >Welcome</span
                   >
                 </div>
@@ -142,6 +142,22 @@
                     </svg>
                   </span>
                   Install app
+                </button>
+                <button
+                  class="icon-button notification-button desktop-only"
+                  type="button"
+                  aria-label="Notifications"
+                >
+                  <span class="nav-icon"
+                    ><svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v3.4l-.94 2.35a.6.6 0 0 0 .55.82h9.78a.6.6 0 0 0 .55-.82l-.94-2.35V9a4.5 4.5 0 0 0-4.5-4.5Z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path d="M10 18.5a2 2 0 0 0 4 0" stroke-linecap="round" />
+                    </svg>
+                  </span>
                 </button>
                 <span class="badge-pill desktop-only">Beta</span>
                 <button id="logout-button" class="ghost-btn desktop-only">
@@ -235,6 +251,41 @@
                           Track weight, water, sleep &amp; steps.
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div class="dashboard-secondary-grid">
+                    <div class="card streak-card">
+                      <div class="card-header">
+                        <div>
+                          <h3>🔥 Streak</h3>
+                          <p class="subtitle small">Consecutive workout days</p>
+                        </div>
+                        <div id="streak-count" class="streak-count">0</div>
+                      </div>
+                      <p class="subtitle tiny">
+                        Keep logging workouts to extend your streak.
+                      </p>
+                    </div>
+
+                    <div class="card ai-digest-card">
+                      <div class="card-header">
+                        <div>
+                          <h3>AI Coach Weekly Digest</h3>
+                          <p class="subtitle small">Coming soon</p>
+                        </div>
+                        <button
+                          id="ai-digest-trigger"
+                          class="ghost-btn"
+                          type="button"
+                        >
+                          Preview
+                        </button>
+                      </div>
+                      <p>
+                        A weekly summary of your meals, workouts, and wins will live
+                        here. Tap preview to test the placeholder.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -414,7 +465,7 @@
             </section>
 
             <!-- MEALS TAB -->
-            <section id="meals-tab" class="tab-panel">
+            <section id="meals-tab" class="tab-panel full-width">
               <div class="app-content">
                 <div class="card">
                   <div class="card-header">
@@ -498,7 +549,7 @@
             </section>
 
             <!-- WORKOUTS TAB -->
-            <section id="workouts-tab" class="tab-panel">
+            <section id="workouts-tab" class="tab-panel full-width">
               <div class="app-content">
               <div class="card">
                 <div class="card-header">
@@ -589,7 +640,7 @@
             </section>
 
             <!-- GROCERY TAB -->
-            <section id="grocery-tab" class="tab-panel">
+            <section id="grocery-tab" class="tab-panel full-width">
               <div class="app-content">
               <div class="card">
                 <div class="card-header">
@@ -659,7 +710,7 @@
             </section>
 
             <!-- PROGRESS TAB -->
-            <section id="progress-tab" class="tab-panel">
+            <section id="progress-tab" class="tab-panel full-width">
               <div class="app-content">
               <div class="card">
                 <div class="card-header">
@@ -745,7 +796,7 @@
             </section>
 
             <!-- FAMILY TAB -->
-            <section id="family-tab" class="tab-panel">
+            <section id="family-tab" class="tab-panel full-width">
               <div class="app-content">
               <div class="card">
                 <div class="card-header">
@@ -811,6 +862,20 @@
                 <div class="more-grid">
                   <button
                     class="more-tile"
+                    data-tab-target="meals-tab"
+                  >
+                    <span class="more-title">Meals</span>
+                    <span class="more-subtitle">Plan your dinners</span>
+                  </button>
+                  <button
+                    class="more-tile"
+                    data-tab-target="workouts-tab"
+                  >
+                    <span class="more-title">Workouts</span>
+                    <span class="more-subtitle">Sessions &amp; streak</span>
+                  </button>
+                  <button
+                    class="more-tile"
                     data-tab-target="grocery-tab"
                   >
                     <span class="more-title">Grocery list</span>
@@ -836,10 +901,21 @@
                   </button>
                   <button
                     class="more-tile"
+                    data-tab-target="family-tab"
+                  >
+                    <span class="more-title">Family</span>
+                    <span class="more-subtitle">Manage your group</span>
+                  </button>
+                  <button
+                    class="more-tile"
                     data-tab-target="settings-tab"
                   >
                     <span class="more-title">Settings</span>
                     <span class="more-subtitle">Appearance &amp; account</span>
+                  </button>
+                  <button class="more-tile" data-action="download-app">
+                    <span class="more-title">Download App</span>
+                    <span class="more-subtitle">Get the latest build</span>
                   </button>
                 </div>
               </div>
@@ -880,13 +956,24 @@
                     <div>
                       <div class="setting-title">Theme style</div>
                       <div class="setting-subtitle">
-                        Seasonal looks coming soon — pick a starter vibe.
+                        Seasonal looks powered by theme tokens.
                       </div>
                     </div>
-                    <div class="chip-row" role="group" aria-label="Theme style">
-                      <button class="chip active" type="button">Default</button>
-                      <button class="chip" type="button" disabled>Mountain</button>
-                      <button class="chip" type="button" disabled>Minimal</button>
+                    <div
+                      class="chip-row"
+                      role="group"
+                      aria-label="Theme style selector"
+                      id="theme-style-chips"
+                    >
+                      <button class="chip active" data-theme-style="mountain" type="button">
+                        Mountain Blue
+                      </button>
+                      <button class="chip" data-theme-style="summer" type="button">
+                        Summer Glow
+                      </button>
+                      <button class="chip" data-theme-style="winter" type="button">
+                        Winter Frost
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1046,25 +1133,37 @@
         <div id="more-menu-backdrop" class="more-menu-backdrop" aria-hidden="true">
           <div id="more-menu" class="more-menu" role="menu">
             <div class="more-menu-header">More</div>
+            <button class="more-menu-item" data-menu-target="meals-tab" role="menuitem">
+              Meals
+              <span class="more-menu-sub">Plan breakfast, lunch &amp; dinner</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="workouts-tab" role="menuitem">
+              Workouts
+              <span class="more-menu-sub">Schedule your sessions</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="grocery-tab" role="menuitem">
+              Grocery
+              <span class="more-menu-sub">Shared shopping list</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="progress-tab" role="menuitem">
+              Progress
+              <span class="more-menu-sub">Track weight &amp; wellness</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="family-tab" role="menuitem">
+              Family
+              <span class="more-menu-sub">Manage your group</span>
+            </button>
             <button class="more-menu-item" data-menu-target="settings" role="menuitem">
               Settings
               <span class="more-menu-sub">Appearance &amp; account</span>
             </button>
             <button id="more-menu-install" class="more-menu-item" role="menuitem">
-              Install app
+              Install app (mobile)
               <span class="more-menu-sub">Add Elevated Health to your device</span>
             </button>
-            <button class="more-menu-item" role="menuitem" disabled>
-              Profile
-              <span class="more-menu-sub">Coming soon</span>
-            </button>
-            <button class="more-menu-item" role="menuitem" disabled>
-              Notifications
-              <span class="more-menu-sub">Coming soon</span>
-            </button>
-            <button class="more-menu-item" role="menuitem" disabled>
-              Help
-              <span class="more-menu-sub">Coming soon</span>
+            <button class="more-menu-item" data-action="download-app" role="menuitem">
+              Download App
+              <span class="more-menu-sub">Desktop build</span>
             </button>
           </div>
         </div>
