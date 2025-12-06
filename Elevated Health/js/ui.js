@@ -7,12 +7,41 @@ import {
   modalTitle,
   themeLabel,
   themeToggleButton,
+  toastContainer,
 } from "./dom.js";
 
 const THEME_KEY = "eh-theme";
 let activeTheme = "dark";
 let modalKeyHandler = null;
 let previousFocus = null;
+let dinnerLogHandler = null;
+
+export function maybeVibrate(pattern = [12]) {
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function")
+    return;
+  try {
+    navigator.vibrate(pattern);
+  } catch (err) {
+    console.warn("Vibration not supported", err);
+  }
+}
+
+export function showToast(message = "") {
+  if (!toastContainer || !message) return;
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 250);
+  }, 3200);
+}
+
+export function setDinnerLogHandler(cb) {
+  dinnerLogHandler = cb;
+}
 
 const dinnerIdeas = [
   {
@@ -122,6 +151,8 @@ export function initThemeToggle() {
   themeToggleButton.addEventListener("click", () => {
     const next = activeTheme === "dark" ? "light" : "dark";
     setTheme(next);
+    showToast("Settings saved");
+    maybeVibrate([10]);
   });
 }
 
@@ -178,9 +209,9 @@ export function openModal({ title, body, primaryLabel, onPrimary }) {
     if (primaryLabel) {
       modalPrimaryButton.textContent = primaryLabel;
       modalPrimaryButton.style.display = "inline-flex";
-      modalPrimaryButton.onclick = () => {
+      modalPrimaryButton.onclick = async () => {
         if (typeof onPrimary === "function") {
-          onPrimary();
+          await onPrimary();
         }
         closeModal();
       };
@@ -304,8 +335,11 @@ function openDinnerModal(meal) {
   openModal({
     title: meal.title,
     body,
-    primaryLabel: meal.recipeUrl ? "Open recipe" : "Add to plan",
-    onPrimary: () => {
+    primaryLabel: "Log this meal",
+    onPrimary: async () => {
+      if (typeof dinnerLogHandler === "function") {
+        await dinnerLogHandler(meal);
+      }
       if (meal.recipeUrl) {
         window.open(meal.recipeUrl, "_blank");
       }

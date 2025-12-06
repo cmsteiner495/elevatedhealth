@@ -50,7 +50,7 @@ export async function loadCoachHistory() {
   if (!currentFamilyId || !currentUser) {
     appendCoachMessage(
       "assistant",
-      "I’m your AI Coach. Once you’re connected to a family, I’ll remember what we discuss."
+      "I’m Ella, your Elevated Health coach. Once you’re connected to a family, I’ll remember what we discuss."
     );
     return;
   }
@@ -74,7 +74,7 @@ export async function loadCoachHistory() {
   if (!data || data.length === 0) {
     appendCoachMessage(
       "assistant",
-      "I’m your AI Coach. Ask me anything about meals, workouts, or progress, or use the 7-Day Plan button."
+      "I’m Ella. Ask me anything about meals, workouts, or progress, or use the 7-Day Plan button."
     );
     return;
   }
@@ -272,7 +272,7 @@ async function applyCoachUpdates(updates) {
             meal_date: mealDate,
             meal_type: mealType,
             title,
-            notes: m.notes ? `[AI Coach] ${m.notes}` : "[AI Coach]",
+            notes: m.notes ? `[Ella] ${m.notes}` : "[Ella]",
           };
         })
         .filter(Boolean);
@@ -322,7 +322,7 @@ async function applyCoachUpdates(updates) {
             workout_type: safeType || SAFE_WORKOUT_TYPE,
             duration_min:
               w.duration_min != null ? w.duration_min : w.duration || null,
-            notes: w.notes ? `[AI Coach] ${w.notes}` : "[AI Coach]",
+            notes: w.notes ? `[Ella] ${w.notes}` : "[Ella]",
           };
 
           // If you later sync this with your DB constraint, you can

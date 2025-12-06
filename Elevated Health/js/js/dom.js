@@ -84,7 +84,7 @@ export const progressNotesInput =
 export const progressMessage = document.getElementById("progress-message");
 export const progressList = document.getElementById("progress-list");
 
-// AI Coach
+// Ella
 export const coachMessages = document.getElementById("coach-messages");
 export const coachForm = document.getElementById("coach-form");
 export const coachInput = document.getElementById("coach-input");

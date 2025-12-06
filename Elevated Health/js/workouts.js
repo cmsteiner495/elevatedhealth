@@ -14,6 +14,7 @@ import {
   workoutsList,
 } from "./dom.js";
 import { currentUser, currentFamilyId } from "./state.js";
+import { maybeVibrate, showToast } from "./ui.js";
 
 let workoutsCache = [];
 
@@ -229,6 +230,8 @@ if (workoutsForm) {
         detail: { date: dateValue, entity: "exercise" },
       })
     );
+    showToast("Exercise logged");
+    maybeVibrate([12]);
   });
 }
 

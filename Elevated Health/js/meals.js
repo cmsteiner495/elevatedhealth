@@ -11,7 +11,22 @@ import {
   mealsMessage,
   mealsList,
 } from "./dom.js";
-import { currentUser, currentFamilyId } from "./state.js";
+import {
+  currentUser,
+  currentFamilyId,
+  getTodayDate,
+  selectedDate,
+  setSelectedDate,
+} from "./state.js";
+import { maybeVibrate, setDinnerLogHandler, showToast } from "./ui.js";
+
+setDinnerLogHandler(async (meal) => {
+  await logMealToToday({
+    title: meal.title,
+    meal_type: "dinner",
+    notes: meal.description || meal.notes,
+  });
+});
 
 export function setMealsFamilyState() {
   if (!mealsNoFamily || !mealsHasFamily) return;
@@ -74,6 +89,46 @@ export async function fetchMealsByDate(dateValue) {
   return data || [];
 }
 
+async function logMealToToday(meal) {
+  if (!currentUser || !currentFamilyId) {
+    showToast("Join a family to log meals.");
+    return;
+  }
+
+  const today = getTodayDate();
+  const title = meal.title?.trim();
+  if (!title) return;
+
+  const mealType = meal.meal_type || meal.mealType || "dinner";
+  const notes = meal.notes || null;
+
+  const { error } = await supabase.from("family_meals").insert({
+    family_group_id: currentFamilyId,
+    added_by: currentUser.id,
+    meal_date: today,
+    meal_type: mealType,
+    title,
+    notes,
+  });
+
+  if (error) {
+    console.error("Error logging meal:", error);
+    showToast("Could not add meal to log");
+    return;
+  }
+
+  showToast("Added to today’s log");
+  maybeVibrate([16]);
+  const isViewingToday = selectedDate === today;
+  if (!isViewingToday) {
+    setSelectedDate(today);
+  }
+  document.dispatchEvent(
+    new CustomEvent("diary:refresh", { detail: { date: today, entity: "meal" } })
+  );
+  await loadMeals();
+}
+
 function renderMeals(items) {
   if (!mealsList) return;
 
@@ -87,6 +142,9 @@ function renderMeals(items) {
   for (const meal of items) {
     const li = document.createElement("li");
     li.dataset.mealId = meal.id;
+    li.dataset.mealType = meal.meal_type;
+    li.dataset.mealTitle = meal.title;
+    li.dataset.mealNotes = meal.notes || "";
     li.style.display = "flex";
     li.style.flexDirection = "column";
     li.style.gap = "0.25rem";
@@ -121,6 +179,14 @@ function renderMeals(items) {
     right.style.display = "flex";
     right.style.alignItems = "center";
     right.style.gap = "0.5rem";
+
+    const logBtn = document.createElement("button");
+    logBtn.textContent = "Add to log";
+    logBtn.type = "button";
+    logBtn.classList.add("ghost-btn", "meal-log-btn");
+    logBtn.style.paddingInline = "0.6rem";
+    logBtn.style.fontSize = "0.85rem";
+    right.appendChild(logBtn);
 
     const delBtn = document.createElement("button");
     delBtn.textContent = "✕";
@@ -207,6 +273,15 @@ if (mealsList) {
 
     const mealId = li.dataset.mealId;
     if (!mealId) return;
+
+    if (e.target.classList.contains("meal-log-btn")) {
+      await logMealToToday({
+        title: li.dataset.mealTitle,
+        meal_type: li.dataset.mealType,
+        notes: li.dataset.mealNotes,
+      });
+      return;
+    }
 
     if (e.target.classList.contains("meal-delete")) {
       const { error } = await supabase

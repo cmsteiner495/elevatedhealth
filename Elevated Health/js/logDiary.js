@@ -15,6 +15,7 @@ import {
   diaryCaloriesFood,
   diaryCaloriesExercise,
   diaryCaloriesRemaining,
+  dashboardCaloriesFill,
 } from "./dom.js";
 import {
   currentFamilyId,
@@ -139,18 +140,26 @@ function setDateText(dateValue) {
 function calculateCalories(meals, workouts) {
   // UI-only placeholder calculations for now. Plug real calories later.
   const goal = 2000;
-  const food = meals.reduce((sum, meal) => sum + (meal.calories || 0), 0);
+  const food = meals.reduce(
+    (sum, meal) => sum + (meal.calories ?? 450),
+    0
+  );
   const exercise = workouts.reduce(
     (sum, workout) => sum + (workout.calories || 0),
     0
   );
   const remaining = goal - food + exercise;
+  const percent = Math.max(0, Math.min(100, Math.round((food / goal) * 100)));
 
   if (diaryCaloriesGoal) diaryCaloriesGoal.textContent = goal;
   if (diaryCaloriesFood) diaryCaloriesFood.textContent = food;
   if (diaryCaloriesExercise) diaryCaloriesExercise.textContent = exercise;
   if (diaryCaloriesRemaining)
     diaryCaloriesRemaining.textContent = Math.max(remaining, 0);
+  if (dashboardCaloriesFill) {
+    dashboardCaloriesFill.style.width = `${percent}%`;
+    dashboardCaloriesFill.setAttribute("aria-valuenow", String(percent));
+  }
 }
 
 async function loadDiary(dateValue) {
@@ -246,6 +255,39 @@ export function initDiary() {
       refreshDiaryForSelectedDate();
     }
   });
+
+  const logPanel = document.getElementById("log-tab");
+  if (logPanel) {
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    logPanel.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      tracking = true;
+    });
+
+    logPanel.addEventListener("touchmove", (e) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      const deltaX = t.clientX - startX;
+      const deltaY = Math.abs(t.clientY - startY);
+      if (deltaY > 40) {
+        tracking = false;
+        return;
+      }
+      if (Math.abs(deltaX) > 60) {
+        adjustSelectedDate(deltaX > 0 ? -1 : 1);
+        tracking = false;
+      }
+    });
+
+    logPanel.addEventListener("touchend", () => {
+      tracking = false;
+    });
+  }
 
   document.addEventListener("family:changed", () => {
     refreshDiaryForSelectedDate();

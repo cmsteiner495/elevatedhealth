@@ -55,6 +55,8 @@ import {
   initModal,
   initThemeToggle,
   openModal,
+  showToast,
+  maybeVibrate,
 } from "./ui.js";
 
 console.log(
@@ -70,6 +72,7 @@ let isStandaloneMode;
 let isAppInstalled;
 let selectedThemeStyle;
 let diaryRealtimeChannel;
+const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 const TAB_TITLE_MAP = {
   "dashboard-tab": "Overview",
@@ -79,7 +82,7 @@ const TAB_TITLE_MAP = {
   "grocery-tab": "Grocery",
   "progress-tab": "Progress",
   "family-tab": "Family",
-  "coach-tab": "AI Coach",
+  "coach-tab": "Ella",
   "settings-tab": "Settings",
   "more-tab": "More",
 };
@@ -127,7 +130,7 @@ function showApp() {
 
 function triggerAIDigestPlaceholder() {
   openModal({
-    title: "AI Coach Weekly Digest",
+    title: "Ella Weekly Digest",
     body: "Your personalized digest is coming soon. We'll use your meals, workouts, and progress to craft insights.",
     primaryLabel: "Got it",
   });
@@ -321,6 +324,10 @@ function activateTab(targetId) {
   }
 
   updateMobileHeader(targetId);
+
+  if (isCoarsePointer) {
+    maybeVibrate([6]);
+  }
 
   if (targetId === "log-tab") {
     refreshDiaryForSelectedDate();
@@ -543,12 +550,54 @@ const desktopFabMenu = document.getElementById("desktop-fab-menu");
 const desktopFabMenuButtons = desktopFabMenu
   ? desktopFabMenu.querySelectorAll(".desktop-fab-menu-item")
   : [];
+const quickSheet = quickSheetBackdrop
+  ? quickSheetBackdrop.querySelector(".quick-sheet")
+  : null;
+const keyboardAwareSelectors = [
+  "input",
+  "textarea",
+  "#coach-input",
+  "#meal-title",
+  "#meal-notes",
+  "#workout-title",
+  "#workout-notes",
+  "#progress-weight",
+  "#progress-water",
+  "#progress-notes",
+  "#login-email",
+  "#login-password",
+  "#signup-email",
+  "#signup-password",
+  "#signup-display-name",
+];
 
 // Mobile bottom-sheet helpers
+function syncViewportOffset() {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+  const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  document.body.style.setProperty("--keyboard-offset", `${offset}px`);
+  document.body.classList.toggle("keyboard-visible", offset > 0);
+}
+
+function ensureInputVisible(target) {
+  if (!target) return;
+  syncViewportOffset();
+  setTimeout(() => {
+    try {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (err) {
+      // non-fatal: some elements may not support scrollIntoView in older browsers
+    }
+  }, 120);
+}
+
 function openQuickSheet() {
   if (!quickSheetBackdrop) return;
   quickSheetBackdrop.classList.add("is-open");
   document.body.classList.add("sheet-open");
+  if (isCoarsePointer) maybeVibrate([8, 12]);
+  syncViewportOffset();
 }
 
 function closeQuickSheet() {
@@ -735,9 +784,19 @@ function setDesktopFabMenuOpen(isOpen) {
 }
 
 function handleQuickAction(action) {
+  if (isCoarsePointer) maybeVibrate([10]);
   switch (action) {
     case "log-meal":
       focusLogSection("meal");
+      break;
+
+    case "log-ella-meal":
+      activateTab("meals-tab");
+      document.getElementById("ai-dinner-grid")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      showToast("Opening Ella’s picks");
       break;
 
     case "log-water":
@@ -752,7 +811,7 @@ function handleQuickAction(action) {
     case "barcode":
     case "meal-scan":
       activateTab("log-tab");
-      alert("Barcode & Meal Scan are coming soon.");
+      showToast("Coming soon: quick scans");
       break;
 
     default:
@@ -817,6 +876,11 @@ if (quickSheetBackdrop) {
   });
 }
 
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncViewportOffset);
+  window.visualViewport.addEventListener("scroll", syncViewportOffset);
+}
+
 // Sheet buttons (mobile)
 if (quickSheetActionButtons && quickSheetActionButtons.length) {
   quickSheetActionButtons.forEach((btn) => {
@@ -826,6 +890,15 @@ if (quickSheetActionButtons && quickSheetActionButtons.length) {
     });
   });
 }
+
+document.addEventListener("focusin", (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!keyboardAwareSelectors.some((selector) => target.matches(selector))) {
+    return;
+  }
+  ensureInputVisible(target);
+});
 
 [
   installHelperButton,
@@ -852,6 +925,8 @@ document.querySelectorAll("[data-placeholder-toggle]").forEach((btn) => {
     }
   });
 });
+
+syncViewportOffset();
 
 onSelectedDateChange((dateValue) => {
   syncDateInputs(dateValue);
