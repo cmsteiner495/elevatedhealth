@@ -400,43 +400,149 @@ body {
   margin-top: 4px;
 }
 
-/* Log tab */
+/* Diary (Log tab) */
 
-.log-grid {
+.diary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 16px 18px;
+}
+
+.diary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.diary-date-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card-soft);
+  border-radius: var(--radius-pill);
+  padding: 6px 10px;
+  border: 1px solid var(--border-subtle);
+}
+
+.diary-date-display {
+  min-width: 180px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.today-btn {
+  padding-inline: 14px;
+}
+
+.ghost-btn.pill {
+  border-radius: var(--radius-pill);
+  padding-inline: 10px;
+}
+
+.diary-calories {
+  display: grid;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(74, 165, 255, 0.12),
+      rgba(255, 140, 50, 0.08));
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  padding: 14px 14px 16px;
+}
+
+.calories-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.calories-value {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.calories-label {
+  color: var(--text-soft);
+}
+
+.calories-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.calorie-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.calorie-chip span {
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
+.calorie-chip strong {
+  font-size: 1rem;
+}
+
+.diary-sections {
   display: grid;
   gap: 12px;
 }
 
-@media (min-width: 900px) {
-  .log-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.log-card {
-  background: #131825;
+.diary-section {
+  border: 1px solid var(--border-subtle);
+  background: #0e1420;
   border-radius: 18px;
   padding: 12px 12px 14px;
-  border: 1px solid var(--border-subtle);
+}
+
+.diary-section-header {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.log-card h4 {
+.diary-section h4 {
   margin: 0;
-  font-size: 0.95rem;
 }
 
-.log-card-button {
-  margin-top: 6px;
-  align-self: flex-start;
-  padding-inline: 14px;
+.diary-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
 }
 
-.log-card-highlight {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15),
-    0 16px 34px rgba(0, 0, 0, 0.9);
+.diary-entry {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.diary-entry-title {
+  font-weight: 600;
+}
+
+.diary-entry-meta {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  margin-top: 4px;
+}
+
+.diary-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 8px 4px;
 }
 
 /* Lists */
