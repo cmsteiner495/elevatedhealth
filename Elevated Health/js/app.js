@@ -14,6 +14,9 @@ import {
   loginMessage,
   logoutButton,
   welcomeText,
+  mobilePageTitle,
+  mobileOverline,
+  profileAvatar,
   tabButtons,
   tabPanels,
   coachMessages,
@@ -28,6 +31,8 @@ import {
   moreMenuBackdrop,
   moreMenuItems,
   settingsEmailLabel,
+  installHelperButton,
+  settingsInstallButton,
 } from "./dom.js";
 import {
   currentUser,
@@ -44,7 +49,12 @@ import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
 import { initCoachHandlers } from "./coach.js";
 import { initDiary } from "./logDiary.js";
-import { initAIDinnerCards, initModal, initThemeToggle } from "./ui.js";
+import {
+  initAIDinnerCards,
+  initModal,
+  initThemeToggle,
+  openModal,
+} from "./ui.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -64,6 +74,62 @@ function showAuth() {
 function showApp() {
   if (authSection) authSection.style.display = "none";
   if (appSection) appSection.style.display = "block";
+}
+
+const TAB_TITLE_MAP = {
+  "dashboard-tab": "Overview",
+  "log-tab": "Log",
+  "meals-tab": "Meals",
+  "workouts-tab": "Workouts",
+  "grocery-tab": "Grocery",
+  "progress-tab": "Progress",
+  "family-tab": "Family",
+  "coach-tab": "Coach",
+  "settings-tab": "Settings",
+};
+
+let activeTabId = "dashboard-tab";
+let displayNameValue = "";
+
+function getDisplayName() {
+  return (
+    displayNameValue ||
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.email ||
+    "there"
+  );
+}
+
+function updateAvatar(initialsSource) {
+  if (!profileAvatar) return;
+  const base = initialsSource || getDisplayName();
+  const initial = base?.trim().charAt(0)?.toUpperCase() || "U";
+  profileAvatar.textContent = initial;
+  profileAvatar.setAttribute("aria-label", `Profile for ${base}`);
+}
+
+function updateMobileHeader(targetId = activeTabId) {
+  if (targetId) {
+    activeTabId = targetId;
+  }
+  const displayName = getDisplayName();
+  if (mobilePageTitle) {
+    if (targetId === "dashboard-tab") {
+      const firstName = displayName?.split(" ")[0] || displayName;
+      mobilePageTitle.textContent = `Welcome, ${firstName}`;
+    } else {
+      mobilePageTitle.textContent = TAB_TITLE_MAP[targetId] || "";
+    }
+  }
+  if (mobileOverline) {
+    if (targetId === "dashboard-tab") {
+      mobileOverline.textContent = "Today";
+      mobileOverline.style.visibility = "visible";
+    } else {
+      mobileOverline.textContent = "";
+      mobileOverline.style.visibility = "hidden";
+    }
+  }
 }
 
 function updateSettingsEmail(email) {
@@ -86,6 +152,9 @@ async function loadUserProfile(user) {
     if (welcomeText) {
       welcomeText.textContent = `Welcome, ${user.email}`;
     }
+    displayNameValue = user.email;
+    updateAvatar(displayNameValue);
+    updateMobileHeader(activeTabId);
     updateSettingsEmail(user.email);
     return;
   }
@@ -105,6 +174,9 @@ async function loadUserProfile(user) {
       if (welcomeText) {
         welcomeText.textContent = `Welcome, ${user.email}`;
       }
+      displayNameValue = user.email;
+      updateAvatar(displayNameValue);
+      updateMobileHeader(activeTabId);
       updateSettingsEmail(user.email);
       return;
     }
@@ -114,6 +186,9 @@ async function loadUserProfile(user) {
         newProfile.display_name || user.email
       }`;
     }
+    displayNameValue = newProfile.display_name || user.email;
+    updateAvatar(displayNameValue);
+    updateMobileHeader(activeTabId);
     updateSettingsEmail(user.email);
     return;
   }
@@ -121,6 +196,9 @@ async function loadUserProfile(user) {
   if (welcomeText) {
     welcomeText.textContent = `Welcome, ${profile.display_name || user.email}`;
   }
+  displayNameValue = profile.display_name || user.email;
+  updateAvatar(displayNameValue);
+  updateMobileHeader(activeTabId);
   updateSettingsEmail(profile.display_name || user.email);
 }
 
@@ -150,6 +228,7 @@ async function init() {
 
 function activateTab(targetId) {
   if (!targetId || !tabButtons || !tabPanels) return;
+  activeTabId = targetId;
 
   tabButtons.forEach((btn) => {
     const btnTab = btn.dataset.tab;
@@ -166,6 +245,8 @@ function activateTab(targetId) {
   if (targetId !== "settings-tab") {
     closeMoreMenu();
   }
+
+  updateMobileHeader(targetId);
 }
 
 function syncDateInputs(dateValue) {
@@ -328,6 +409,7 @@ function openMoreMenu() {
   moreMenuBackdrop.classList.add("is-open");
   moreMenuBackdrop.setAttribute("aria-hidden", "false");
   moreNavButton.setAttribute("aria-expanded", "true");
+  moreNavButton.classList.add("active");
 }
 
 function closeMoreMenu() {
@@ -335,6 +417,7 @@ function closeMoreMenu() {
   moreMenuBackdrop.classList.remove("is-open");
   moreMenuBackdrop.setAttribute("aria-hidden", "true");
   moreNavButton.setAttribute("aria-expanded", "false");
+  moreNavButton.classList.remove("active");
 }
 
 // Desktop floating FAB + vertical menu
@@ -381,10 +464,70 @@ if (moreMenuItems && moreMenuItems.length) {
     item.addEventListener("click", () => {
       const target = item.dataset.menuTarget;
       if (target === "settings") {
-        activateTab("settings-tab");
+        closeMoreMenu();
+        setTimeout(() => activateTab("settings-tab"), 160);
+        return;
       }
       closeMoreMenu();
     });
+  });
+}
+
+function detectPlatform() {
+  const ua = (navigator.userAgent || "").toLowerCase();
+  if (/iphone|ipad|ipod/.test(ua)) return "ios";
+  if (/android/.test(ua)) return "android";
+  return "desktop";
+}
+
+function showInstallHelper() {
+  const platform = detectPlatform();
+  const copy = {
+    ios: {
+      intro: "Install Elevated Health to launch it like a native app on iPhone.",
+      steps: [
+        "Tap the Share icon in Safari.",
+        "Choose 'Add to Home Screen'.",
+        "Confirm to place the Elevated Health icon on your Home Screen.",
+      ],
+    },
+    android: {
+      intro: "Install Elevated Health from Chrome for quick access.",
+      steps: [
+        "Open the Chrome menu (⋮).",
+        "Tap 'Install app' or 'Add to Home screen'.",
+        "Accept the prompt to save Elevated Health.",
+      ],
+    },
+    desktop: {
+      intro:
+        "Save Elevated Health as an app from your browser for a focused window.",
+      steps: [
+        "Open your browser menu and choose the Install/Save as app option.",
+        "Name the shortcut and confirm.",
+        "Pin the new app to your dock or taskbar for easy access.",
+      ],
+    },
+  };
+
+  const content = document.createElement("div");
+  content.className = "install-helper-body";
+  const intro = document.createElement("p");
+  intro.textContent = copy[platform].intro;
+  const steps = document.createElement("ol");
+  steps.className = "install-helper-steps";
+  copy[platform].steps.forEach((line) => {
+    const li = document.createElement("li");
+    li.textContent = line;
+    steps.appendChild(li);
+  });
+  content.appendChild(intro);
+  content.appendChild(steps);
+
+  openModal({
+    title: "Install Elevated Health",
+    body: content,
+    primaryLabel: null,
   });
 }
 
@@ -493,6 +636,13 @@ if (quickSheetActionButtons && quickSheetActionButtons.length) {
     });
   });
 }
+
+[installHelperButton, settingsInstallButton].forEach((btn) => {
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    showInstallHelper();
+  });
+});
 
 document.querySelectorAll("[data-placeholder-toggle]").forEach((btn) => {
   btn.addEventListener("click", () => {
