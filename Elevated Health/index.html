@@ -183,57 +183,151 @@
 
             <!-- CENTRAL LOG TAB -->
             <section id="log-tab" class="tab-panel full-width">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <h3>Log</h3>
-                    <p class="subtitle small">
-                      One place to log meals, workouts, and daily progress.
-                    </p>
+              <div class="card diary-card">
+                <div class="diary-header">
+                  <div class="diary-date-selector">
+                    <button id="diary-prev-day" class="ghost-btn pill">
+                      ←
+                    </button>
+                    <div class="diary-date-display" id="diary-date-display">
+                      Today
+                    </div>
+                    <button id="diary-next-day" class="ghost-btn pill">
+                      →
+                    </button>
+                  </div>
+                  <button id="diary-today" class="ghost-btn today-btn">
+                    Today
+                  </button>
+                </div>
+
+                <div class="diary-calories">
+                  <div class="calories-main">
+                    <div class="calories-value" id="calories-remaining">
+                      1,850
+                    </div>
+                    <div class="calories-label">Calories remaining</div>
+                  </div>
+                  <div class="calories-breakdown">
+                    <div class="calorie-chip">
+                      <span>Goal</span>
+                      <strong>2,200</strong>
+                    </div>
+                    <div class="calorie-chip">
+                      <span>Food</span>
+                      <strong>1,050</strong>
+                    </div>
+                    <div class="calorie-chip">
+                      <span>Exercise</span>
+                      <strong>700</strong>
+                    </div>
                   </div>
                 </div>
 
-                <div class="log-grid">
-                  <div class="log-card" id="log-section-meal">
-                    <h4>Meals</h4>
-                    <p class="subtitle tiny">
-                      Add or edit meals in your weekly plan.
-                    </p>
-                    <button
-                      type="button"
-                      class="primary log-card-button"
-                      data-log-target="meals-tab"
-                    >
-                      Open meal log
-                    </button>
+                <div class="diary-sections">
+                  <div class="diary-section" data-section="breakfast">
+                    <div class="diary-section-header">
+                      <h4>Breakfast</h4>
+                      <button
+                        class="ghost-btn pill diary-add"
+                        data-diary-add="breakfast"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <ul class="diary-list" id="diary-breakfast-list">
+                      <li class="diary-empty">Loading…</li>
+                    </ul>
                   </div>
 
-                  <div class="log-card" id="log-section-workout">
-                    <h4>Workouts</h4>
-                    <p class="subtitle tiny">
-                      Schedule or update your next workout.
-                    </p>
-                    <button
-                      type="button"
-                      class="primary log-card-button"
-                      data-log-target="workouts-tab"
-                    >
-                      Open workout log
-                    </button>
+                  <div class="diary-section" data-section="lunch">
+                    <div class="diary-section-header">
+                      <h4>Lunch</h4>
+                      <button
+                        class="ghost-btn pill diary-add"
+                        data-diary-add="lunch"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <ul class="diary-list" id="diary-lunch-list">
+                      <li class="diary-empty">Loading…</li>
+                    </ul>
                   </div>
 
-                  <div class="log-card" id="log-section-progress">
-                    <h4>Daily progress</h4>
-                    <p class="subtitle tiny">
-                      Log weight, water, sleep, steps, and mood.
-                    </p>
-                    <button
-                      type="button"
-                      class="primary log-card-button"
-                      data-log-target="progress-tab"
-                    >
-                      Open daily log
-                    </button>
+                  <div class="diary-section" data-section="dinner">
+                    <div class="diary-section-header">
+                      <h4>Dinner</h4>
+                      <button
+                        class="ghost-btn pill diary-add"
+                        data-diary-add="dinner"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <ul class="diary-list" id="diary-dinner-list">
+                      <li class="diary-empty">Loading…</li>
+                    </ul>
+                  </div>
+
+                  <div class="diary-section" data-section="snacks">
+                    <div class="diary-section-header">
+                      <h4>Snacks</h4>
+                      <button
+                        class="ghost-btn pill diary-add"
+                        data-diary-add="snacks"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <ul class="diary-list" id="diary-snacks-list">
+                      <li class="diary-empty">Loading…</li>
+                    </ul>
+                  </div>
+
+                  <div class="diary-section" data-section="exercise">
+                    <div class="diary-section-header">
+                      <h4>Exercise</h4>
+                      <button
+                        class="ghost-btn pill diary-add"
+                        data-diary-add="exercise"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <ul class="diary-list" id="diary-exercise-list">
+                      <li class="diary-empty">Loading…</li>
+                    </ul>
+                  </div>
+
+                  <div class="diary-section" data-section="water">
+                    <div class="diary-section-header">
+                      <h4>Water</h4>
+                      <button
+                        class="ghost-btn pill diary-add"
+                        data-diary-add="water"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <ul class="diary-list" id="diary-water-list">
+                      <li class="diary-empty">Loading…</li>
+                    </ul>
+                  </div>
+
+                  <div class="diary-section" data-section="notes">
+                    <div class="diary-section-header">
+                      <h4>Notes</h4>
+                      <button
+                        class="ghost-btn pill diary-add"
+                        data-diary-add="notes"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <ul class="diary-list" id="diary-notes-list">
+                      <li class="diary-empty">Loading…</li>
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -269,6 +363,7 @@
                         <option value="breakfast">Breakfast</option>
                         <option value="lunch">Lunch</option>
                         <option value="dinner" selected>Dinner</option>
+                        <option value="snack">Snack</option>
                       </select>
                     </div>
                     <div>

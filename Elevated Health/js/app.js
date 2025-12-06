@@ -18,8 +18,11 @@ import {
   tabPanels,
   coachMessages,
   mealDateInput,
+  mealTypeInput,
   workoutDateInput,
   progressDateInput,
+  progressWaterInput,
+  progressNotesInput,
   quickAddButton,
   quickSheetBackdrop,
   quickSheetActionButtons,
@@ -37,8 +40,269 @@ import { loadFamilyState } from "./family.js";
 import { initCoachHandlers } from "./coach.js";
 
 console.log(
-  "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
+  "EH app.js VERSION 5.2 (Diary log layout + date navigation)"
 );
+
+// Diary state
+let diarySelectedDate = new Date();
+
+const diaryDateDisplay = document.getElementById("diary-date-display");
+const diaryPrevButton = document.getElementById("diary-prev-day");
+const diaryNextButton = document.getElementById("diary-next-day");
+const diaryTodayButton = document.getElementById("diary-today");
+const diaryAddButtons = document.querySelectorAll(".diary-add");
+
+const diaryLists = {
+  breakfast: document.getElementById("diary-breakfast-list"),
+  lunch: document.getElementById("diary-lunch-list"),
+  dinner: document.getElementById("diary-dinner-list"),
+  snacks: document.getElementById("diary-snacks-list"),
+  exercise: document.getElementById("diary-exercise-list"),
+  water: document.getElementById("diary-water-list"),
+  notes: document.getElementById("diary-notes-list"),
+};
+
+function formatDateForInput(dateObj) {
+  return dateObj.toISOString().split("T")[0];
+}
+
+function formatDiaryLabel(dateObj) {
+  return dateObj.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function updateDiaryDateUI() {
+  if (diaryDateDisplay) {
+    diaryDateDisplay.textContent = formatDiaryLabel(diarySelectedDate);
+  }
+}
+
+function setDiaryListsMessage(message) {
+  Object.values(diaryLists).forEach((listEl) => {
+    if (!listEl) return;
+    listEl.innerHTML = `<li class="diary-empty">${message}</li>`;
+  });
+}
+
+function renderDiaryList(listEl, items, builder, emptyText) {
+  if (!listEl) return;
+  if (!items || !items.length) {
+    listEl.innerHTML = `<li class="diary-empty">${emptyText}</li>`;
+    return;
+  }
+
+  listEl.innerHTML = "";
+  items.forEach((item) => {
+    const li = document.createElement("li");
+    li.className = "diary-entry";
+    builder(li, item);
+    listEl.appendChild(li);
+  });
+}
+
+async function loadDiaryEntries() {
+  if (!diaryLists.breakfast) return;
+
+  const isoDate = formatDateForInput(diarySelectedDate);
+
+  if (!currentUser) {
+    setDiaryListsMessage("Log in to see your diary.");
+    return;
+  }
+
+  if (!currentFamilyId) {
+    setDiaryListsMessage("Create a family group to start logging.");
+    return;
+  }
+
+  setDiaryListsMessage("Loading…");
+
+  const [{ data: meals, error: mealsError }, { data: workouts, error: workoutsError }, { data: progress, error: progressError },] =
+    await Promise.all([
+      supabase
+        .from("family_meals")
+        .select("*")
+        .eq("family_group_id", currentFamilyId)
+        .eq("meal_date", isoDate)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("family_workouts")
+        .select("*")
+        .eq("family_group_id", currentFamilyId)
+        .eq("workout_date", isoDate)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("progress_logs")
+        .select("*")
+        .eq("family_group_id", currentFamilyId)
+        .eq("log_date", isoDate)
+        .order("created_at", { ascending: true }),
+    ]);
+
+  if (mealsError || workoutsError || progressError) {
+    console.error("Error loading diary:", mealsError || workoutsError || progressError);
+  }
+
+  const safeMeals = meals || [];
+  const safeWorkouts = workouts || [];
+  const safeProgress = progress || [];
+
+  const mealTypes = [
+    ["breakfast", "breakfast"],
+    ["lunch", "lunch"],
+    ["dinner", "dinner"],
+    ["snacks", "snack"],
+  ];
+
+  mealTypes.forEach(([sectionKey, mealType]) => {
+    const listEl = diaryLists[sectionKey];
+    const entries = safeMeals.filter(
+      (m) => (m.meal_type || "").toLowerCase() === mealType,
+    );
+    renderDiaryList(
+      listEl,
+      entries,
+      (li, meal) => {
+        const title = document.createElement("div");
+        title.className = "diary-entry-title";
+        title.textContent = meal.title;
+
+        const meta = document.createElement("div");
+        meta.className = "diary-entry-meta";
+        meta.textContent = meal.notes || "No notes";
+
+        li.appendChild(title);
+        li.appendChild(meta);
+      },
+      `No ${sectionKey} logged yet.`,
+    );
+  });
+
+  renderDiaryList(
+    diaryLists.exercise,
+    safeWorkouts,
+    (li, workout) => {
+      const title = document.createElement("div");
+      title.className = "diary-entry-title";
+      title.textContent = workout.title || "Workout";
+
+      const meta = document.createElement("div");
+      meta.className = "diary-entry-meta";
+      const parts = [];
+      if (workout.workout_type) {
+        const label =
+          workout.workout_type.charAt(0).toUpperCase() +
+          workout.workout_type.slice(1);
+        parts.push(label);
+      }
+      if (workout.duration_min) {
+        parts.push(`${workout.duration_min} min`);
+      }
+      meta.textContent = parts.join(" • ") || "Scheduled";
+
+      li.appendChild(title);
+      li.appendChild(meta);
+    },
+    "No exercise logged yet.",
+  );
+
+  const waterEntries = safeProgress.filter((p) => p.water_oz != null);
+  renderDiaryList(
+    diaryLists.water,
+    waterEntries,
+    (li, entry) => {
+      const title = document.createElement("div");
+      title.className = "diary-entry-title";
+      title.textContent = `${entry.water_oz} oz`;
+
+      const meta = document.createElement("div");
+      meta.className = "diary-entry-meta";
+      const parts = [];
+      if (entry.weight_lb != null) parts.push(`${entry.weight_lb} lb`);
+      if (entry.steps != null) parts.push(`${entry.steps} steps`);
+      meta.textContent = parts.join(" • ") || "Logged in progress";
+
+      li.appendChild(title);
+      li.appendChild(meta);
+    },
+    "No water logged yet.",
+  );
+
+  const noteEntries = safeProgress.filter((p) => p.notes);
+  renderDiaryList(
+    diaryLists.notes,
+    noteEntries,
+    (li, entry) => {
+      const title = document.createElement("div");
+      title.className = "diary-entry-title";
+      title.textContent = "Note";
+
+      const meta = document.createElement("div");
+      meta.className = "diary-entry-meta";
+      meta.textContent = entry.notes;
+
+      li.appendChild(title);
+      li.appendChild(meta);
+    },
+    "No notes yet.",
+  );
+}
+
+function syncFormsToDiaryDate() {
+  const isoDate = formatDateForInput(diarySelectedDate);
+  if (mealDateInput) mealDateInput.value = isoDate;
+  if (workoutDateInput) workoutDateInput.value = isoDate;
+  if (progressDateInput) progressDateInput.value = isoDate;
+}
+
+function setDiaryDate(nextDate) {
+  diarySelectedDate = nextDate;
+  updateDiaryDateUI();
+  syncFormsToDiaryDate();
+  loadDiaryEntries();
+}
+
+function handleDiaryAdd(sectionKey) {
+  const isoDate = formatDateForInput(diarySelectedDate);
+
+  switch (sectionKey) {
+    case "breakfast":
+    case "lunch":
+    case "dinner":
+    case "snacks": {
+      activateTab("meals-tab");
+      if (mealDateInput) mealDateInput.value = isoDate;
+      if (mealTypeInput) mealTypeInput.value = sectionKey === "snacks" ? "snack" : sectionKey;
+      break;
+    }
+
+    case "exercise": {
+      activateTab("workouts-tab");
+      if (workoutDateInput) workoutDateInput.value = isoDate;
+      break;
+    }
+
+    case "water": {
+      activateTab("progress-tab");
+      if (progressDateInput) progressDateInput.value = isoDate;
+      if (progressWaterInput) progressWaterInput.focus();
+      break;
+    }
+
+    case "notes": {
+      activateTab("progress-tab");
+      if (progressDateInput) progressDateInput.value = isoDate;
+      if (progressNotesInput) progressNotesInput.focus();
+      break;
+    }
+
+    default:
+      break;
+  }
+}
 
 // Show / hide auth vs app
 
@@ -103,6 +367,9 @@ async function loadUserProfile(user) {
 // Init
 
 async function init() {
+  updateDiaryDateUI();
+  syncFormsToDiaryDate();
+
   const { data } = await supabase.auth.getSession();
   const session = data.session;
 
@@ -110,6 +377,7 @@ async function init() {
     setCurrentUser(session.user);
     await loadUserProfile(session.user);
     await loadFamilyState(session.user);
+    setDiaryDate(new Date());
     showApp();
   } else {
     setCurrentUser(null);
@@ -118,6 +386,7 @@ async function init() {
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    setDiaryListsMessage("Log in to see your diary.");
     showAuth();
   }
 }
@@ -136,20 +405,10 @@ function activateTab(targetId) {
   tabPanels.forEach((panel) => {
     panel.style.display = panel.id === targetId ? "block" : "none";
   });
-}
-
-// Helper: highlight a section on the Log tab
-
-function focusLogSection(sectionKey) {
-  activateTab("log-tab");
-
-  const allCards = document.querySelectorAll(".log-card");
-  allCards.forEach((c) => c.classList.remove("log-card-highlight"));
-
-  const target = document.getElementById(`log-section-${sectionKey}`);
-  if (target) {
-    target.classList.add("log-card-highlight");
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (targetId === "log-tab") {
+    updateDiaryDateUI();
+    syncFormsToDiaryDate();
+    loadDiaryEntries();
   }
 }
 
@@ -241,21 +500,39 @@ if (tabButtons && tabPanels) {
   });
 }
 
+function shiftDiaryDate(days) {
+  const next = new Date(diarySelectedDate);
+  next.setDate(next.getDate() + days);
+  setDiaryDate(next);
+}
+
+if (diaryPrevButton) {
+  diaryPrevButton.addEventListener("click", () => shiftDiaryDate(-1));
+}
+
+if (diaryNextButton) {
+  diaryNextButton.addEventListener("click", () => shiftDiaryDate(1));
+}
+
+if (diaryTodayButton) {
+  diaryTodayButton.addEventListener("click", () => setDiaryDate(new Date()));
+}
+
+if (diaryAddButtons && diaryAddButtons.length) {
+  diaryAddButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = btn.dataset.diaryAdd;
+      if (!section) return;
+      handleDiaryAdd(section);
+    });
+  });
+}
+
 // "More" tab tiles → switch to underlying tab
 
 document.querySelectorAll(".more-tile[data-tab-target]").forEach((tile) => {
   tile.addEventListener("click", () => {
     const targetId = tile.getAttribute("data-tab-target");
-    if (!targetId) return;
-    activateTab(targetId);
-  });
-});
-
-// Log tab buttons → go straight to the right tab (for now)
-
-document.querySelectorAll(".log-card-button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const targetId = btn.getAttribute("data-log-target");
     if (!targetId) return;
     activateTab(targetId);
   });
@@ -291,16 +568,21 @@ function setDesktopFabMenuOpen(isOpen) {
 function handleQuickAction(action) {
   switch (action) {
     case "log-meal":
-      focusLogSection("meal");
+      handleDiaryAdd("dinner");
       break;
 
     case "log-water":
+      handleDiaryAdd("water");
+      break;
+
     case "log-weight":
-      focusLogSection("progress");
+      activateTab("progress-tab");
+      if (progressDateInput)
+        progressDateInput.value = formatDateForInput(diarySelectedDate);
       break;
 
     case "log-exercise":
-      focusLogSection("workout");
+      handleDiaryAdd("exercise");
       break;
 
     case "barcode":
@@ -310,6 +592,7 @@ function handleQuickAction(action) {
       break;
 
     default:
+      activateTab("log-tab");
       break;
   }
 
