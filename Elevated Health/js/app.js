@@ -24,6 +24,10 @@ import {
   quickAddButton,
   quickSheetBackdrop,
   quickSheetActionButtons,
+  moreNavButton,
+  moreMenuBackdrop,
+  moreMenuItems,
+  settingsEmailLabel,
 } from "./dom.js";
 import {
   currentUser,
@@ -62,6 +66,12 @@ function showApp() {
   if (appSection) appSection.style.display = "block";
 }
 
+function updateSettingsEmail(email) {
+  if (settingsEmailLabel) {
+    settingsEmailLabel.textContent = email || "you@example.com";
+  }
+}
+
 // Load profile
 
 async function loadUserProfile(user) {
@@ -76,6 +86,7 @@ async function loadUserProfile(user) {
     if (welcomeText) {
       welcomeText.textContent = `Welcome, ${user.email}`;
     }
+    updateSettingsEmail(user.email);
     return;
   }
 
@@ -94,6 +105,7 @@ async function loadUserProfile(user) {
       if (welcomeText) {
         welcomeText.textContent = `Welcome, ${user.email}`;
       }
+      updateSettingsEmail(user.email);
       return;
     }
 
@@ -102,12 +114,14 @@ async function loadUserProfile(user) {
         newProfile.display_name || user.email
       }`;
     }
+    updateSettingsEmail(user.email);
     return;
   }
 
   if (welcomeText) {
     welcomeText.textContent = `Welcome, ${profile.display_name || user.email}`;
   }
+  updateSettingsEmail(profile.display_name || user.email);
 }
 
 // Init
@@ -144,8 +158,14 @@ function activateTab(targetId) {
   });
 
   tabPanels.forEach((panel) => {
-    panel.style.display = panel.id === targetId ? "block" : "none";
+    const isTarget = panel.id === targetId;
+    panel.classList.toggle("is-active", isTarget);
+    panel.style.display = isTarget ? "block" : "none";
   });
+
+  if (targetId !== "settings-tab") {
+    closeMoreMenu();
+  }
 }
 
 function syncDateInputs(dateValue) {
@@ -303,6 +323,20 @@ document.addEventListener("diary:add", (event) => {
 
 // QUICK ACTION SHEET + DESKTOP FAB MENU
 
+function openMoreMenu() {
+  if (!moreMenuBackdrop || !moreNavButton) return;
+  moreMenuBackdrop.classList.add("is-open");
+  moreMenuBackdrop.setAttribute("aria-hidden", "false");
+  moreNavButton.setAttribute("aria-expanded", "true");
+}
+
+function closeMoreMenu() {
+  if (!moreMenuBackdrop || !moreNavButton) return;
+  moreMenuBackdrop.classList.remove("is-open");
+  moreMenuBackdrop.setAttribute("aria-hidden", "true");
+  moreNavButton.setAttribute("aria-expanded", "false");
+}
+
 // Desktop floating FAB + vertical menu
 const desktopQuickFab = document.getElementById("desktop-quick-fab");
 const desktopFabMenu = document.getElementById("desktop-fab-menu");
@@ -320,6 +354,45 @@ function closeQuickSheet() {
   if (!quickSheetBackdrop) return;
   quickSheetBackdrop.classList.remove("is-open");
 }
+
+if (moreNavButton) {
+  moreNavButton.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const isOpen = moreMenuBackdrop?.classList.contains("is-open");
+    if (isOpen) {
+      closeMoreMenu();
+    } else {
+      openMoreMenu();
+    }
+  });
+}
+
+if (moreMenuBackdrop) {
+  moreMenuBackdrop.addEventListener("click", (e) => {
+    if (e.target === moreMenuBackdrop) {
+      closeMoreMenu();
+    }
+  });
+}
+
+if (moreMenuItems && moreMenuItems.length) {
+  moreMenuItems.forEach((item) => {
+    item.addEventListener("click", () => {
+      const target = item.dataset.menuTarget;
+      if (target === "settings") {
+        activateTab("settings-tab");
+      }
+      closeMoreMenu();
+    });
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeMoreMenu();
+  }
+});
 
 // Desktop FAB open/close helper
 function setDesktopFabMenuOpen(isOpen) {
@@ -420,6 +493,18 @@ if (quickSheetActionButtons && quickSheetActionButtons.length) {
     });
   });
 }
+
+document.querySelectorAll("[data-placeholder-toggle]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const isActive = btn.getAttribute("aria-pressed") === "true";
+    const next = !isActive;
+    btn.setAttribute("aria-pressed", String(next));
+    const label = btn.querySelector(".switch-label");
+    if (label) {
+      label.textContent = next ? "On" : "Off";
+    }
+  });
+});
 
 onSelectedDateChange((dateValue) => {
   syncDateInputs(dateValue);

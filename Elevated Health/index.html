@@ -92,12 +92,6 @@
             <span id="welcome-text" class="top-bar-title">Welcome</span>
           </div>
           <div class="top-bar-right">
-            <div class="theme-toggle">
-              <span class="theme-label" id="theme-label">Dark</span>
-              <button id="theme-toggle" class="ghost-btn" type="button">
-                Toggle theme
-              </button>
-            </div>
             <span class="badge-pill">Beta</span>
             <button id="logout-button" class="ghost-btn">Log Out</button>
           </div>
@@ -115,6 +109,7 @@
           <button class="tab-button" data-tab="progress-tab">Progress</button>
           <button class="tab-button" data-tab="family-tab">Family</button>
           <button class="tab-button" data-tab="coach-tab">AI Coach</button>
+          <button class="tab-button" data-tab="settings-tab">Settings</button>
         </nav>
 
         <!-- CONTENT AREA -->
@@ -123,8 +118,7 @@
             <!-- DASHBOARD -->
             <section
               id="dashboard-tab"
-              class="tab-panel full-width"
-              style="display: block"
+              class="tab-panel full-width is-active"
             >
               <div class="card large-card">
                 <div class="card-header">
@@ -765,10 +759,114 @@
                     <span class="more-title">Progress history</span>
                     <span class="more-subtitle">View past logs</span>
                   </button>
-                  <button class="more-tile" disabled>
+                  <button
+                    class="more-tile"
+                    data-tab-target="settings-tab"
+                  >
                     <span class="more-title">Settings</span>
-                    <span class="more-subtitle">Coming soon</span>
+                    <span class="more-subtitle">Appearance &amp; account</span>
                   </button>
+                </div>
+              </div>
+            </section>
+
+            <!-- SETTINGS -->
+            <section id="settings-tab" class="tab-panel full-width">
+              <div class="card settings-card">
+                <div class="card-header">
+                  <div>
+                    <h3>Settings</h3>
+                    <p class="subtitle small">
+                      Tune the experience and manage your account.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-meta">
+                    <h4>Appearance</h4>
+                    <p class="subtitle tiny">Themes stay synced across the app.</p>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">Theme</div>
+                      <div class="setting-subtitle">
+                        Switch between light and dark for better readability.
+                      </div>
+                    </div>
+                    <button id="theme-toggle" class="switch-toggle" type="button">
+                      <span class="switch-label" id="theme-label">Dark</span>
+                      <span class="switch-handle"></span>
+                    </button>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">Theme style</div>
+                      <div class="setting-subtitle">
+                        Seasonal looks coming soon — pick a starter vibe.
+                      </div>
+                    </div>
+                    <div class="chip-row" role="group" aria-label="Theme style">
+                      <button class="chip active" type="button">Default</button>
+                      <button class="chip" type="button" disabled>Mountain</button>
+                      <button class="chip" type="button" disabled>Minimal</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-meta">
+                    <h4>Notifications</h4>
+                    <p class="subtitle tiny">Placeholders while we wire things up.</p>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">Daily reminders</div>
+                      <div class="setting-subtitle">Keep me on track with nudges.</div>
+                    </div>
+                    <button
+                      class="switch-toggle is-placeholder"
+                      type="button"
+                      aria-pressed="false"
+                      data-placeholder-toggle
+                    >
+                      <span class="switch-label">Off</span>
+                      <span class="switch-handle"></span>
+                    </button>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">AI Coach insights</div>
+                      <div class="setting-subtitle">
+                        Get a digest of new suggestions.
+                      </div>
+                    </div>
+                    <button
+                      class="switch-toggle is-placeholder"
+                      type="button"
+                      aria-pressed="false"
+                      data-placeholder-toggle
+                    >
+                      <span class="switch-label">Off</span>
+                      <span class="switch-handle"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-meta">
+                    <h4>Account</h4>
+                    <p class="subtitle tiny">Manage your details and access.</p>
+                  </div>
+                  <div class="setting-card">
+                    <div>
+                      <div class="setting-title">Signed in as</div>
+                      <div class="setting-subtitle" id="settings-email">
+                        you@example.com
+                      </div>
+                    </div>
+                    <button class="ghost-btn" type="button">Manage account</button>
+                  </div>
                 </div>
               </div>
             </section>
@@ -797,11 +895,41 @@
             <span class="nav-label">Coach</span>
           </button>
 
-          <button class="bottom-nav-item tab-button" data-tab="more-tab">
+          <button
+            id="more-nav-button"
+            class="bottom-nav-item tab-button"
+            data-tab="settings-tab"
+            type="button"
+            aria-expanded="false"
+            aria-controls="more-menu"
+          >
             <span class="nav-icon">⋯</span>
             <span class="nav-label">More</span>
           </button>
         </nav>
+
+        <!-- MORE MENU (mobile) -->
+        <div id="more-menu-backdrop" class="more-menu-backdrop" aria-hidden="true">
+          <div id="more-menu" class="more-menu" role="menu">
+            <div class="more-menu-header">More</div>
+            <button class="more-menu-item" data-menu-target="settings" role="menuitem">
+              Settings
+              <span class="more-menu-sub">Appearance &amp; account</span>
+            </button>
+            <button class="more-menu-item" role="menuitem" disabled>
+              Profile
+              <span class="more-menu-sub">Coming soon</span>
+            </button>
+            <button class="more-menu-item" role="menuitem" disabled>
+              Notifications
+              <span class="more-menu-sub">Coming soon</span>
+            </button>
+            <button class="more-menu-item" role="menuitem" disabled>
+              Help
+              <span class="more-menu-sub">Coming soon</span>
+            </button>
+          </div>
+        </div>
 
         <!-- QUICK ACTION SHEET (mobile) -->
         <div id="quick-sheet-backdrop" class="quick-sheet-backdrop">
