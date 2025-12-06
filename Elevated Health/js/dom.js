@@ -22,6 +22,7 @@ export const logoutButton = document.getElementById("logout-button");
 export const welcomeText = document.getElementById("welcome-text");
 export const themeToggleButton = document.getElementById("theme-toggle");
 export const themeLabel = document.getElementById("theme-label");
+export const settingsEmailLabel = document.getElementById("settings-email");
 
 // Tabs
 export const tabButtons = document.querySelectorAll(".tab-button");
@@ -125,6 +126,10 @@ export const quickSheetBackdrop =
   document.getElementById("quick-sheet-backdrop");
 export const quickSheetActionButtons =
   document.querySelectorAll(".quick-sheet-item");
+export const moreNavButton = document.getElementById("more-nav-button");
+export const moreMenuBackdrop = document.getElementById("more-menu-backdrop");
+export const moreMenu = document.getElementById("more-menu");
+export const moreMenuItems = document.querySelectorAll("[data-menu-target]");
 
 // Modal
 export const modalBackdrop = document.getElementById("eh-modal");
