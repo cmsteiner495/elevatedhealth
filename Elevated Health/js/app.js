@@ -49,7 +49,7 @@ import { setWorkoutsFamilyState } from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
 import { initCoachHandlers } from "./coach.js";
-import { initDiary } from "./logDiary.js";
+import { initDiary, refreshDiaryForSelectedDate } from "./logDiary.js";
 import {
   initAIDinnerCards,
   initModal,
@@ -69,6 +69,7 @@ let deferredInstallPrompt;
 let isStandaloneMode;
 let isAppInstalled;
 let selectedThemeStyle;
+let diaryRealtimeChannel;
 
 const TAB_TITLE_MAP = {
   "dashboard-tab": "Overview",
@@ -78,8 +79,9 @@ const TAB_TITLE_MAP = {
   "grocery-tab": "Grocery",
   "progress-tab": "Progress",
   "family-tab": "Family",
-  "coach-tab": "Coach",
+  "coach-tab": "AI Coach",
   "settings-tab": "Settings",
+  "more-tab": "More",
 };
 
 function createInitialState() {
@@ -282,6 +284,7 @@ async function init() {
     setCurrentUser(session.user);
     await loadUserProfile(session.user);
     await loadFamilyState(session.user);
+    setupDiaryRealtime();
     showApp();
   } else {
     setCurrentUser(null);
@@ -290,6 +293,7 @@ async function init() {
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    teardownDiaryRealtime();
     showAuth();
   }
 }
@@ -317,12 +321,55 @@ function activateTab(targetId) {
   }
 
   updateMobileHeader(targetId);
+
+  if (targetId === "log-tab") {
+    refreshDiaryForSelectedDate();
+  }
 }
 
 function syncDateInputs(dateValue) {
   if (mealDateInput) mealDateInput.value = dateValue;
   if (workoutDateInput) workoutDateInput.value = dateValue;
   if (progressDateInput) progressDateInput.value = dateValue;
+}
+
+function teardownDiaryRealtime() {
+  if (!diaryRealtimeChannel) return;
+  supabase.removeChannel(diaryRealtimeChannel);
+  diaryRealtimeChannel = null;
+}
+
+function setupDiaryRealtime() {
+  teardownDiaryRealtime();
+  if (!currentFamilyId) return;
+
+  const handleChange = () => {
+    refreshDiaryForSelectedDate();
+  };
+
+  diaryRealtimeChannel = supabase
+    .channel("diary-log-sync")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "family_meals",
+        filter: `family_group_id=eq.${currentFamilyId}`,
+      },
+      handleChange
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "family_workouts",
+        filter: `family_group_id=eq.${currentFamilyId}`,
+      },
+      handleChange
+    )
+    .subscribe();
 }
 
 // Helper: highlight a section on the Log tab
@@ -535,12 +582,15 @@ if (moreMenuItems && moreMenuItems.length) {
   moreMenuItems.forEach((item) => {
     item.addEventListener("click", () => {
       const target = item.dataset.menuTarget;
-      if (target === "settings") {
-        closeMoreMenu();
-        setTimeout(() => activateTab("settings-tab"), 160);
-        return;
-      }
       closeMoreMenu();
+      if (!target) return;
+      const resolved = target === "settings" ? "settings-tab" : target;
+      const delay = resolved === "settings-tab" ? 160 : 0;
+      if (delay) {
+        setTimeout(() => activateTab(resolved), delay);
+      } else {
+        activateTab(resolved);
+      }
     });
   });
 }
@@ -808,6 +858,13 @@ onSelectedDateChange((dateValue) => {
 });
 syncDateInputs(selectedDate);
 
+document.addEventListener("family:changed", () => {
+  setupDiaryRealtime();
+  if (activeTabId === "log-tab") {
+    refreshDiaryForSelectedDate();
+  }
+});
+
 if (mealDateInput) {
   mealDateInput.addEventListener("change", (e) => {
     if (e.target.value) setSelectedDate(e.target.value);
@@ -837,6 +894,7 @@ if (logoutButton) {
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    teardownDiaryRealtime();
     if (coachMessages) {
       coachMessages.innerHTML = "";
     }

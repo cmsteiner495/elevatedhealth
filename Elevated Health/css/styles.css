@@ -524,10 +524,12 @@ body {
 }
 
 .tab-button.active {
-  background: var(--color-accent-primary);
-  color: #ffffff;
-  border-color: transparent;
-  box-shadow: 0 10px 24px rgba(255, 122, 47, 0.35);
+  background: linear-gradient(135deg, var(--color-orange), var(--color-accent-primary));
+  color: var(--color-on-accent);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 10px 24px rgba(255, 122, 47, 0.35),
+    0 0 0 2px rgba(255, 122, 47, 0.25);
 }
 
 .tab-button:hover {
@@ -1343,6 +1345,12 @@ input[type="submit"] {
   font-size: var(--font-size-sm);
 }
 
+@media (max-width: 767px) {
+  .more-menu-item[data-action="download-app"] {
+    display: none;
+  }
+}
+
 .bottom-nav-item {
   flex: 1;
   background: transparent;
@@ -1365,13 +1373,15 @@ input[type="submit"] {
 
 .bottom-nav-item.active .nav-label,
 .bottom-nav-item.active .nav-icon {
-  color: var(--color-accent-primary);
+  color: var(--color-on-accent);
 }
 
 .bottom-nav-item.active {
   transform: translateY(-2px) scale(1.05);
-  color: var(--color-accent-primary);
-  box-shadow: 0 8px 20px rgba(255, 122, 47, 0.2);
+  color: var(--color-on-accent);
+  background: rgba(255, 122, 47, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(255, 122, 47, 0.28);
 }
 
 .bottom-nav-item:hover {
