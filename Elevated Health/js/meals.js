@@ -55,6 +55,25 @@ export async function loadMeals() {
   }
 }
 
+export async function fetchMealsByDate(dateValue) {
+  if (!currentFamilyId || !dateValue) return [];
+
+  const { data, error } = await supabase
+    .from("family_meals")
+    .select("*")
+    .eq("family_group_id", currentFamilyId)
+    .eq("meal_date", dateValue)
+    .order("meal_type", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error loading meals for date:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
 function renderMeals(items) {
   if (!mealsList) return;
 
@@ -172,6 +191,11 @@ if (mealsForm) {
 
     mealsForm.reset();
     await loadMeals();
+    document.dispatchEvent(
+      new CustomEvent("diary:refresh", {
+        detail: { date: dateValue, entity: "meal" },
+      })
+    );
   });
 }
 
@@ -196,6 +220,9 @@ if (mealsList) {
       }
 
       await loadMeals();
+      document.dispatchEvent(
+        new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
+      );
       return;
     }
   });

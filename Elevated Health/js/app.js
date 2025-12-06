@@ -18,6 +18,7 @@ import {
   tabPanels,
   coachMessages,
   mealDateInput,
+  mealTypeInput,
   workoutDateInput,
   progressDateInput,
   quickAddButton,
@@ -28,6 +29,9 @@ import {
   currentUser,
   setCurrentUser,
   setCurrentFamilyId,
+  setSelectedDate,
+  selectedDate,
+  onSelectedDateChange,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
 import { setMealsFamilyState } from "./meals.js";
@@ -35,6 +39,7 @@ import { setWorkoutsFamilyState } from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
 import { initCoachHandlers } from "./coach.js";
+import { initDiary } from "./logDiary.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -138,15 +143,30 @@ function activateTab(targetId) {
   });
 }
 
+function syncDateInputs(dateValue) {
+  if (mealDateInput) mealDateInput.value = dateValue;
+  if (workoutDateInput) workoutDateInput.value = dateValue;
+  if (progressDateInput) progressDateInput.value = dateValue;
+}
+
 // Helper: highlight a section on the Log tab
 
 function focusLogSection(sectionKey) {
   activateTab("log-tab");
 
-  const allCards = document.querySelectorAll(".log-card");
+  const allCards = document.querySelectorAll(".diary-section");
   allCards.forEach((c) => c.classList.remove("log-card-highlight"));
 
-  const target = document.getElementById(`log-section-${sectionKey}`);
+  const targetKeyMap = {
+    meal: "breakfast",
+    workout: "exercise",
+    exercise: "exercise",
+    progress: "exercise",
+  };
+  const targetKey = targetKeyMap[sectionKey] || sectionKey;
+  const target = document.querySelector(
+    `.diary-section[data-section="${targetKey}"]`
+  );
   if (target) {
     target.classList.add("log-card-highlight");
     target.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -259,6 +279,21 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
     if (!targetId) return;
     activateTab(targetId);
   });
+});
+
+document.addEventListener("diary:add", (event) => {
+  const { section, date } = event.detail || {};
+  if (!section || !date) return;
+
+  if (section === "exercise") {
+    activateTab("workouts-tab");
+    if (workoutDateInput) workoutDateInput.value = date;
+    return;
+  }
+
+  activateTab("meals-tab");
+  if (mealDateInput) mealDateInput.value = date;
+  if (mealTypeInput) mealTypeInput.value = section;
 });
 
 // QUICK ACTION SHEET + DESKTOP FAB MENU
@@ -381,6 +416,29 @@ if (quickSheetActionButtons && quickSheetActionButtons.length) {
   });
 }
 
+onSelectedDateChange((dateValue) => {
+  syncDateInputs(dateValue);
+});
+syncDateInputs(selectedDate);
+
+if (mealDateInput) {
+  mealDateInput.addEventListener("change", (e) => {
+    if (e.target.value) setSelectedDate(e.target.value);
+  });
+}
+
+if (workoutDateInput) {
+  workoutDateInput.addEventListener("change", (e) => {
+    if (e.target.value) setSelectedDate(e.target.value);
+  });
+}
+
+if (progressDateInput) {
+  progressDateInput.addEventListener("change", (e) => {
+    if (e.target.value) setSelectedDate(e.target.value);
+  });
+}
+
 // LOGOUT
 
 if (logoutButton) {
@@ -402,4 +460,5 @@ if (logoutButton) {
 // Init coach + app
 
 initCoachHandlers();
+initDiary();
 init();
