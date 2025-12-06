@@ -90,10 +90,43 @@ const TAB_TITLE_MAP = {
   "settings-tab": "Settings",
 };
 
-let activeTabId = "dashboard-tab";
-let displayNameValue = "";
-let deferredInstallPrompt = null;
-let isStandaloneMode = false;
+function createInitialState() {
+  return {
+    activeTabId: "dashboard-tab",
+    displayNameValue: "",
+    deferredInstallPrompt: null,
+    isStandaloneMode: false,
+    isAppInstalled: false,
+    selectedThemeStyle: "mountain",
+  };
+}
+
+const initialState = createInitialState();
+
+function initInitialState() {
+  const next = createInitialState();
+  activeTabId = next.activeTabId;
+  displayNameValue = next.displayNameValue;
+  deferredInstallPrompt = next.deferredInstallPrompt;
+  isStandaloneMode = next.isStandaloneMode;
+  isAppInstalled = next.isAppInstalled;
+  selectedThemeStyle = next.selectedThemeStyle;
+}
+
+function triggerAIDigestPlaceholder() {
+  openModal({
+    title: "AI Coach Weekly Digest",
+    body: "Your personalized digest is coming soon. We'll use your meals, workouts, and progress to craft insights.",
+    primaryLabel: "Got it",
+  });
+}
+
+let activeTabId = initialState.activeTabId;
+let displayNameValue = initialState.displayNameValue;
+let deferredInstallPrompt = initialState.deferredInstallPrompt;
+let isStandaloneMode = initialState.isStandaloneMode;
+let isAppInstalled = initialState.isAppInstalled;
+let selectedThemeStyle = initialState.selectedThemeStyle;
 
 function getDisplayName() {
   return (
@@ -810,6 +843,17 @@ if (logoutButton) {
 
 // Init coach + app
 
-initCoachHandlers();
-initDiary();
-init();
+async function instantiateAppAfterInitialization() {
+  initInitialState();
+  initThemeToggle();
+  applyThemeStyle(selectedThemeStyle);
+  initModal();
+  initAIDinnerCards();
+  initInstallState();
+  initCoachHandlers();
+  initDiary();
+  await init();
+  await calculateWorkoutStreak();
+}
+
+instantiateAppAfterInitialization();
