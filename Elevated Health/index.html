@@ -85,13 +85,16 @@
 
       <!-- MAIN APP SHELL -->
       <section id="app-section" style="display: none">
-        <div class="content-container">
+        <div class="app-shell">
           <!-- TOP BAR -->
           <header class="top-bar">
             <div class="top-bar-inner">
               <div class="top-bar-left">
+                <div class="logo-mark desktop-only" aria-label="Elevated Health logo">
+                  <span class="logo-mark-initials">EH</span>
+                </div>
                 <button
-                  class="icon-button mobile-only"
+                  class="icon-button notification-button"
                   type="button"
                   aria-label="Notifications"
                 >
@@ -115,14 +118,18 @@
                 >
                 <div class="top-bar-mobile-stack mobile-only">
                   <span id="mobile-overline" class="mobile-overline">Today</span>
-                  <span id="mobile-page-title" class="top-bar-title">Welcome</span>
+                  <span
+                    id="mobile-page-title"
+                    class="top-bar-title mobile-header-title"
+                    >Welcome</span
+                  >
                 </div>
               </div>
 
               <div class="top-bar-right">
                 <button
                   id="install-helper-button"
-                  class="ghost-btn install-btn desktop-only"
+                  class="primary install-btn desktop-only"
                   type="button"
                 >
                   <span class="nav-icon"
@@ -148,7 +155,7 @@
           </header>
 
           <!-- DESKTOP TAB ROW -->
-          <nav class="tab-nav tab-nav-top">
+          <nav class="tab-nav tab-nav-top page-tabs">
             <button class="tab-button active" data-tab="dashboard-tab">
               Overview
             </button>
@@ -164,7 +171,7 @@
         </div>
 
         <!-- CONTENT AREA -->
-        <main class="content-shell page-content content-container">
+        <main class="content-shell page page-content">
           <div class="tab-panels-wrapper">
             <!-- DASHBOARD -->
             <section

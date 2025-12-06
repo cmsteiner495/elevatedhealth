@@ -95,9 +95,25 @@ function getDisplayName() {
   return (
     displayNameValue ||
     currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.fullName ||
+    currentUser?.user_metadata?.name ||
     currentUser?.email ||
     "there"
   );
+}
+
+function deriveFirstName() {
+  const metaFullName =
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.fullName ||
+    currentUser?.user_metadata?.name;
+
+  const source = metaFullName || displayNameValue || currentUser?.email || "there";
+  const isEmail = source.includes("@");
+  const emailPart = isEmail ? source.split("@")[0] : source;
+  const withoutSeparators = emailPart.split(/[._]/)[0] || emailPart;
+  const firstWord = withoutSeparators.trim().split(/\s+/)[0] || "there";
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
 }
 
 function updateAvatar(initialsSource) {
@@ -108,14 +124,20 @@ function updateAvatar(initialsSource) {
   profileAvatar.setAttribute("aria-label", `Profile for ${base}`);
 }
 
+function updateWelcomeCopy() {
+  const firstName = deriveFirstName();
+  if (welcomeText) {
+    welcomeText.textContent = `Welcome, ${firstName}`;
+  }
+}
+
 function updateMobileHeader(targetId = activeTabId) {
   if (targetId) {
     activeTabId = targetId;
   }
-  const displayName = getDisplayName();
   if (mobilePageTitle) {
     if (targetId === "dashboard-tab") {
-      const firstName = displayName?.split(" ")[0] || displayName;
+      const firstName = deriveFirstName();
       mobilePageTitle.textContent = `Welcome, ${firstName}`;
     } else {
       mobilePageTitle.textContent = TAB_TITLE_MAP[targetId] || "";
@@ -149,10 +171,12 @@ async function loadUserProfile(user) {
 
   if (error) {
     console.error("Error loading profile:", error);
-    if (welcomeText) {
-      welcomeText.textContent = `Welcome, ${user.email}`;
-    }
-    displayNameValue = user.email;
+    displayNameValue =
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.user_metadata?.fullName ||
+      currentUser?.user_metadata?.name ||
+      user.email;
+    updateWelcomeCopy();
     updateAvatar(displayNameValue);
     updateMobileHeader(activeTabId);
     updateSettingsEmail(user.email);
@@ -171,32 +195,38 @@ async function loadUserProfile(user) {
 
     if (insertError) {
       console.error("Error creating profile:", insertError);
-      if (welcomeText) {
-        welcomeText.textContent = `Welcome, ${user.email}`;
-      }
-      displayNameValue = user.email;
+      displayNameValue =
+        currentUser?.user_metadata?.full_name ||
+        currentUser?.user_metadata?.fullName ||
+        currentUser?.user_metadata?.name ||
+        user.email;
+      updateWelcomeCopy();
       updateAvatar(displayNameValue);
       updateMobileHeader(activeTabId);
       updateSettingsEmail(user.email);
       return;
     }
 
-    if (welcomeText) {
-      welcomeText.textContent = `Welcome, ${
-        newProfile.display_name || user.email
-      }`;
-    }
-    displayNameValue = newProfile.display_name || user.email;
+    displayNameValue =
+      newProfile.display_name ||
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.user_metadata?.fullName ||
+      currentUser?.user_metadata?.name ||
+      user.email;
+    updateWelcomeCopy();
     updateAvatar(displayNameValue);
     updateMobileHeader(activeTabId);
     updateSettingsEmail(user.email);
     return;
   }
 
-  if (welcomeText) {
-    welcomeText.textContent = `Welcome, ${profile.display_name || user.email}`;
-  }
-  displayNameValue = profile.display_name || user.email;
+  displayNameValue =
+    profile.display_name ||
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.fullName ||
+    currentUser?.user_metadata?.name ||
+    user.email;
+  updateWelcomeCopy();
   updateAvatar(displayNameValue);
   updateMobileHeader(activeTabId);
   updateSettingsEmail(profile.display_name || user.email);
@@ -431,11 +461,13 @@ const desktopFabMenuButtons = desktopFabMenu
 function openQuickSheet() {
   if (!quickSheetBackdrop) return;
   quickSheetBackdrop.classList.add("is-open");
+  document.body.classList.add("sheet-open");
 }
 
 function closeQuickSheet() {
   if (!quickSheetBackdrop) return;
   quickSheetBackdrop.classList.remove("is-open");
+  document.body.classList.remove("sheet-open");
 }
 
 if (moreNavButton) {
