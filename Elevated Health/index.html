@@ -78,10 +78,9 @@
                 <button type="submit" class="primary">Sign Up</button>
                 <div id="signup-message"></div>
               </form>
-            </div>
-          </div>
-        </div>
-      </section>
+                  </div>
+                </div>
+              </section>
 
       <!-- MAIN APP SHELL -->
       <section id="app-section" style="display: none">
@@ -286,7 +285,6 @@
                         A weekly summary of your meals, workouts, and wins will live
                         here. Tap preview to test the placeholder.
                       </p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -458,11 +456,10 @@
                         <li class="diary-empty">Loading…</li>
                       </ul>
                     </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              </div>
-            </section>
+              </section>
 
             <!-- MEALS TAB -->
             <section id="meals-tab" class="tab-panel full-width">
@@ -542,11 +539,10 @@
                         <li class="list-empty">No meals yet. Add one above.</li>
                       </ul>
                     </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              </div>
-            </section>
+              </section>
 
             <!-- WORKOUTS TAB -->
             <section id="workouts-tab" class="tab-panel full-width">
@@ -707,89 +703,91 @@
                   </div>
                 </div>
               </div>
+              </div>
             </section>
 
             <!-- PROGRESS TAB -->
             <section id="progress-tab" class="tab-panel full-width">
               <div class="app-content">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <h3>Progress</h3>
-                    <p class="subtitle small">Daily check-in.</p>
-                  </div>
-                </div>
-
-                <div id="progress-no-family">
-                  <p class="text-soft">
-                    Create a family group to log and share progress.
-                  </p>
-                </div>
-
-                <div id="progress-has-family" style="display: none">
-                  <div class="card nested-card">
-                    <div class="card-header">
-                      <h3>Weight trend</h3>
-                      <span class="subtitle tiny">Last 30 days</span>
-                    </div>
-                    <div class="chart-placeholder">
-                      <div class="chart-line"></div>
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Progress</h3>
+                      <p class="subtitle small">Daily check-in.</p>
                     </div>
                   </div>
 
-                  <form id="progress-form" class="form-grid">
-                    <div>
-                      <label for="progress-date">Date</label>
-                      <input type="date" id="progress-date" required />
-                    </div>
-                    <div>
-                      <label for="progress-weight">Weight (lb)</label>
-                      <input type="number" id="progress-weight" step="0.1" />
-                    </div>
-                    <div>
-                      <label for="progress-water">Water (oz)</label>
-                      <input type="number" id="progress-water" step="1" />
-                    </div>
-                    <div>
-                      <label for="progress-sleep">Sleep (hours)</label>
-                      <input type="number" id="progress-sleep" step="0.1" />
-                    </div>
-                    <div>
-                      <label for="progress-steps">Steps</label>
-                      <input type="number" id="progress-steps" step="1" />
-                    </div>
-                    <div>
-                      <label for="progress-mood">Mood</label>
-                      <input
-                        type="text"
-                        id="progress-mood"
-                        placeholder="Optimistic, stressed, etc."
-                      />
-                    </div>
-                    <div class="full-width">
-                      <label for="progress-notes">Notes</label>
-                      <textarea
-                        id="progress-notes"
-                        placeholder="Anything notable about today"
-                      ></textarea>
-                    </div>
-                    <div class="full-width">
-                      <button type="submit" class="primary full-width">
-                        Log Progress
-                      </button>
-                    </div>
-                    <div id="progress-message" class="full-width"></div>
-                  </form>
+                  <div id="progress-no-family">
+                    <p class="text-soft">
+                      Create a family group to log and share progress.
+                    </p>
+                  </div>
 
-                  <div class="card nested-card">
-                    <div class="card-header">
-                      <h3>History</h3>
+                  <div id="progress-has-family" style="display: none">
+                    <div class="card nested-card">
+                      <div class="card-header">
+                        <h3>Weight trend</h3>
+                        <span class="subtitle tiny">Last 30 days</span>
+                      </div>
+                      <div class="chart-placeholder">
+                        <div class="chart-line"></div>
+                      </div>
                     </div>
-                    <ul id="progress-list">
-                      <li class="list-empty">
-                        No progress entries yet. Add one above.
-                      </li>
-                    </ul>
+
+                    <form id="progress-form" class="form-grid">
+                      <div>
+                        <label for="progress-date">Date</label>
+                        <input type="date" id="progress-date" required />
+                      </div>
+                      <div>
+                        <label for="progress-weight">Weight (lb)</label>
+                        <input type="number" id="progress-weight" step="0.1" />
+                      </div>
+                      <div>
+                        <label for="progress-water">Water (oz)</label>
+                        <input type="number" id="progress-water" step="1" />
+                      </div>
+                      <div>
+                        <label for="progress-sleep">Sleep (hours)</label>
+                        <input type="number" id="progress-sleep" step="0.1" />
+                      </div>
+                      <div>
+                        <label for="progress-steps">Steps</label>
+                        <input type="number" id="progress-steps" step="1" />
+                      </div>
+                      <div>
+                        <label for="progress-mood">Mood</label>
+                        <input
+                          type="text"
+                          id="progress-mood"
+                          placeholder="Optimistic, stressed, etc."
+                        />
+                      </div>
+                      <div class="full-width">
+                        <label for="progress-notes">Notes</label>
+                        <textarea
+                          id="progress-notes"
+                          placeholder="Anything notable about today"
+                        ></textarea>
+                      </div>
+                      <div class="full-width">
+                        <button type="submit" class="primary full-width">
+                          Log Progress
+                        </button>
+                      </div>
+                      <div id="progress-message" class="full-width"></div>
+                    </form>
+
+                    <div class="card nested-card">
+                      <div class="card-header">
+                        <h3>History</h3>
+                      </div>
+                      <ul id="progress-list">
+                        <li class="list-empty">
+                          No progress entries yet. Add one above.
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -798,131 +796,131 @@
             <!-- FAMILY TAB -->
             <section id="family-tab" class="tab-panel full-width">
               <div class="app-content">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <h3>Family</h3>
-                    <p class="subtitle small">Shared space.</p>
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Family</h3>
+                      <p class="subtitle small">Shared space.</p>
+                    </div>
                   </div>
+                  <div id="family-status"></div>
                 </div>
-                <div id="family-status"></div>
-              </div>
               </div>
             </section>
 
             <!-- AI COACH TAB -->
             <section id="coach-tab" class="tab-panel full-width">
               <div class="app-content">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <h3>AI Coach</h3>
-                    <p class="subtitle small">
-                      Ask anything about meals, workouts, or progress.
-                    </p>
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>AI Coach</h3>
+                      <p class="subtitle small">
+                        Ask anything about meals, workouts, or progress.
+                      </p>
+                    </div>
+                    <button id="coach-generate-week" class="primary">
+                      Generate 7-Day Plan
+                    </button>
                   </div>
-                  <button id="coach-generate-week" class="primary">
-                    Generate 7-Day Plan
-                  </button>
+
+                  <div id="coach-messages"></div>
+
+                  <div id="coach-typing-pill">
+                    <span></span><span></span><span></span>
+                  </div>
+
+                  <form id="coach-form">
+                    <input
+                      type="text"
+                      id="coach-input"
+                      placeholder="Ask your coach anything…"
+                    />
+                    <button type="submit" class="primary">Send</button>
+                  </form>
+
+                  <div id="coach-message"></div>
                 </div>
-
-                <div id="coach-messages"></div>
-
-                <div id="coach-typing-pill">
-                  <span></span><span></span><span></span>
-                </div>
-
-                <form id="coach-form">
-                  <input
-                    type="text"
-                    id="coach-input"
-                    placeholder="Ask your coach anything…"
-                  />
-                  <button type="submit" class="primary">Send</button>
-                </form>
-
-                <div id="coach-message"></div>
-              </div>
               </div>
             </section>
 
             <!-- MORE TAB (mobile hub for extra pages) -->
             <section id="more-tab" class="tab-panel full-width">
               <div class="app-content">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <h3>More</h3>
-                    <p class="subtitle small">
-                      Shortcuts to everything that doesn’t fit in the main nav.
-                    </p>
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>More</h3>
+                      <p class="subtitle small">
+                        Shortcuts to everything that doesn’t fit in the main nav.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="more-grid">
+                    <button
+                      class="more-tile"
+                      data-tab-target="meals-tab"
+                    >
+                      <span class="more-title">Meals</span>
+                      <span class="more-subtitle">Plan your dinners</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="workouts-tab"
+                    >
+                      <span class="more-title">Workouts</span>
+                      <span class="more-subtitle">Sessions &amp; streak</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="grocery-tab"
+                    >
+                      <span class="more-title">Grocery list</span>
+                      <span class="more-subtitle">Shared shopping list</span>
+                    </button>
+                    <button class="more-tile" disabled>
+                      <span class="more-title">Calendar</span>
+                      <span class="more-subtitle">Coming soon</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="family-tab"
+                    >
+                      <span class="more-title">Family</span>
+                      <span class="more-subtitle">Manage your group</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="progress-tab"
+                    >
+                      <span class="more-title">Progress history</span>
+                      <span class="more-subtitle">View past logs</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="family-tab"
+                    >
+                      <span class="more-title">Family</span>
+                      <span class="more-subtitle">Manage your group</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="settings-tab"
+                    >
+                      <span class="more-title">Settings</span>
+                      <span class="more-subtitle">Appearance &amp; account</span>
+                    </button>
+                    <button class="more-tile" data-action="download-app">
+                      <span class="more-title">Download App</span>
+                      <span class="more-subtitle">Get the latest build</span>
+                    </button>
                   </div>
                 </div>
-
-                <div class="more-grid">
-                  <button
-                    class="more-tile"
-                    data-tab-target="meals-tab"
-                  >
-                    <span class="more-title">Meals</span>
-                    <span class="more-subtitle">Plan your dinners</span>
-                  </button>
-                  <button
-                    class="more-tile"
-                    data-tab-target="workouts-tab"
-                  >
-                    <span class="more-title">Workouts</span>
-                    <span class="more-subtitle">Sessions &amp; streak</span>
-                  </button>
-                  <button
-                    class="more-tile"
-                    data-tab-target="grocery-tab"
-                  >
-                    <span class="more-title">Grocery list</span>
-                    <span class="more-subtitle">Shared shopping list</span>
-                  </button>
-                  <button class="more-tile" disabled>
-                    <span class="more-title">Calendar</span>
-                    <span class="more-subtitle">Coming soon</span>
-                  </button>
-                  <button
-                    class="more-tile"
-                    data-tab-target="family-tab"
-                  >
-                    <span class="more-title">Family</span>
-                    <span class="more-subtitle">Manage your group</span>
-                  </button>
-                  <button
-                    class="more-tile"
-                    data-tab-target="progress-tab"
-                  >
-                    <span class="more-title">Progress history</span>
-                    <span class="more-subtitle">View past logs</span>
-                  </button>
-                  <button
-                    class="more-tile"
-                    data-tab-target="family-tab"
-                  >
-                    <span class="more-title">Family</span>
-                    <span class="more-subtitle">Manage your group</span>
-                  </button>
-                  <button
-                    class="more-tile"
-                    data-tab-target="settings-tab"
-                  >
-                    <span class="more-title">Settings</span>
-                    <span class="more-subtitle">Appearance &amp; account</span>
-                  </button>
-                  <button class="more-tile" data-action="download-app">
-                    <span class="more-title">Download App</span>
-                    <span class="more-subtitle">Get the latest build</span>
-                  </button>
-                </div>
               </div>
-            </div>
-            </section>
+              </section>
 
-            <!-- SETTINGS -->
+              <!-- SETTINGS -->
             <section id="settings-tab" class="tab-panel full-width">
               <div class="app-content">
               <div class="card settings-card">
@@ -1153,7 +1151,11 @@
               Family
               <span class="more-menu-sub">Manage your group</span>
             </button>
-            <button class="more-menu-item" data-menu-target="settings" role="menuitem">
+            <button
+              class="more-menu-item"
+              data-menu-target="settings-tab"
+              role="menuitem"
+            >
               Settings
               <span class="more-menu-sub">Appearance &amp; account</span>
             </button>
