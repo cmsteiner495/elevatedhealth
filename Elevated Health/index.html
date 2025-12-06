@@ -92,6 +92,12 @@
             <span id="welcome-text" class="top-bar-title">Welcome</span>
           </div>
           <div class="top-bar-right">
+            <div class="theme-toggle">
+              <span class="theme-label" id="theme-label">Dark</span>
+              <button id="theme-toggle" class="ghost-btn" type="button">
+                Toggle theme
+              </button>
+            </div>
             <span class="badge-pill">Beta</span>
             <button id="logout-button" class="ghost-btn">Log Out</button>
           </div>
@@ -112,7 +118,7 @@
         </nav>
 
         <!-- CONTENT AREA -->
-        <main class="content-shell">
+        <main class="content-shell page-content">
           <div class="tab-panels-wrapper">
             <!-- DASHBOARD -->
             <section
@@ -360,6 +366,18 @@
                       Plan breakfast, lunch &amp; dinner.
                     </p>
                   </div>
+                </div>
+
+                <div class="card nested-card">
+                  <div class="card-header">
+                    <div>
+                      <h3>AI Dinner Picks</h3>
+                      <p class="subtitle small">
+                        Tap to view ingredients and quick nutrition.
+                      </p>
+                    </div>
+                  </div>
+                  <div id="ai-dinner-grid" class="ai-dinner-grid"></div>
                 </div>
 
                 <div id="meals-no-family">
@@ -862,6 +880,38 @@
           </button>
         </div>
       </section>
+    </div>
+
+    <div
+      id="eh-modal"
+      class="eh-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="eh-modal-title"
+      aria-hidden="true"
+    >
+      <div class="eh-modal-dialog">
+        <div class="eh-modal-header">
+          <h3 id="eh-modal-title" class="eh-modal-title">Details</h3>
+          <button
+            class="modal-close"
+            type="button"
+            data-modal-close
+            aria-label="Close dialog"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="eh-modal-body" id="eh-modal-body"></div>
+        <div class="eh-modal-footer">
+          <button class="ghost-btn" type="button" data-modal-close>
+            Close
+          </button>
+          <button class="primary" type="button" data-modal-primary>
+            Save
+          </button>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="js/app.js"></script>

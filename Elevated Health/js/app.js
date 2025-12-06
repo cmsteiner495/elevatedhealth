@@ -40,10 +40,15 @@ import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
 import { initCoachHandlers } from "./coach.js";
 import { initDiary } from "./logDiary.js";
+import { initAIDinnerCards, initModal, initThemeToggle } from "./ui.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
 );
+
+initThemeToggle();
+initModal();
+initAIDinnerCards();
 
 // Show / hide auth vs app
 
