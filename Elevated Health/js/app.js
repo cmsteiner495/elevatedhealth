@@ -61,11 +61,6 @@ console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
 );
 
-initThemeToggle();
-initModal();
-initAIDinnerCards();
-initInstallState();
-
 // Show / hide auth vs app
 
 function showAuth() {
@@ -90,10 +85,20 @@ const TAB_TITLE_MAP = {
   "settings-tab": "Settings",
 };
 
+function triggerAIDigestPlaceholder() {
+  openModal({
+    title: "AI Coach Weekly Digest",
+    body: "Your personalized digest is coming soon. We'll use your meals, workouts, and progress to craft insights.",
+    primaryLabel: "Got it",
+  });
+}
+
 let activeTabId = "dashboard-tab";
 let displayNameValue = "";
 let deferredInstallPrompt = null;
 let isStandaloneMode = false;
+let isAppInstalled = false;
+let selectedThemeStyle = "mountain";
 
 function getDisplayName() {
   return (
@@ -162,6 +167,48 @@ function updateSettingsEmail(email) {
   if (settingsEmailLabel) {
     settingsEmailLabel.textContent = email || "you@example.com";
   }
+}
+
+const THEME_STYLES = {
+  mountain: {
+    name: "Mountain Blue",
+    values: {
+      "--color-accent-primary": "#3aa1ff",
+      "--accent": "#3aa1ff",
+      "--accent-blue": "#74c0ff",
+      "--color-orange": "#ff6b1a",
+    },
+  },
+  summer: {
+    name: "Summer Glow",
+    values: {
+      "--color-accent-primary": "#ff8b3d",
+      "--accent": "#ffb347",
+      "--accent-blue": "#ffd089",
+      "--color-orange": "#ff7a2f",
+    },
+  },
+  winter: {
+    name: "Winter Frost",
+    values: {
+      "--color-accent-primary": "#7fd3ff",
+      "--accent": "#a8e1ff",
+      "--accent-blue": "#d7f0ff",
+      "--color-orange": "#5ed0ff",
+    },
+  },
+};
+
+function applyThemeStyle(styleKey = selectedThemeStyle) {
+  const theme = THEME_STYLES[styleKey] || THEME_STYLES.mountain;
+  const root = document.documentElement;
+  Object.entries(theme.values).forEach(([k, v]) => {
+    root.style.setProperty(k, v);
+  });
+  selectedThemeStyle = styleKey;
+  document
+    .querySelectorAll("#theme-style-chips .chip")
+    .forEach((chip) => chip.classList.toggle("active", chip.dataset.themeStyle === styleKey));
 }
 
 // Load profile
@@ -258,6 +305,56 @@ async function init() {
   }
 }
 
+async function calculateWorkoutStreak() {
+  try {
+    const today = new Date();
+    const isoToday = today.toISOString().slice(0, 10);
+    const targetFamily = currentFamilyId;
+    if (!targetFamily) {
+      const streakEl = document.getElementById("streak-count");
+      if (streakEl) streakEl.textContent = "0";
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("family_workouts")
+      .select("workout_date")
+      .eq("family_group_id", targetFamily)
+      .lte("workout_date", isoToday)
+      .order("workout_date", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching workouts for streak", error);
+      return;
+    }
+
+    const uniqueDates = Array.from(
+      new Set((data || []).map((w) => w.workout_date))
+    ).sort((a, b) => new Date(b) - new Date(a));
+
+    let streak = 0;
+    let cursor = new Date(isoToday);
+
+    for (const date of uniqueDates) {
+      const dateObj = new Date(date);
+      if (
+        dateObj.toISOString().slice(0, 10) ===
+        cursor.toISOString().slice(0, 10)
+      ) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      } else if (dateObj < cursor) {
+        break;
+      }
+    }
+
+    const streakEl = document.getElementById("streak-count");
+    if (streakEl) streakEl.textContent = `${streak}`;
+  } catch (err) {
+    console.error("Streak calculation failed", err);
+  }
+}
+
 // Shared tab helper
 
 function activateTab(targetId) {
@@ -311,6 +408,40 @@ function focusLogSection(sectionKey) {
     target.classList.add("log-card-highlight");
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   }
+}
+
+async function openLogWeightModal(defaultDate) {
+  const body = document.createElement("div");
+  body.className = "log-weight-body";
+  const dateInput = document.createElement("input");
+  dateInput.type = "date";
+  dateInput.value = defaultDate || new Date().toISOString().slice(0, 10);
+  const weightInput = document.createElement("input");
+  weightInput.type = "number";
+  weightInput.step = "0.1";
+  weightInput.placeholder = "Weight";
+  body.appendChild(dateInput);
+  body.appendChild(weightInput);
+
+  openModal({
+    title: "Log weight",
+    body,
+    primaryLabel: "Save",
+    onPrimary: async () => {
+      const payload = {
+        family_group_id: currentFamilyId,
+        date: dateInput.value,
+        weight: parseFloat(weightInput.value || "0") || null,
+      };
+
+      const { error } = await supabase.from("progress_logs").insert(payload);
+      if (error) {
+        alert("Unable to save weight right now.");
+        return;
+      }
+      document.dispatchEvent(new CustomEvent("progress:refresh"));
+    },
+  });
 }
 
 // SIGN UP
@@ -411,6 +542,14 @@ document.querySelectorAll(".more-tile[data-tab-target]").forEach((tile) => {
   });
 });
 
+document.querySelectorAll(".more-tile[data-action]").forEach((tile) => {
+  tile.addEventListener("click", () => {
+    if (tile.dataset.action === "download-app") {
+      showInstallHelper();
+    }
+  });
+});
+
 // Log tab buttons → go straight to the right tab (for now)
 
 document.querySelectorAll(".log-card-button").forEach((btn) => {
@@ -420,6 +559,11 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
     activateTab(targetId);
   });
 });
+
+const digestButton = document.getElementById("ai-digest-trigger");
+if (digestButton) {
+  digestButton.addEventListener("click", triggerAIDigestPlaceholder);
+}
 
 document.addEventListener("diary:add", (event) => {
   const { section, date } = event.detail || {};
@@ -499,29 +643,37 @@ if (moreMenuItems && moreMenuItems.length) {
   moreMenuItems.forEach((item) => {
     item.addEventListener("click", () => {
       const target = item.dataset.menuTarget;
-      if (target === "settings") {
+      if (target) {
         closeMoreMenu();
-        setTimeout(() => activateTab("settings-tab"), 160);
+        const tabId = target.endsWith("-tab") ? target : `${target}`;
+        const resolved = target === "settings" ? "settings-tab" : tabId;
+        setTimeout(() => activateTab(resolved), 160);
         return;
       }
-      closeMoreMenu();
+      if (item.dataset.action === "download-app") {
+        closeMoreMenu();
+        showInstallHelper();
+      }
     });
   });
 }
 
 function checkStandalone() {
-  return (
+  const standalone =
     window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true
-  );
+    window.navigator.standalone === true;
+  isAppInstalled = standalone;
+  return standalone;
 }
 
 function updateInstallUI() {
-  const installAvailable = Boolean(deferredInstallPrompt) && !isStandaloneMode;
-  const showGuidance = !isStandaloneMode;
+  const installAvailable =
+    Boolean(deferredInstallPrompt) && !isStandaloneMode && !isAppInstalled;
+  const showGuidance = !isStandaloneMode && !isAppInstalled;
 
   if (installHelperButton) {
-    installHelperButton.style.display = installAvailable ? "inline-flex" : "none";
+    const showDesktopCTA = detectPlatform() === "desktop" && showGuidance;
+    installHelperButton.style.display = showDesktopCTA ? "inline-flex" : "none";
   }
 
   if (settingsInstallButton) {
@@ -533,7 +685,8 @@ function updateInstallUI() {
   }
 
   if (moreMenuInstallButton) {
-    moreMenuInstallButton.style.display = showGuidance ? "block" : "none";
+    const showMobileInstall = showGuidance && detectPlatform() !== "desktop";
+    moreMenuInstallButton.style.display = showMobileInstall ? "block" : "none";
     const subtitle = moreMenuInstallButton.querySelector(".more-menu-sub");
     if (subtitle) {
       subtitle.textContent = installAvailable
@@ -564,6 +717,15 @@ function initInstallState() {
   isStandaloneMode = checkStandalone();
   updateInstallUI();
 
+  const displayModeMedia = window.matchMedia("(display-mode: standalone)");
+  if (displayModeMedia?.addEventListener) {
+    displayModeMedia.addEventListener("change", (evt) => {
+      isStandaloneMode = evt.matches;
+      isAppInstalled = evt.matches;
+      updateInstallUI();
+    });
+  }
+
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
@@ -573,6 +735,7 @@ function initInstallState() {
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
     isStandaloneMode = true;
+    isAppInstalled = true;
     updateInstallUI();
   });
 }
@@ -655,8 +818,11 @@ function handleQuickAction(action) {
       break;
 
     case "log-water":
-    case "log-weight":
       focusLogSection("progress");
+      break;
+
+    case "log-weight":
+      openLogWeightModal(selectedDate);
       break;
 
     case "log-exercise":
@@ -767,6 +933,13 @@ document.querySelectorAll("[data-placeholder-toggle]").forEach((btn) => {
   });
 });
 
+document.querySelectorAll("#theme-style-chips .chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const styleKey = chip.dataset.themeStyle;
+    applyThemeStyle(styleKey);
+  });
+});
+
 onSelectedDateChange((dateValue) => {
   syncDateInputs(dateValue);
 });
@@ -790,6 +963,27 @@ if (progressDateInput) {
   });
 }
 
+const deleteSelectors = [
+  "meal-delete",
+  "workout-delete",
+  "grocery-delete",
+  "progress-delete",
+];
+
+document.addEventListener(
+  "click",
+  (e) => {
+    const match = deleteSelectors.find((cls) => e.target.classList?.contains(cls));
+    if (!match) return;
+    const li = e.target.closest("li");
+    if (li) {
+      li.classList.add("fade-out");
+      setTimeout(() => li.remove(), 180);
+    }
+  },
+  true
+);
+
 // LOGOUT
 
 if (logoutButton) {
@@ -810,6 +1004,16 @@ if (logoutButton) {
 
 // Init coach + app
 
-initCoachHandlers();
-initDiary();
-init();
+async function instantiateAppAfterInitialization() {
+  initThemeToggle();
+  applyThemeStyle(selectedThemeStyle);
+  initModal();
+  initAIDinnerCards();
+  initInstallState();
+  initCoachHandlers();
+  initDiary();
+  await init();
+  await calculateWorkoutStreak();
+}
+
+instantiateAppAfterInitialization();
