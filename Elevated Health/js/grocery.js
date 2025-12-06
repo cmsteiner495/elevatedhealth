@@ -12,6 +12,8 @@ import {
 } from "./dom.js";
 import { currentUser, currentFamilyId } from "./state.js";
 
+let groceryItems = [];
+
 export function setGroceryFamilyState() {
   if (!groceryNoFamily || !groceryHasFamily) return;
 
@@ -21,6 +23,7 @@ export function setGroceryFamilyState() {
   } else {
     groceryNoFamily.style.display = "block";
     groceryHasFamily.style.display = "none";
+    groceryItems = [];
     if (groceryList) groceryList.innerHTML = "";
     if (groceryMessage) {
       groceryMessage.textContent = "";
@@ -50,10 +53,11 @@ export async function loadGroceryItems() {
     return;
   }
 
-  renderGroceryList(data || []);
+  groceryItems = data || [];
+  renderGroceryList();
 }
 
-function renderGroceryList(items) {
+function renderGroceryList(items = groceryItems) {
   if (!groceryList) return;
 
   if (!items.length) {
@@ -175,6 +179,13 @@ if (groceryList) {
     // Toggle checked
     if (e.target.classList.contains("grocery-checkbox")) {
       const checked = e.target.checked;
+      const existing = groceryItems.find((item) => item.id === itemId);
+      if (existing) {
+        groceryItems = groceryItems.map((item) =>
+          item.id === itemId ? { ...item, checked } : item
+        );
+        renderGroceryList();
+      }
 
       const { error } = await supabase
         .from("grocery_list_items")
@@ -183,15 +194,18 @@ if (groceryList) {
 
       if (error) {
         console.error("Error updating grocery item:", error);
+        groceryItems = groceryItems.map((item) =>
+          item.id === itemId ? { ...item, checked: !checked } : item
+        );
+        renderGroceryList();
         return;
       }
-
-      await loadGroceryItems();
       return;
     }
 
     // Delete
     if (e.target.classList.contains("grocery-delete")) {
+      li.classList.add("list-removing");
       const { error } = await supabase
         .from("grocery_list_items")
         .delete()
@@ -199,10 +213,12 @@ if (groceryList) {
 
       if (error) {
         console.error("Error deleting grocery item:", error);
+        li.classList.remove("list-removing");
         return;
       }
 
-      await loadGroceryItems();
+      groceryItems = groceryItems.filter((item) => item.id !== itemId);
+      setTimeout(() => renderGroceryList(), 160);
       return;
     }
   });

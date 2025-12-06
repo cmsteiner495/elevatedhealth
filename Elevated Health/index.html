@@ -178,60 +178,62 @@
               id="dashboard-tab"
               class="tab-panel full-width is-active"
             >
-              <div class="card large-card">
-                <div class="card-header">
-                  <div>
-                    <h3>Today</h3>
-                    <p class="subtitle small">
-                      Quick overview of your plan &amp; progress.
-                    </p>
-                  </div>
-                </div>
-                <div class="dashboard-main">
-                  <div class="dashboard-calories">
-                    <div class="calories-number">Weekly Plan</div>
-                    <div class="calories-label">
-                      Meals &amp; workouts synced for this week.
+              <div class="app-content">
+                <div class="card large-card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Today</h3>
+                      <p class="subtitle small">
+                        Quick overview of your plan &amp; progress.
+                      </p>
                     </div>
-                    <div class="calories-bar">
-                      <div class="calories-bar-fill"></div>
-                    </div>
-                    <button
-                      type="button"
-                      class="primary full-width"
-                      id="dashboard-ai-shortcut"
-                    >
-                      Refresh 7-Day Plan
-                    </button>
                   </div>
+                  <div class="dashboard-main">
+                    <div class="dashboard-calories">
+                      <div class="calories-number">Weekly Plan</div>
+                      <div class="calories-label">
+                        Meals &amp; workouts synced for this week.
+                      </div>
+                      <div class="calories-bar">
+                        <div class="calories-bar-fill"></div>
+                      </div>
+                      <button
+                        type="button"
+                        class="primary full-width"
+                        id="dashboard-ai-shortcut"
+                      >
+                        Refresh 7-Day Plan
+                      </button>
+                    </div>
 
-                  <div class="dashboard-grid">
-                    <div class="metric-card">
-                      <div class="metric-label">Meals planned</div>
-                      <div class="metric-value">7 days</div>
-                      <div class="metric-subtext">
-                        Dinner covered for the whole week.
+                    <div class="dashboard-grid">
+                      <div class="metric-card">
+                        <div class="metric-label">Meals planned</div>
+                        <div class="metric-value">7 days</div>
+                        <div class="metric-subtext">
+                          Dinner covered for the whole week.
+                        </div>
                       </div>
-                    </div>
-                    <div class="metric-card">
-                      <div class="metric-label">Workouts scheduled</div>
-                      <div class="metric-value">7 sessions</div>
-                      <div class="metric-subtext">
-                        Check the Workouts tab for details.
+                      <div class="metric-card">
+                        <div class="metric-label">Workouts scheduled</div>
+                        <div class="metric-value">7 sessions</div>
+                        <div class="metric-subtext">
+                          Check the Workouts tab for details.
+                        </div>
                       </div>
-                    </div>
-                    <div class="metric-card">
-                      <div class="metric-label">Grocery list</div>
-                      <div class="metric-value">Synced</div>
-                      <div class="metric-subtext">
-                        Items pulled from your meal plan.
+                      <div class="metric-card">
+                        <div class="metric-label">Grocery list</div>
+                        <div class="metric-value">Synced</div>
+                        <div class="metric-subtext">
+                          Items pulled from your meal plan.
+                        </div>
                       </div>
-                    </div>
-                    <div class="metric-card">
-                      <div class="metric-label">Progress</div>
-                      <div class="metric-value">Log today</div>
-                      <div class="metric-subtext">
-                        Track weight, water, sleep &amp; steps.
+                      <div class="metric-card">
+                        <div class="metric-label">Progress</div>
+                        <div class="metric-value">Log today</div>
+                        <div class="metric-subtext">
+                          Track weight, water, sleep &amp; steps.
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -241,256 +243,263 @@
 
             <!-- CENTRAL LOG TAB -->
             <section id="log-tab" class="tab-panel full-width">
-              <div class="card diary-shell">
-                <div class="diary-header">
-                  <div>
-                    <h3>Log</h3>
-                    <p class="subtitle small">Daily diary</p>
+              <div class="app-content">
+                <div class="card diary-shell">
+                  <div class="diary-header">
+                    <div>
+                      <h3>Log</h3>
+                      <p class="subtitle small">Daily diary</p>
+                    </div>
+
+                    <div class="diary-date-nav">
+                      <button
+                        type="button"
+                        class="ghost-btn diary-nav-btn"
+                        id="diary-prev-day"
+                        aria-label="Previous day"
+                      >
+                        ←
+                      </button>
+
+                      <div class="diary-date-meta">
+                        <div id="diary-date-label" class="diary-date-label">
+                          Loading date…
+                        </div>
+                        <div id="diary-date-sub" class="subtitle tiny">
+                          —
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="ghost-btn diary-nav-btn"
+                        id="diary-next-day"
+                        aria-label="Next day"
+                      >
+                        →
+                      </button>
+
+                      <button
+                        type="button"
+                        class="ghost-btn diary-today-btn"
+                        id="diary-today-btn"
+                      >
+                        Today
+                      </button>
+                    </div>
                   </div>
 
-                  <div class="diary-date-nav">
-                    <button
-                      type="button"
-                      class="ghost-btn diary-nav-btn"
-                      id="diary-prev-day"
-                      aria-label="Previous day"
-                    >
-                      ←
-                    </button>
-
-                    <div class="diary-date-meta">
-                      <div id="diary-date-label" class="diary-date-label">
-                        Loading date…
-                      </div>
-                      <div id="diary-date-sub" class="subtitle tiny">
+                  <div class="diary-calories" id="diary-calories-card">
+                    <div class="calories-remaining">
+                      <div class="subtitle tiny">Calories remaining</div>
+                      <div id="diary-calories-remaining" class="calories-big">
                         —
                       </div>
                     </div>
+                    <div class="calories-breakdown">
+                      <div class="calories-row">
+                        <span>Goal</span>
+                        <strong id="diary-calories-goal">—</strong>
+                      </div>
+                      <div class="calories-row">
+                        <span>Food</span>
+                        <strong id="diary-calories-food">—</strong>
+                      </div>
+                      <div class="calories-row">
+                        <span>Exercise</span>
+                        <strong id="diary-calories-exercise">—</strong>
+                      </div>
+                    </div>
+                  </div>
 
-                    <button
-                      type="button"
-                      class="ghost-btn diary-nav-btn"
-                      id="diary-next-day"
-                      aria-label="Next day"
-                    >
-                      →
-                    </button>
+                  <div class="diary-grid">
+                    <div class="diary-section" data-section="breakfast">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Breakfast</div>
+                          <div class="subtitle tiny">Morning fuel</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="breakfast"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-breakfast-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
 
-                    <button
-                      type="button"
-                      class="ghost-btn diary-today-btn"
-                      id="diary-today-btn"
-                    >
-                      Today
-                    </button>
+                    <div class="diary-section" data-section="lunch">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Lunch</div>
+                          <div class="subtitle tiny">Midday energy</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="lunch"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-lunch-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+
+                    <div class="diary-section" data-section="dinner">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Dinner</div>
+                          <div class="subtitle tiny">Evening wrap-up</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="dinner"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-dinner-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+
+                    <div class="diary-section" data-section="snacks">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Snacks</div>
+                          <div class="subtitle tiny">Small bites</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="snacks"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-snacks-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+
+                    <div class="diary-section" data-section="exercise">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Exercise</div>
+                          <div class="subtitle tiny">Workouts &amp; movement</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="exercise"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-exercise-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
-
-                <div class="diary-calories" id="diary-calories-card">
-                  <div class="calories-remaining">
-                    <div class="subtitle tiny">Calories remaining</div>
-                    <div id="diary-calories-remaining" class="calories-big">
-                      —
-                    </div>
-                  </div>
-                  <div class="calories-breakdown">
-                    <div class="calories-row">
-                      <span>Goal</span>
-                      <strong id="diary-calories-goal">—</strong>
-                    </div>
-                    <div class="calories-row">
-                      <span>Food</span>
-                      <strong id="diary-calories-food">—</strong>
-                    </div>
-                    <div class="calories-row">
-                      <span>Exercise</span>
-                      <strong id="diary-calories-exercise">—</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="diary-grid">
-                  <div class="diary-section" data-section="breakfast">
-                    <div class="diary-section-head">
-                      <div>
-                        <div class="diary-section-title">Breakfast</div>
-                        <div class="subtitle tiny">Morning fuel</div>
-                      </div>
-                      <button
-                        class="ghost-btn"
-                        type="button"
-                        data-diary-add="breakfast"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <ul id="diary-breakfast-list" class="diary-list">
-                      <li class="diary-empty">Loading…</li>
-                    </ul>
-                  </div>
-
-                  <div class="diary-section" data-section="lunch">
-                    <div class="diary-section-head">
-                      <div>
-                        <div class="diary-section-title">Lunch</div>
-                        <div class="subtitle tiny">Midday energy</div>
-                      </div>
-                      <button
-                        class="ghost-btn"
-                        type="button"
-                        data-diary-add="lunch"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <ul id="diary-lunch-list" class="diary-list">
-                      <li class="diary-empty">Loading…</li>
-                    </ul>
-                  </div>
-
-                  <div class="diary-section" data-section="dinner">
-                    <div class="diary-section-head">
-                      <div>
-                        <div class="diary-section-title">Dinner</div>
-                        <div class="subtitle tiny">Evening wrap-up</div>
-                      </div>
-                      <button
-                        class="ghost-btn"
-                        type="button"
-                        data-diary-add="dinner"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <ul id="diary-dinner-list" class="diary-list">
-                      <li class="diary-empty">Loading…</li>
-                    </ul>
-                  </div>
-
-                  <div class="diary-section" data-section="snacks">
-                    <div class="diary-section-head">
-                      <div>
-                        <div class="diary-section-title">Snacks</div>
-                        <div class="subtitle tiny">Small bites</div>
-                      </div>
-                      <button
-                        class="ghost-btn"
-                        type="button"
-                        data-diary-add="snacks"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <ul id="diary-snacks-list" class="diary-list">
-                      <li class="diary-empty">Loading…</li>
-                    </ul>
-                  </div>
-
-                  <div class="diary-section" data-section="exercise">
-                    <div class="diary-section-head">
-                      <div>
-                        <div class="diary-section-title">Exercise</div>
-                        <div class="subtitle tiny">Workouts &amp; movement</div>
-                      </div>
-                      <button
-                        class="ghost-btn"
-                        type="button"
-                        data-diary-add="exercise"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <ul id="diary-exercise-list" class="diary-list">
-                      <li class="diary-empty">Loading…</li>
-                    </ul>
-                  </div>
-                </div>
+              </div>
               </div>
             </section>
 
             <!-- MEALS TAB -->
             <section id="meals-tab" class="tab-panel">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <h3>Meals</h3>
-                    <p class="subtitle small">
-                      Plan breakfast, lunch &amp; dinner.
-                    </p>
-                  </div>
-                </div>
-
-                <div class="card nested-card">
+              <div class="app-content">
+                <div class="card">
                   <div class="card-header">
                     <div>
-                      <h3>AI Dinner Picks</h3>
+                      <h3>Meals</h3>
                       <p class="subtitle small">
-                        Tap to view ingredients and quick nutrition.
+                        Plan breakfast, lunch &amp; dinner.
                       </p>
                     </div>
                   </div>
-                  <div id="ai-dinner-grid" class="ai-dinner-grid"></div>
-                </div>
-
-                <div id="meals-no-family">
-                  <p class="text-soft">
-                    Create a family group first so you can share meal plans.
-                  </p>
-                </div>
-
-                <div id="meals-has-family" style="display: none">
-                  <form id="meals-form" class="form-grid">
-                    <div>
-                      <label for="meal-date">Date</label>
-                      <input type="date" id="meal-date" required />
-                    </div>
-                    <div>
-                      <label for="meal-type">Meal type</label>
-                      <select id="meal-type" required>
-                        <option value="breakfast">Breakfast</option>
-                        <option value="lunch">Lunch</option>
-                        <option value="snacks">Snacks</option>
-                        <option value="dinner" selected>Dinner</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label for="meal-title">Title</label>
-                      <input
-                        type="text"
-                        id="meal-title"
-                        placeholder="Chicken stir-fry"
-                        required
-                      />
-                    </div>
-                    <div class="full-width">
-                      <label for="meal-notes">Notes (optional)</label>
-                      <textarea
-                        id="meal-notes"
-                        placeholder="Prep veggies night before"
-                      ></textarea>
-                    </div>
-                    <div class="full-width">
-                      <button type="submit" class="primary full-width">
-                        Add Meal
-                      </button>
-                    </div>
-                    <div id="meals-message" class="full-width"></div>
-                  </form>
 
                   <div class="card nested-card">
                     <div class="card-header">
-                      <h3>Upcoming meals</h3>
+                      <div>
+                        <h3>AI Dinner Picks</h3>
+                        <p class="subtitle small">
+                          Tap to view ingredients and quick nutrition.
+                        </p>
+                      </div>
                     </div>
-                    <ul id="meals-list">
-                      <li class="list-empty">No meals yet. Add one above.</li>
-                    </ul>
+                    <div id="ai-dinner-grid" class="ai-dinner-grid"></div>
+                  </div>
+
+                  <div id="meals-no-family">
+                    <p class="text-soft">
+                      Create a family group first so you can share meal plans.
+                    </p>
+                  </div>
+
+                  <div id="meals-has-family" style="display: none">
+                    <form id="meals-form" class="form-grid">
+                      <div>
+                        <label for="meal-date">Date</label>
+                        <input type="date" id="meal-date" required />
+                      </div>
+                      <div>
+                        <label for="meal-type">Meal type</label>
+                        <select id="meal-type" required>
+                          <option value="breakfast">Breakfast</option>
+                          <option value="lunch">Lunch</option>
+                          <option value="snacks">Snacks</option>
+                          <option value="dinner" selected>Dinner</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="meal-title">Title</label>
+                        <input
+                          type="text"
+                          id="meal-title"
+                          placeholder="Chicken stir-fry"
+                          required
+                        />
+                      </div>
+                      <div class="full-width">
+                        <label for="meal-notes">Notes (optional)</label>
+                        <textarea
+                          id="meal-notes"
+                          placeholder="Prep veggies night before"
+                        ></textarea>
+                      </div>
+                      <div class="full-width">
+                        <button type="submit" class="primary full-width">
+                          Add Meal
+                        </button>
+                      </div>
+                      <div id="meals-message" class="full-width"></div>
+                    </form>
+
+                    <div class="card nested-card">
+                      <div class="card-header">
+                        <h3>Upcoming meals</h3>
+                      </div>
+                      <ul id="meals-list">
+                        <li class="list-empty">No meals yet. Add one above.</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
+              </div>
               </div>
             </section>
 
             <!-- WORKOUTS TAB -->
             <section id="workouts-tab" class="tab-panel">
+              <div class="app-content">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -576,10 +585,12 @@
                   </div>
                 </div>
               </div>
+              </div>
             </section>
 
             <!-- GROCERY TAB -->
             <section id="grocery-tab" class="tab-panel">
+              <div class="app-content">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -649,6 +660,7 @@
 
             <!-- PROGRESS TAB -->
             <section id="progress-tab" class="tab-panel">
+              <div class="app-content">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -734,6 +746,7 @@
 
             <!-- FAMILY TAB -->
             <section id="family-tab" class="tab-panel">
+              <div class="app-content">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -743,10 +756,12 @@
                 </div>
                 <div id="family-status"></div>
               </div>
+              </div>
             </section>
 
             <!-- AI COACH TAB -->
             <section id="coach-tab" class="tab-panel full-width">
+              <div class="app-content">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -777,10 +792,12 @@
 
                 <div id="coach-message"></div>
               </div>
+              </div>
             </section>
 
             <!-- MORE TAB (mobile hub for extra pages) -->
             <section id="more-tab" class="tab-panel full-width">
+              <div class="app-content">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -826,10 +843,12 @@
                   </button>
                 </div>
               </div>
+            </div>
             </section>
 
             <!-- SETTINGS -->
             <section id="settings-tab" class="tab-panel full-width">
+              <div class="app-content">
               <div class="card settings-card">
                 <div class="card-header">
                   <div>
@@ -951,6 +970,7 @@
                   </div>
                 </div>
               </div>
+            </div>
             </section>
           </div>
         </main>
@@ -1029,6 +1049,10 @@
             <button class="more-menu-item" data-menu-target="settings" role="menuitem">
               Settings
               <span class="more-menu-sub">Appearance &amp; account</span>
+            </button>
+            <button id="more-menu-install" class="more-menu-item" role="menuitem">
+              Install app
+              <span class="more-menu-sub">Add Elevated Health to your device</span>
             </button>
             <button class="more-menu-item" role="menuitem" disabled>
               Profile

@@ -30,6 +30,7 @@ import {
   moreNavButton,
   moreMenuBackdrop,
   moreMenuItems,
+  moreMenuInstallButton,
   settingsEmailLabel,
   installHelperButton,
   settingsInstallButton,
@@ -63,6 +64,7 @@ console.log(
 initThemeToggle();
 initModal();
 initAIDinnerCards();
+initInstallState();
 
 // Show / hide auth vs app
 
@@ -90,6 +92,8 @@ const TAB_TITLE_MAP = {
 
 let activeTabId = "dashboard-tab";
 let displayNameValue = "";
+let deferredInstallPrompt = null;
+let isStandaloneMode = false;
 
 function getDisplayName() {
   return (
@@ -505,6 +509,74 @@ if (moreMenuItems && moreMenuItems.length) {
   });
 }
 
+function checkStandalone() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+function updateInstallUI() {
+  const installAvailable = Boolean(deferredInstallPrompt) && !isStandaloneMode;
+  const showGuidance = !isStandaloneMode;
+
+  if (installHelperButton) {
+    installHelperButton.style.display = installAvailable ? "inline-flex" : "none";
+  }
+
+  if (settingsInstallButton) {
+    const installCard = settingsInstallButton.closest(".install-card");
+    if (installCard) {
+      installCard.style.display = showGuidance ? "" : "none";
+    }
+    settingsInstallButton.style.display = showGuidance ? "inline-flex" : "none";
+  }
+
+  if (moreMenuInstallButton) {
+    moreMenuInstallButton.style.display = showGuidance ? "block" : "none";
+    const subtitle = moreMenuInstallButton.querySelector(".more-menu-sub");
+    if (subtitle) {
+      subtitle.textContent = installAvailable
+        ? "Add Elevated Health to your device"
+        : "Use your browser's Add to Home Screen";
+    }
+  }
+}
+
+async function requestInstall() {
+  if (isStandaloneMode) return;
+
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if (outcome === "accepted") {
+      isStandaloneMode = true;
+    }
+    updateInstallUI();
+    return;
+  }
+
+  showInstallHelper();
+}
+
+function initInstallState() {
+  isStandaloneMode = checkStandalone();
+  updateInstallUI();
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    updateInstallUI();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    isStandaloneMode = true;
+    updateInstallUI();
+  });
+}
+
 function detectPlatform() {
   const ua = (navigator.userAgent || "").toLowerCase();
   if (/iphone|ipad|ipod/.test(ua)) return "ios";
@@ -669,10 +741,17 @@ if (quickSheetActionButtons && quickSheetActionButtons.length) {
   });
 }
 
-[installHelperButton, settingsInstallButton].forEach((btn) => {
+[
+  installHelperButton,
+  settingsInstallButton,
+  moreMenuInstallButton,
+].forEach((btn) => {
   if (!btn) return;
-  btn.addEventListener("click", () => {
-    showInstallHelper();
+  btn.addEventListener("click", async () => {
+    if (btn === moreMenuInstallButton) {
+      closeMoreMenu();
+    }
+    await requestInstall();
   });
 });
 

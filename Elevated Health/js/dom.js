@@ -139,6 +139,9 @@ export const moreNavButton = document.getElementById("more-nav-button");
 export const moreMenuBackdrop = document.getElementById("more-menu-backdrop");
 export const moreMenu = document.getElementById("more-menu");
 export const moreMenuItems = document.querySelectorAll("[data-menu-target]");
+export const moreMenuInstallButton = document.getElementById(
+  "more-menu-install"
+);
 
 // Modal
 export const modalBackdrop = document.getElementById("eh-modal");
