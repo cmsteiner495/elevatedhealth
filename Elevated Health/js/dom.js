@@ -20,6 +20,8 @@ export const loginMessage = document.getElementById("login-message");
 
 export const logoutButton = document.getElementById("logout-button");
 export const welcomeText = document.getElementById("welcome-text");
+export const themeToggleButton = document.getElementById("theme-toggle");
+export const themeLabel = document.getElementById("theme-label");
 
 // Tabs
 export const tabButtons = document.querySelectorAll(".tab-button");
@@ -71,6 +73,7 @@ export const mealTitleInput = document.getElementById("meal-title");
 export const mealNotesInput = document.getElementById("meal-notes");
 export const mealsMessage = document.getElementById("meals-message");
 export const mealsList = document.getElementById("meals-list");
+export const aiDinnerGrid = document.getElementById("ai-dinner-grid");
 
 // Workouts
 export const workoutsNoFamily = document.getElementById("workouts-no-family");
@@ -122,3 +125,12 @@ export const quickSheetBackdrop =
   document.getElementById("quick-sheet-backdrop");
 export const quickSheetActionButtons =
   document.querySelectorAll(".quick-sheet-item");
+
+// Modal
+export const modalBackdrop = document.getElementById("eh-modal");
+export const modalTitle = document.getElementById("eh-modal-title");
+export const modalBody = document.getElementById("eh-modal-body");
+export const modalPrimaryButton = document.querySelector(
+  "[data-modal-primary]"
+);
+export const modalCloseButtons = document.querySelectorAll("[data-modal-close]");
