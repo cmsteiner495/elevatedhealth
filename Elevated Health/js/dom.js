@@ -20,9 +20,18 @@ export const loginMessage = document.getElementById("login-message");
 
 export const logoutButton = document.getElementById("logout-button");
 export const welcomeText = document.getElementById("welcome-text");
+export const mobilePageTitle = document.getElementById("mobile-page-title");
+export const mobileOverline = document.getElementById("mobile-overline");
+export const profileAvatar = document.getElementById("profile-avatar");
 export const themeToggleButton = document.getElementById("theme-toggle");
 export const themeLabel = document.getElementById("theme-label");
 export const settingsEmailLabel = document.getElementById("settings-email");
+export const installHelperButton = document.getElementById(
+  "install-helper-button"
+);
+export const settingsInstallButton = document.getElementById(
+  "settings-install-button"
+);
 
 // Tabs
 export const tabButtons = document.querySelectorAll(".tab-button");

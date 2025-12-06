@@ -85,35 +85,86 @@
 
       <!-- MAIN APP SHELL -->
       <section id="app-section" style="display: none">
-        <!-- TOP BAR -->
-        <header class="top-bar">
-          <div class="top-bar-left">
-            <span class="brand-pill">ELEVATED HEALTH</span>
-            <span id="welcome-text" class="top-bar-title">Welcome</span>
-          </div>
-          <div class="top-bar-right">
-            <span class="badge-pill">Beta</span>
-            <button id="logout-button" class="ghost-btn">Log Out</button>
-          </div>
-        </header>
+        <div class="content-container">
+          <!-- TOP BAR -->
+          <header class="top-bar">
+            <div class="top-bar-inner">
+              <div class="top-bar-left">
+                <button
+                  class="icon-button mobile-only"
+                  type="button"
+                  aria-label="Notifications"
+                >
+                  <span class="nav-icon"
+                    ><svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v3.4l-.94 2.35a.6.6 0 0 0 .55.82h9.78a.6.6 0 0 0 .55-.82l-.94-2.35V9a4.5 4.5 0 0 0-4.5-4.5Z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path d="M10 18.5a2 2 0 0 0 4 0" stroke-linecap="round" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
 
-        <!-- DESKTOP TAB ROW -->
-        <nav class="tab-nav tab-nav-top">
-          <button class="tab-button active" data-tab="dashboard-tab">
-            Overview
-          </button>
-          <button class="tab-button" data-tab="log-tab">Log</button>
-          <button class="tab-button" data-tab="meals-tab">Meals</button>
-          <button class="tab-button" data-tab="workouts-tab">Workouts</button>
-          <button class="tab-button" data-tab="grocery-tab">Grocery</button>
-          <button class="tab-button" data-tab="progress-tab">Progress</button>
-          <button class="tab-button" data-tab="family-tab">Family</button>
-          <button class="tab-button" data-tab="coach-tab">AI Coach</button>
-          <button class="tab-button" data-tab="settings-tab">Settings</button>
-        </nav>
+              <div class="top-bar-title-group">
+                <span class="brand-pill desktop-only">ELEVATED HEALTH</span>
+                <span id="welcome-text" class="top-bar-title desktop-only"
+                  >Welcome</span
+                >
+                <div class="top-bar-mobile-stack mobile-only">
+                  <span id="mobile-overline" class="mobile-overline">Today</span>
+                  <span id="mobile-page-title" class="top-bar-title">Welcome</span>
+                </div>
+              </div>
+
+              <div class="top-bar-right">
+                <button
+                  id="install-helper-button"
+                  class="ghost-btn install-btn desktop-only"
+                  type="button"
+                >
+                  <span class="nav-icon"
+                    ><svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m12 3.75 4 4m-4-4-4 4m4-4V16m7 2v1.25c0 .69-.56 1.25-1.25 1.25H6.25A1.25 1.25 0 0 1 5 19.25V18"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  Install app
+                </button>
+                <span class="badge-pill desktop-only">Beta</span>
+                <button id="logout-button" class="ghost-btn desktop-only">
+                  Log Out
+                </button>
+                <div id="profile-avatar" class="profile-avatar" aria-hidden="true">
+                  U
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <!-- DESKTOP TAB ROW -->
+          <nav class="tab-nav tab-nav-top">
+            <button class="tab-button active" data-tab="dashboard-tab">
+              Overview
+            </button>
+            <button class="tab-button" data-tab="log-tab">Log</button>
+            <button class="tab-button" data-tab="meals-tab">Meals</button>
+            <button class="tab-button" data-tab="workouts-tab">Workouts</button>
+            <button class="tab-button" data-tab="grocery-tab">Grocery</button>
+            <button class="tab-button" data-tab="progress-tab">Progress</button>
+            <button class="tab-button" data-tab="family-tab">Family</button>
+            <button class="tab-button" data-tab="coach-tab">AI Coach</button>
+            <button class="tab-button" data-tab="settings-tab">Settings</button>
+          </nav>
+        </div>
 
         <!-- CONTENT AREA -->
-        <main class="content-shell page-content">
+        <main class="content-shell page-content content-container">
           <div class="tab-panels-wrapper">
             <!-- DASHBOARD -->
             <section
@@ -858,6 +909,30 @@
                     <h4>Account</h4>
                     <p class="subtitle tiny">Manage your details and access.</p>
                   </div>
+                  <div class="setting-card install-card mobile-only">
+                    <div>
+                      <div class="setting-title">Install app</div>
+                      <div class="setting-subtitle">
+                        Add Elevated Health to your home screen.
+                      </div>
+                    </div>
+                    <button
+                      id="settings-install-button"
+                      class="ghost-btn install-btn"
+                      type="button"
+                    >
+                      <span class="nav-icon"
+                        ><svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3.75 4 4m-4-4-4 4m4-4V16m7 2v1.25c0 .69-.56 1.25-1.25 1.25H6.25A1.25 1.25 0 0 1 5 19.25V18"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      Install app
+                    </button>
+                  </div>
                   <div class="setting-card">
                     <div>
                       <div class="setting-title">Signed in as</div>
@@ -876,12 +951,28 @@
         <!-- BOTTOM NAV (mobile) -->
         <nav class="bottom-nav">
           <button class="bottom-nav-item tab-button" data-tab="dashboard-tab">
-            <span class="nav-icon">🏠</span>
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 9.75 12 3l8 6.75v9.5a.75.75 0 0 1-.75.75H14v-5.5h-4v5.5H4.75A.75.75 0 0 1 4 19.25Z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
             <span class="nav-label">Home</span>
           </button>
 
           <button class="bottom-nav-item tab-button" data-tab="log-tab">
-            <span class="nav-icon">➕</span>
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M7 5.75h10A1.25 1.25 0 0 1 18.25 7v12.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V7A1.25 1.25 0 0 1 8 5.75ZM9.75 3v2.75M14.25 3v2.75M9.75 10h4.5M9.75 13.5h4.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
             <span class="nav-label">Log</span>
           </button>
 
@@ -891,19 +982,35 @@
           </button>
 
           <button class="bottom-nav-item tab-button" data-tab="coach-tab">
-            <span class="nav-icon">🤖</span>
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M8.75 6.75h6.5A2.75 2.75 0 0 1 18 9.5v5.25a2.75 2.75 0 0 1-2.75 2.75H8.75A2.75 2.75 0 0 1 6 14.75V9.5A2.75 2.75 0 0 1 8.75 6.75Z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M10 6.75V5a2 2 0 1 1 4 0v1.75M8 11.5h.01M16 11.5h.01M7 14.5h2.75M14.25 14.5H17"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
             <span class="nav-label">Coach</span>
           </button>
 
           <button
             id="more-nav-button"
             class="bottom-nav-item tab-button"
-            data-tab="settings-tab"
             type="button"
             aria-expanded="false"
             aria-controls="more-menu"
           >
-            <span class="nav-icon">⋯</span>
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6.5 12h.01M12 12h.01M17.5 12h.01" stroke-linecap="round" />
+              </svg>
+            </span>
             <span class="nav-label">More</span>
           </button>
         </nav>
