@@ -15,6 +15,7 @@ import {
   progressList,
 } from "./dom.js";
 import { currentUser, currentFamilyId } from "./state.js";
+import { maybeVibrate, showToast } from "./ui.js";
 
 export function setProgressFamilyState() {
   if (!progressNoFamily || !progressHasFamily) return;
@@ -190,6 +191,8 @@ if (progressForm) {
 
     progressForm.reset();
     await loadProgressLogs();
+    showToast("Progress saved");
+    maybeVibrate([10]);
   });
 }
 

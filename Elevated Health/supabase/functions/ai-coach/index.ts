@@ -68,7 +68,7 @@ async function generatePlanJSON(prompt: string) {
     {
       role: "system",
       content:
-        "You are Elevated Health’s AI Coach. " +
+        "You are Elevated Health’s coach, Ella. " +
         "You create simple, realistic 7-day dinner and workout plans for busy adults " +
         "and the grocery items needed. " +
         "You MUST respond with a single VALID JSON object only, no prose, no markdown, no code fences.",
@@ -165,7 +165,7 @@ async function generateChatReply(prompt: string) {
     {
       role: "system",
       content:
-        "You are Elevated Health’s AI Coach. " +
+        "You are Elevated Health’s coach, Ella. " +
         "You give short, encouraging, practical advice about workouts, nutrition, and habits. " +
         "Keep replies concise and friendly.",
     },

@@ -88,15 +88,31 @@
           <!-- TOP BAR -->
           <header class="top-bar">
             <div class="top-bar-inner">
-              <div class="top-bar-left">
-                <div class="logo-mark desktop-only" aria-label="Elevated Health logo">
-                  <span class="logo-mark-initials">EH</span>
-                </div>
-                <button
-                  class="icon-button notification-button mobile-only"
-                  type="button"
-                  aria-label="Notifications"
-                >
+            <div class="top-bar-left">
+              <div class="logo-mark desktop-only" aria-label="Elevated Health logo">
+                <span class="logo-mark-initials">EH</span>
+              </div>
+              <button
+                class="icon-button notification-button desktop-only"
+                type="button"
+                aria-label="Notifications"
+              >
+                <span class="nav-icon"
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v3.4l-.94 2.35a.6.6 0 0 0 .55.82h9.78a.6.6 0 0 0 .55-.82l-.94-2.35V9a4.5 4.5 0 0 0-4.5-4.5Z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path d="M10 18.5a2 2 0 0 0 4 0" stroke-linecap="round" />
+                  </svg>
+                </span>
+              </button>
+              <button
+                class="icon-button notification-button mobile-only"
+                type="button"
+                aria-label="Notifications"
+              >
                   <span class="nav-icon"
                     ><svg viewBox="0 0 24 24" aria-hidden="true">
                       <path
@@ -142,22 +158,6 @@
                   </span>
                   Install app
                 </button>
-                <button
-                  class="icon-button notification-button desktop-only"
-                  type="button"
-                  aria-label="Notifications"
-                >
-                  <span class="nav-icon"
-                    ><svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v3.4l-.94 2.35a.6.6 0 0 0 .55.82h9.78a.6.6 0 0 0 .55-.82l-.94-2.35V9a4.5 4.5 0 0 0-4.5-4.5Z"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                      <path d="M10 18.5a2 2 0 0 0 4 0" stroke-linecap="round" />
-                    </svg>
-                  </span>
-                </button>
                 <span class="badge-pill desktop-only">Beta</span>
                 <button id="logout-button" class="ghost-btn desktop-only">
                   Log Out
@@ -180,7 +180,7 @@
             <button class="tab-button" data-tab="grocery-tab">Grocery</button>
             <button class="tab-button" data-tab="progress-tab">Progress</button>
             <button class="tab-button" data-tab="family-tab">Family</button>
-            <button class="tab-button" data-tab="coach-tab">AI Coach</button>
+            <button class="tab-button" data-tab="coach-tab">Ella</button>
             <button class="tab-button" data-tab="settings-tab">Settings</button>
           </nav>
         </div>
@@ -209,8 +209,12 @@
                       <div class="calories-label">
                         Meals &amp; workouts synced for this week.
                       </div>
-                      <div class="calories-bar">
-                        <div class="calories-bar-fill"></div>
+                      <div class="calories-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                        <div
+                          id="dashboard-calories-fill"
+                          class="calories-bar-fill"
+                          aria-label="Daily calories progress"
+                        ></div>
                       </div>
                       <button
                         type="button"
@@ -270,7 +274,7 @@
                     <div class="card ai-digest-card">
                       <div class="card-header">
                         <div>
-                          <h3>AI Coach Weekly Digest</h3>
+                          <h3>Ella Weekly Digest</h3>
                           <p class="subtitle small">Coming soon</p>
                         </div>
                         <button
@@ -626,7 +630,7 @@
                     </div>
                     <ul id="workouts-list">
                       <li class="list-empty">
-                        No workouts yet. Add one above or use AI Coach.
+                        No workouts yet. Add one above or use Ella.
                       </li>
                     </ul>
                   </div>
@@ -814,9 +818,9 @@
                 <div class="card">
                   <div class="card-header">
                     <div>
-                      <h3>AI Coach</h3>
+                      <h3>Ella</h3>
                       <p class="subtitle small">
-                        Ask anything about meals, workouts, or progress.
+                        Ask Ella anything about meals, workouts, or progress.
                       </p>
                     </div>
                     <button id="coach-generate-week" class="primary">
@@ -834,7 +838,7 @@
                     <input
                       type="text"
                       id="coach-input"
-                      placeholder="Ask your coach anything…"
+                      placeholder="Ask Ella anything…"
                     />
                     <button type="submit" class="primary">Send</button>
                   </form>
@@ -998,7 +1002,7 @@
                   </div>
                   <div class="setting-row">
                     <div>
-                      <div class="setting-title">AI Coach insights</div>
+                      <div class="setting-title">Ella insights</div>
                       <div class="setting-subtitle">
                         Get a digest of new suggestions.
                       </div>
@@ -1181,6 +1185,11 @@
               <span class="quick-sheet-item-sub">Add a meal to your plan</span>
             </button>
 
+            <button class="quick-sheet-item" data-action="log-ella-meal">
+              Log Ella meal
+              <span class="quick-sheet-item-sub">Add an Ella pick to today</span>
+            </button>
+
             <button class="quick-sheet-item" data-action="barcode">
               Barcode scan
               <span class="quick-sheet-item-sub">Coming soon</span>
@@ -1280,6 +1289,8 @@
         </div>
       </div>
     </div>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
     <script type="module" src="js/app.js"></script>
   </body>

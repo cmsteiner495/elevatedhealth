@@ -59,6 +59,9 @@ export const diaryCaloriesExercise = document.getElementById(
 export const diaryCaloriesRemaining = document.getElementById(
   "diary-calories-remaining"
 );
+export const dashboardCaloriesFill = document.getElementById(
+  "dashboard-calories-fill"
+);
 
 // Family
 export const familyStatus = document.getElementById("family-status");
@@ -120,7 +123,7 @@ export const progressNotesInput =
 export const progressMessage = document.getElementById("progress-message");
 export const progressList = document.getElementById("progress-list");
 
-// AI Coach
+// Ella
 export const coachMessages = document.getElementById("coach-messages");
 export const coachForm = document.getElementById("coach-form");
 export const coachInput = document.getElementById("coach-input");
@@ -151,3 +154,6 @@ export const modalPrimaryButton = document.querySelector(
   "[data-modal-primary]"
 );
 export const modalCloseButtons = document.querySelectorAll("[data-modal-close]");
+
+// Toasts
+export const toastContainer = document.getElementById("toast-container");
