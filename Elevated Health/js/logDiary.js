@@ -85,8 +85,6 @@ function createMealEntry(item, sectionKey) {
   li.dataset.mealId = item.id;
   li.dataset.mealType = sectionKey;
   li.dataset.mealDate = item.meal_date || "";
-  li.dataset.mealTitle = item.title || "";
-  li.dataset.mealNotes = item.notes || "";
 
   const row = document.createElement("div");
   row.className = "diary-entry-row";
@@ -352,17 +350,11 @@ function attachDiaryListHandlers() {
     if (!listEl) return;
     listEl.addEventListener("click", (event) => {
       const removeBtn = event.target.closest(".diary-entry-remove");
-      if (removeBtn) {
-        const entry = removeBtn.closest(".diary-entry");
-        const mealId = entry?.dataset?.mealId;
-        if (!mealId) return;
-        removeMealFromDiary(mealId, entry);
-        return;
-      }
-
-      const entry = event.target.closest(".diary-entry");
-      if (!entry) return;
-      showMealDetails(entry);
+      if (!removeBtn) return;
+      const entry = removeBtn.closest(".diary-entry");
+      const mealId = entry?.dataset?.mealId;
+      if (!mealId) return;
+      removeMealFromDiary(mealId, entry);
     });
   });
 }

@@ -921,7 +921,6 @@ body {
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-soft);
   transition: opacity 180ms ease, transform 180ms ease;
-  cursor: pointer;
 }
 
 .diary-entry-row {
