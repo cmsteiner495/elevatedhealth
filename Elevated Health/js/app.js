@@ -17,11 +17,13 @@ import {
   mobilePageTitle,
   mobileOverline,
   profileAvatar,
+  dashboardAiShortcut,
   tabButtons,
   tabPanels,
   coachMessages,
   mealDateInput,
   mealTypeInput,
+  mealsForm,
   workoutDateInput,
   progressDateInput,
   quickAddButton,
@@ -48,12 +50,13 @@ import { setMealsFamilyState } from "./meals.js";
 import { setWorkoutsFamilyState } from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
-import { initCoachHandlers } from "./coach.js";
+import { initCoachHandlers, runWeeklyPlanGeneration } from "./coach.js";
 import { initDiary, refreshDiaryForSelectedDate } from "./logDiary.js";
 import {
   initAIDinnerCards,
   initModal,
   initThemeToggle,
+  initThemeStyles,
   openModal,
   showToast,
   maybeVibrate,
@@ -109,12 +112,6 @@ function initInitialState() {
   isAppInstalled = next.isAppInstalled;
   selectedThemeStyle = next.selectedThemeStyle;
 }
-
-initInitialState();
-initThemeToggle();
-initModal();
-initAIDinnerCards();
-initInstallState();
 
 // Show / hide auth vs app
 
@@ -403,6 +400,15 @@ function focusLogSection(sectionKey) {
   }
 }
 
+function openMealFlow(section, date) {
+  activateTab("meals-tab");
+  if (mealDateInput) mealDateInput.value = date;
+  if (mealTypeInput) mealTypeInput.value = section;
+  if (mealsForm) {
+    mealsForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
 // SIGN UP
 
 if (signupForm) {
@@ -511,6 +517,26 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
   });
 });
 
+if (dashboardAiShortcut) {
+  dashboardAiShortcut.addEventListener("click", async () => {
+    const originalLabel = dashboardAiShortcut.textContent;
+    dashboardAiShortcut.disabled = true;
+    dashboardAiShortcut.textContent = "Refreshing…";
+    try {
+      await runWeeklyPlanGeneration();
+      document.dispatchEvent(
+        new CustomEvent("diary:refresh", { detail: { entity: "plan" } })
+      );
+    } catch (err) {
+      console.error("Weekly plan refresh failed", err);
+      showToast("Could not refresh the 7-day plan");
+    } finally {
+      dashboardAiShortcut.disabled = false;
+      dashboardAiShortcut.textContent = originalLabel;
+    }
+  });
+}
+
 document.addEventListener("diary:add", (event) => {
   const { section, date } = event.detail || {};
   if (!section || !date) return;
@@ -521,9 +547,7 @@ document.addEventListener("diary:add", (event) => {
     return;
   }
 
-  activateTab("meals-tab");
-  if (mealDateInput) mealDateInput.value = date;
-  if (mealTypeInput) mealTypeInput.value = section;
+  openMealFlow(section, date);
 });
 
 // QUICK ACTION SHEET + DESKTOP FAB MENU
@@ -982,7 +1006,7 @@ if (logoutButton) {
 async function instantiateAppAfterInitialization() {
   initInitialState();
   initThemeToggle();
-  applyThemeStyle(selectedThemeStyle);
+  initThemeStyles();
   initModal();
   initAIDinnerCards();
   initInstallState();
