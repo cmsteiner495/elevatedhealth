@@ -94,6 +94,7 @@ function createMealEntry(item, sectionKey) {
   li.dataset.mealDate = item.meal_date || "";
   li.dataset.mealTitle = item.title || "";
   li.dataset.mealNotes = item.notes || "";
+  li.dataset.mealUrl = item.recipe_url || item.recipeUrl || "";
 
   const row = document.createElement("div");
   row.className = "diary-entry-row";
@@ -206,9 +207,10 @@ function showMealDetails(entry) {
     entry.dataset.mealTitle ||
     entry.querySelector(".diary-entry-title")?.textContent ||
     "Meal";
-  const notes = entry.dataset.mealNotes || "Quick AI suggestion";
+  const notes = entry.dataset.mealNotes || "No notes yet.";
   const type = entry.dataset.mealType;
   const date = entry.dataset.mealDate;
+  const recipeUrl = entry.dataset.mealUrl;
 
   const body = document.createElement("div");
   body.className = "diary-detail-body";
@@ -231,6 +233,16 @@ function showMealDetails(entry) {
     notesEl.textContent = notes;
     notesEl.className = "diary-detail-note";
     body.appendChild(notesEl);
+  }
+
+  if (recipeUrl) {
+    const link = document.createElement("a");
+    link.href = recipeUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.className = "ai-dinner-pill";
+    link.textContent = "View full recipe";
+    body.appendChild(link);
   }
 
   openModal({ title, body, primaryLabel: null });

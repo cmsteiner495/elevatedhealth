@@ -27,7 +27,12 @@ import {
   mealsForm,
   mealsList,
   workoutDateInput,
+  workoutTitleInput,
+  workoutsForm,
   progressDateInput,
+  progressForm,
+  progressWaterInput,
+  progressWeightInput,
   quickAddButton,
   quickSheetBackdrop,
   quickSheetActionButtons,
@@ -510,6 +515,55 @@ function focusLogSection(sectionKey) {
   }
 }
 
+function scrollAndFocus(target, focusEl) {
+  if (target) {
+    try {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      /* non-fatal */
+    }
+  }
+  if (focusEl) {
+    setTimeout(() => focusEl.focus({ preventScroll: true }), 60);
+  }
+}
+
+function openMealsQuickEntry() {
+  const today = getTodayDate();
+  activateTab("meals-tab");
+  if (mealDateInput) mealDateInput.value = today;
+  if (mealTypeInput) mealTypeInput.value = "dinner";
+  setTimeout(() => {
+    if (mealsForm) {
+      scrollAndFocus(mealsForm, mealTitleInput);
+    }
+  }, 80);
+}
+
+function openWorkoutQuickEntry() {
+  const today = getTodayDate();
+  activateTab("workouts-tab");
+  if (workoutDateInput) workoutDateInput.value = today;
+  setTimeout(() => {
+    if (workoutsForm) {
+      scrollAndFocus(workoutsForm, workoutTitleInput);
+    }
+  }, 80);
+}
+
+function openProgressQuickEntry(target) {
+  const today = getTodayDate();
+  activateTab("progress-tab");
+  if (progressDateInput) progressDateInput.value = today;
+  const focusTarget =
+    target === "water" ? progressWaterInput : progressWeightInput;
+  setTimeout(() => {
+    if (progressForm) {
+      scrollAndFocus(progressForm, focusTarget);
+    }
+  }, 80);
+}
+
 function openMealFlow(section, date) {
   activateTab("meals-tab");
   mealsGuidedMode = true;
@@ -824,7 +878,12 @@ if (tabButtons && tabPanels) {
     btn.addEventListener("click", () => {
       const targetId = btn.dataset.tab;
       if (!targetId) return;
-      activateTab(targetId);
+      if (isQuickSheetOpen) {
+        closeQuickSheet();
+        setTimeout(() => activateTab(targetId), 230);
+      } else {
+        activateTab(targetId);
+      }
     });
   });
 }
@@ -1160,7 +1219,7 @@ function handleQuickAction(action) {
   if (isCoarsePointer) maybeVibrate([10]);
   switch (action) {
     case "log-meal":
-      focusLogSection("meal");
+      openMealsQuickEntry();
       break;
 
     case "log-ella-meal":
@@ -1173,12 +1232,15 @@ function handleQuickAction(action) {
       break;
 
     case "log-water":
+      openProgressQuickEntry("water");
+      break;
+
     case "log-weight":
-      focusLogSection("progress");
+      openProgressQuickEntry("weight");
       break;
 
     case "log-exercise":
-      focusLogSection("workout");
+      openWorkoutQuickEntry();
       break;
 
     case "barcode":
@@ -1307,10 +1369,6 @@ syncViewportOffset();
 
 onSelectedDateChange((dateValue) => {
   syncDateInputs(dateValue);
-  const diaryShell = document.querySelector(".diary-shell");
-  if (diaryShell) {
-    diaryShell.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 });
 syncDateInputs(selectedDate);
 

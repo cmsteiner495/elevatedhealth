@@ -1544,8 +1544,12 @@ input[type="submit"] {
   border: none;
   cursor: pointer;
   margin-top: -32px;
-  background: var(--color-accent-primary);
-  box-shadow: 0 18px 36px rgba(255, 140, 50, 0.7);
+  background: linear-gradient(
+    135deg,
+    var(--color-accent-primary),
+    #ff9b55
+  );
+  box-shadow: 0 18px 36px rgba(255, 140, 50, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1559,9 +1563,8 @@ input[type="submit"] {
 }
 
 .bottom-nav-plus.is-open {
-  background: var(--surface-elevated);
-  color: var(--accent-strong);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+  filter: brightness(0.98);
+  box-shadow: 0 16px 30px rgba(255, 140, 50, 0.6);
 }
 
 /* Theme toggle */
@@ -1702,6 +1705,41 @@ input[type="submit"] {
   opacity: 0;
   width: 1px;
   height: 1px;
+}
+
+@media (max-width: 640px) {
+  .diary-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .diary-date-nav {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .diary-date-meta {
+    align-items: center;
+    text-align: center;
+  }
+
+  .diary-date-nav .diary-nav-btn,
+  .diary-date-nav .diary-today-btn,
+  .diary-calendar-btn {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .coach-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .coach-card-header .primary {
+    width: 100%;
+  }
 }
 
 .diary-date-meta {
@@ -2179,9 +2217,13 @@ input[type="submit"] {
   justify-content: center;
   cursor: pointer;
   z-index: 1400;
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  background: linear-gradient(
+    135deg,
+    var(--color-accent-primary),
+    #ff9b55
+  );
   color: #0b0f18;
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 18px 36px rgba(255, 107, 26, 0.35);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast),
     filter var(--transition-fast);
 }
@@ -2198,13 +2240,13 @@ input[type="submit"] {
 
 .eh-fab:hover {
   transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.95);
-  filter: brightness(1.05);
+  box-shadow: 0 22px 44px rgba(255, 107, 26, 0.45);
+  filter: brightness(0.98);
 }
 
 .eh-fab:active {
   transform: translateY(0) scale(0.96);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 14px 32px rgba(255, 107, 26, 0.4);
 }
 
 @media (min-width: 900px) {
