@@ -17,6 +17,7 @@ import {
   mobilePageTitle,
   mobileOverline,
   profileAvatar,
+  dashboardAiShortcut,
   tabButtons,
   tabPanels,
   coachMessages,
@@ -49,12 +50,13 @@ import { setMealsFamilyState } from "./meals.js";
 import { setWorkoutsFamilyState } from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
-import { initCoachHandlers } from "./coach.js";
+import { initCoachHandlers, runWeeklyPlanGeneration } from "./coach.js";
 import { initDiary, refreshDiaryForSelectedDate } from "./logDiary.js";
 import {
   initAIDinnerCards,
   initModal,
   initThemeToggle,
+  initThemeStyles,
   openModal,
   showToast,
   maybeVibrate,
@@ -113,6 +115,7 @@ function initInitialState() {
 
 initInitialState();
 initThemeToggle();
+initThemeStyles();
 initModal();
 initAIDinnerCards();
 initInstallState();
@@ -520,6 +523,12 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
     activateTab(targetId);
   });
 });
+
+if (dashboardAiShortcut) {
+  dashboardAiShortcut.addEventListener("click", () => {
+    runWeeklyPlanGeneration();
+  });
+}
 
 document.addEventListener("diary:add", (event) => {
   const { section, date } = event.detail || {};

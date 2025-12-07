@@ -4,6 +4,8 @@ import {
   diaryPrevDayBtn,
   diaryNextDayBtn,
   diaryTodayBtn,
+  diaryCalendarBtn,
+  diaryDatePicker,
   diaryDateLabel,
   diaryDateSub,
   diaryAddButtons,
@@ -27,6 +29,7 @@ import {
 } from "./state.js";
 import { fetchMealsByDate } from "./meals.js";
 import { fetchWorkoutsByDate } from "./workouts.js";
+import { openModal } from "./ui.js";
 
 const sectionLists = {
   breakfast: diaryBreakfastList,
@@ -56,6 +59,19 @@ function formatDateSubLabel(dateValue) {
     month: "long",
     day: "numeric",
   }).format(date);
+}
+
+function offsetDate(dateValue, daysDelta) {
+  const parts = dateValue?.split("-").map(Number);
+  if (!parts || parts.length < 3) return dateValue;
+  const [y, m, d] = parts;
+  const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  date.setUTCDate(date.getUTCDate() + daysDelta);
+  return date.toISOString().slice(0, 10);
+}
+
+function syncDatePicker(dateValue) {
+  if (diaryDatePicker) diaryDatePicker.value = dateValue;
 }
 
 function setListLoading(listEl) {
@@ -158,9 +174,31 @@ function renderExercise(listEl, items) {
   });
 }
 
+function showMealDetails(entry) {
+  if (!entry) return;
+  const title = entry.dataset.mealTitle || entry.querySelector(".diary-entry-title")?.textContent || "Meal";
+  const notes = entry.dataset.mealNotes || "Quick AI suggestion";
+  const meta = document.createElement("div");
+  meta.className = "subtitle tiny";
+  const type = entry.dataset.mealType;
+  const date = entry.dataset.mealDate;
+  meta.textContent = `${type ? type.charAt(0).toUpperCase() + type.slice(1) : "Meal"}${date ? ` • ${formatDateSubLabel(date)}` : ""}`;
+
+  const notesEl = document.createElement("div");
+  notesEl.textContent = notes;
+  notesEl.className = "text-soft";
+
+  const body = document.createElement("div");
+  body.appendChild(meta);
+  body.appendChild(notesEl);
+
+  openModal({ title, body, primaryLabel: null });
+}
+
 function setDateText(dateValue) {
   if (diaryDateLabel) diaryDateLabel.textContent = formatDateLabel(dateValue);
   if (diaryDateSub) diaryDateSub.textContent = formatDateSubLabel(dateValue);
+  syncDatePicker(dateValue);
 }
 
 function calculateCalories(meals, workouts) {
@@ -242,9 +280,7 @@ async function loadDiary(dateValue) {
 }
 
 function adjustSelectedDate(daysDelta) {
-  const date = new Date(selectedDate);
-  date.setDate(date.getDate() + daysDelta);
-  const nextDate = date.toISOString().slice(0, 10);
+  const nextDate = offsetDate(selectedDate, daysDelta);
   setSelectedDate(nextDate);
 }
 
@@ -334,6 +370,23 @@ export function initDiary() {
     diaryNextDayBtn.addEventListener("click", () => adjustSelectedDate(1));
   if (diaryTodayBtn)
     diaryTodayBtn.addEventListener("click", () => setSelectedDate(getTodayDate()));
+  if (diaryCalendarBtn) {
+    diaryCalendarBtn.addEventListener("click", () => {
+      if (diaryDatePicker?.showPicker) {
+        diaryDatePicker.showPicker();
+      } else if (diaryDatePicker) {
+        diaryDatePicker.focus();
+        diaryDatePicker.click();
+      }
+    });
+  }
+  if (diaryDatePicker) {
+    diaryDatePicker.addEventListener("change", (e) => {
+      const next = e.target.value;
+      if (!next) return;
+      setSelectedDate(next, { force: true });
+    });
+  }
 
   handleAddButtons();
   attachDiaryListHandlers();

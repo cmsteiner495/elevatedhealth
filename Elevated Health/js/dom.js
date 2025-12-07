@@ -25,6 +25,7 @@ export const mobileOverline = document.getElementById("mobile-overline");
 export const profileAvatar = document.getElementById("profile-avatar");
 export const themeToggleButton = document.getElementById("theme-toggle");
 export const themeLabel = document.getElementById("theme-label");
+export const themeStyleChips = document.querySelectorAll("[data-theme-style]");
 export const settingsEmailLabel = document.getElementById("settings-email");
 export const installHelperButton = document.getElementById(
   "install-helper-button"
@@ -36,11 +37,14 @@ export const settingsInstallButton = document.getElementById(
 // Tabs
 export const tabButtons = document.querySelectorAll(".tab-button");
 export const tabPanels = document.querySelectorAll(".tab-panel");
+export const dashboardAiShortcut = document.getElementById("dashboard-ai-shortcut");
 
 // Log / diary
 export const diaryPrevDayBtn = document.getElementById("diary-prev-day");
 export const diaryNextDayBtn = document.getElementById("diary-next-day");
 export const diaryTodayBtn = document.getElementById("diary-today-btn");
+export const diaryCalendarBtn = document.getElementById("diary-calendar-btn");
+export const diaryDatePicker = document.getElementById("diary-date-picker");
 export const diaryDateLabel = document.getElementById("diary-date-label");
 export const diaryDateSub = document.getElementById("diary-date-sub");
 export const diaryAddButtons = document.querySelectorAll("[data-diary-add]");

@@ -786,6 +786,19 @@ body {
   border-radius: var(--radius-pill);
 }
 
+.diary-calendar-btn {
+  padding-inline: 10px;
+  border-radius: 12px;
+  font-size: 1rem;
+}
+
+.diary-date-picker {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
 .diary-date-meta {
   display: flex;
   flex-direction: column;
