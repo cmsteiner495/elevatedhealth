@@ -24,6 +24,7 @@ import {
   mealDateInput,
   mealTypeInput,
   mealsForm,
+  mealsList,
   workoutDateInput,
   progressDateInput,
   quickAddButton,
@@ -36,13 +37,23 @@ import {
   settingsEmailLabel,
   installHelperButton,
   settingsInstallButton,
+  themeToggleButton,
+  themeLabel,
+  diaryPrevDayBtn,
+  diaryNextDayBtn,
+  diaryTodayBtn,
+  diaryCalendarBtn,
+  diaryDatePicker,
+  diaryAddButtons,
 } from "./dom.js";
 import {
   currentUser,
+  currentFamilyId,
   setCurrentUser,
   setCurrentFamilyId,
   setSelectedDate,
   selectedDate,
+  getTodayDate,
   onSelectedDateChange,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
@@ -55,7 +66,6 @@ import { initDiary, refreshDiaryForSelectedDate } from "./logDiary.js";
 import {
   initAIDinnerCards,
   initModal,
-  initThemeToggle,
   initThemeStyles,
   openModal,
   showToast,
@@ -74,8 +84,11 @@ let deferredInstallPrompt;
 let isStandaloneMode;
 let isAppInstalled;
 let selectedThemeStyle;
+let activeThemeMode = "dark";
 let diaryRealtimeChannel;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+
+const THEME_STORAGE_KEY = "eh-theme";
 
 const TAB_TITLE_MAP = {
   "dashboard-tab": "Overview",
@@ -113,12 +126,43 @@ function initInitialState() {
   selectedThemeStyle = next.selectedThemeStyle;
 }
 
-initInitialState();
-initThemeToggle();
-initThemeStyles();
-initModal();
-initAIDinnerCards();
-initInstallState();
+function applyThemeMode(theme) {
+  const root = document.documentElement;
+  activeThemeMode = theme === "light" ? "light" : "dark";
+  if (activeThemeMode === "light") {
+    root.setAttribute("data-theme", "light");
+  } else {
+    root.removeAttribute("data-theme");
+  }
+  if (themeToggleButton)
+    themeToggleButton.setAttribute("aria-pressed", activeThemeMode === "light");
+  if (themeLabel)
+    themeLabel.textContent = activeThemeMode === "light" ? "Light" : "Dark";
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, activeThemeMode);
+  } catch (err) {
+    console.warn("Could not persist theme", err);
+  }
+}
+
+function initThemeMode() {
+  const stored = (() => {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY);
+    } catch (err) {
+      return null;
+    }
+  })();
+  applyThemeMode(stored || "dark");
+
+  if (!themeToggleButton) return;
+  themeToggleButton.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const next = activeThemeMode === "dark" ? "light" : "dark";
+    applyThemeMode(next);
+  });
+}
 
 // Show / hide auth vs app
 
@@ -416,6 +460,156 @@ function openMealFlow(section, date) {
   }
 }
 
+function offsetDiaryDate(baseDate, delta) {
+  const parts = baseDate?.split("-").map(Number);
+  if (!parts || parts.length < 3) return baseDate;
+  const [y, m, d] = parts;
+  const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+function bindDiaryDateNav() {
+  if (diaryPrevDayBtn && !diaryPrevDayBtn.dataset.bound) {
+    diaryPrevDayBtn.dataset.bound = "true";
+    diaryPrevDayBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setSelectedDate(offsetDiaryDate(selectedDate, -1), { force: true });
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryNextDayBtn && !diaryNextDayBtn.dataset.bound) {
+    diaryNextDayBtn.dataset.bound = "true";
+    diaryNextDayBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setSelectedDate(offsetDiaryDate(selectedDate, 1), { force: true });
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryTodayBtn && !diaryTodayBtn.dataset.bound) {
+    diaryTodayBtn.dataset.bound = "true";
+    diaryTodayBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setSelectedDate(getTodayDate(), { force: true });
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryCalendarBtn && diaryDatePicker && !diaryCalendarBtn.dataset.bound) {
+    diaryCalendarBtn.dataset.bound = "true";
+    diaryCalendarBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        diaryDatePicker.value = selectedDate;
+        if (typeof diaryDatePicker.showPicker === "function") {
+          diaryDatePicker.showPicker();
+        } else {
+          diaryDatePicker.focus();
+          diaryDatePicker.click();
+        }
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryDatePicker && !diaryDatePicker.dataset.bound) {
+    diaryDatePicker.dataset.bound = "true";
+    diaryDatePicker.addEventListener("change", (e) => {
+      const next = e.target.value;
+      if (next) setSelectedDate(next, { force: true });
+    });
+  }
+}
+
+function bindDiaryAddButtons() {
+  if (!diaryAddButtons?.length) return;
+  diaryAddButtons.forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "true";
+    btn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const section = btn.dataset.diaryAdd;
+        if (!section) return;
+        openMealFlow(section, selectedDate);
+      },
+      { capture: true }
+    );
+  });
+}
+
+async function logUpcomingMealToToday(entryEl) {
+  if (!entryEl || !currentFamilyId || !currentUser) {
+    showToast("Join a family to log meals.");
+    return;
+  }
+
+  const title = entryEl.dataset.mealTitle || "";
+  if (!title.trim()) return;
+  const notes = entryEl.dataset.mealNotes || null;
+  const mealType = entryEl.dataset.mealType || "dinner";
+  const today = getTodayDate();
+
+  const { error } = await supabase.from("family_meals").insert({
+    family_group_id: currentFamilyId,
+    added_by: currentUser.id,
+    meal_date: today,
+    meal_type: mealType,
+    title,
+    notes,
+  });
+
+  if (error) {
+    console.error("Error logging meal to today", error);
+    showToast("Could not add meal to log");
+    return;
+  }
+
+  const viewingToday = selectedDate === today;
+  if (!viewingToday) {
+    setSelectedDate(today, { force: true });
+  } else {
+    document.dispatchEvent(
+      new CustomEvent("diary:refresh", { detail: { date: today, entity: "meal" } })
+    );
+  }
+  showToast("Added to today’s log");
+}
+
+function bindMealsLogButtons() {
+  if (!mealsList) return;
+  mealsList.addEventListener(
+    "click",
+    async (e) => {
+      const btn = e.target.closest(".meal-log-btn");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const li = btn.closest("li");
+      await logUpcomingMealToToday(li);
+    },
+    { capture: true }
+  );
+}
+
 // SIGN UP
 
 if (signupForm) {
@@ -525,8 +719,22 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
 });
 
 if (dashboardAiShortcut) {
-  dashboardAiShortcut.addEventListener("click", () => {
-    runWeeklyPlanGeneration();
+  dashboardAiShortcut.addEventListener("click", async () => {
+    const originalLabel = dashboardAiShortcut.textContent;
+    dashboardAiShortcut.disabled = true;
+    dashboardAiShortcut.textContent = "Refreshing…";
+    try {
+      await runWeeklyPlanGeneration();
+      document.dispatchEvent(
+        new CustomEvent("diary:refresh", { detail: { entity: "plan" } })
+      );
+    } catch (err) {
+      console.error("Weekly plan refresh failed", err);
+      showToast("Could not refresh the 7-day plan");
+    } finally {
+      dashboardAiShortcut.disabled = false;
+      dashboardAiShortcut.textContent = originalLabel;
+    }
   });
 }
 
@@ -998,10 +1206,13 @@ if (logoutButton) {
 
 async function instantiateAppAfterInitialization() {
   initInitialState();
-  initThemeToggle();
+  initThemeMode();
   initThemeStyles();
   initModal();
   initAIDinnerCards();
+  bindDiaryDateNav();
+  bindDiaryAddButtons();
+  bindMealsLogButtons();
   initInstallState();
   initCoachHandlers();
   initDiary();
