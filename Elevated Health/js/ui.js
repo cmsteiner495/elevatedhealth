@@ -422,9 +422,6 @@ function openDinnerModal(meal) {
       if (typeof dinnerLogHandler === "function") {
         await dinnerLogHandler(meal);
       }
-      if (meal.recipeUrl) {
-        window.open(meal.recipeUrl, "_blank");
-      }
     },
   });
 }

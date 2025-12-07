@@ -6,6 +6,7 @@ import {
   diaryTodayBtn,
   diaryCalendarBtn,
   diaryDatePicker,
+  diaryDateMeta,
   diaryDateLabel,
   diaryDateSub,
   diaryAddButtons,
@@ -22,10 +23,12 @@ import {
 } from "./dom.js";
 import {
   currentFamilyId,
+  addDays,
   getTodayDate,
   onSelectedDateChange,
   selectedDate,
   setSelectedDate,
+  toLocalDateString,
 } from "./state.js";
 import { fetchMealsByDate } from "./meals.js";
 import { fetchWorkoutsByDate } from "./workouts.js";
@@ -43,8 +46,17 @@ const emptyMessage = "No entries yet";
 let currentDiaryMeals = [];
 let currentDiaryWorkouts = [];
 
+function toLocalDate(dateValue) {
+  const parts = (dateValue || "")
+    .toString()
+    .split("-")
+    .map((v) => parseInt(v, 10));
+  const [y, m, d] = parts;
+  return new Date(y || 0, (m || 1) - 1, d || 1);
+}
+
 function formatDateLabel(dateValue) {
-  const date = new Date(dateValue);
+  const date = toLocalDate(dateValue);
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
     month: "short",
@@ -53,7 +65,7 @@ function formatDateLabel(dateValue) {
 }
 
 function formatDateSubLabel(dateValue) {
-  const date = new Date(dateValue);
+  const date = toLocalDate(dateValue);
   return new Intl.DateTimeFormat("en", {
     year: "numeric",
     month: "long",
@@ -62,12 +74,7 @@ function formatDateSubLabel(dateValue) {
 }
 
 function offsetDate(dateValue, daysDelta) {
-  const parts = dateValue?.split("-").map(Number);
-  if (!parts || parts.length < 3) return dateValue;
-  const [y, m, d] = parts;
-  const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
-  date.setUTCDate(date.getUTCDate() + daysDelta);
-  return date.toISOString().slice(0, 10);
+  return addDays(dateValue, daysDelta);
 }
 
 function syncDatePicker(dateValue) {
@@ -176,30 +183,63 @@ function renderExercise(listEl, items) {
   });
 }
 
+function buildMealMetaRow(label, value) {
+  const row = document.createElement("div");
+  row.className = "diary-detail-meta-row";
+
+  const heading = document.createElement("span");
+  heading.className = "diary-detail-meta-label";
+  heading.textContent = label;
+
+  const content = document.createElement("span");
+  content.className = "diary-detail-meta-value";
+  content.textContent = value;
+
+  row.appendChild(heading);
+  row.appendChild(content);
+  return row;
+}
+
 function showMealDetails(entry) {
   if (!entry) return;
-  const title = entry.dataset.mealTitle || entry.querySelector(".diary-entry-title")?.textContent || "Meal";
+  const title =
+    entry.dataset.mealTitle ||
+    entry.querySelector(".diary-entry-title")?.textContent ||
+    "Meal";
   const notes = entry.dataset.mealNotes || "Quick AI suggestion";
-  const meta = document.createElement("div");
-  meta.className = "subtitle tiny";
   const type = entry.dataset.mealType;
   const date = entry.dataset.mealDate;
-  meta.textContent = `${type ? type.charAt(0).toUpperCase() + type.slice(1) : "Meal"}${date ? ` • ${formatDateSubLabel(date)}` : ""}`;
-
-  const notesEl = document.createElement("div");
-  notesEl.textContent = notes;
-  notesEl.className = "text-soft";
 
   const body = document.createElement("div");
-  body.appendChild(meta);
-  body.appendChild(notesEl);
+  body.className = "diary-detail-body";
+
+  const metaBlock = document.createElement("div");
+  metaBlock.className = "diary-detail-meta";
+  metaBlock.appendChild(
+    buildMealMetaRow(
+      "Meal",
+      type ? type.charAt(0).toUpperCase() + type.slice(1) : "Meal"
+    )
+  );
+  if (date) {
+    metaBlock.appendChild(buildMealMetaRow("Date", formatDateSubLabel(date)));
+  }
+  body.appendChild(metaBlock);
+
+  if (notes) {
+    const notesEl = document.createElement("p");
+    notesEl.textContent = notes;
+    notesEl.className = "diary-detail-note";
+    body.appendChild(notesEl);
+  }
 
   openModal({ title, body, primaryLabel: null });
 }
 
 function setDateText(dateValue) {
-  if (diaryDateLabel) diaryDateLabel.textContent = formatDateLabel(dateValue);
-  if (diaryDateSub) diaryDateSub.textContent = formatDateSubLabel(dateValue);
+  const normalized = toLocalDateString(toLocalDate(dateValue));
+  if (diaryDateLabel) diaryDateLabel.textContent = formatDateLabel(normalized);
+  if (diaryDateSub) diaryDateSub.textContent = formatDateSubLabel(normalized);
   syncDatePicker(dateValue);
 }
 
@@ -377,6 +417,17 @@ export function refreshDiaryForSelectedDate() {
 }
 
 export function initDiary() {
+  const openDatePicker = () => {
+    if (!diaryDatePicker) return;
+    diaryDatePicker.value = selectedDate;
+    if (diaryDatePicker.showPicker) {
+      diaryDatePicker.showPicker();
+    } else {
+      diaryDatePicker.focus();
+      diaryDatePicker.click();
+    }
+  };
+
   if (diaryPrevDayBtn)
     diaryPrevDayBtn.addEventListener("click", () => adjustSelectedDate(-1));
   if (diaryNextDayBtn)
@@ -385,12 +436,7 @@ export function initDiary() {
     diaryTodayBtn.addEventListener("click", () => setSelectedDate(getTodayDate()));
   if (diaryCalendarBtn) {
     diaryCalendarBtn.addEventListener("click", () => {
-      if (diaryDatePicker?.showPicker) {
-        diaryDatePicker.showPicker();
-      } else if (diaryDatePicker) {
-        diaryDatePicker.focus();
-        diaryDatePicker.click();
-      }
+      openDatePicker();
     });
   }
   if (diaryDatePicker) {
@@ -398,6 +444,16 @@ export function initDiary() {
       const next = e.target.value;
       if (!next) return;
       setSelectedDate(next, { force: true });
+    });
+  }
+
+  if (diaryDateMeta) {
+    diaryDateMeta.addEventListener("click", openDatePicker);
+    diaryDateMeta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openDatePicker();
+      }
     });
   }
 

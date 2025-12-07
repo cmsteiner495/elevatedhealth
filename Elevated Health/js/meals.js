@@ -18,14 +18,130 @@ import {
   selectedDate,
   setSelectedDate,
 } from "./state.js";
-import { maybeVibrate, setDinnerLogHandler, showToast } from "./ui.js";
+import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
+
+async function logMealToDiary(meal, options = {}) {
+  if (!currentUser || !currentFamilyId) {
+    showToast("Join a family to log meals.");
+    return;
+  }
+
+  const targetDate = options.date || selectedDate || getTodayDate();
+  const title = meal.title?.trim();
+  if (!title) return;
+
+  const mealType = meal.meal_type || meal.mealType || options.mealType || "dinner";
+  const notes = meal.notes || meal.description || null;
+
+  const { error } = await supabase.from("family_meals").insert({
+    family_group_id: currentFamilyId,
+    added_by: currentUser.id,
+    meal_date: targetDate,
+    meal_type: mealType,
+    title,
+    notes,
+  });
+
+  if (error) {
+    console.error("Error logging meal:", error);
+    showToast("Could not add meal to log");
+    return;
+  }
+
+  if (!options.silent) {
+    showToast("Added to log");
+    maybeVibrate([16]);
+  }
+
+  const viewingTarget = selectedDate === targetDate;
+  if (!viewingTarget && options.syncDate !== false) {
+    setSelectedDate(targetDate, { force: true });
+  } else {
+    document.dispatchEvent(
+      new CustomEvent("diary:refresh", {
+        detail: { date: targetDate, entity: "meal" },
+      })
+    );
+  }
+
+  if (!options.skipReload) {
+    await loadMeals();
+  }
+}
+
+function formatMealDateLabel(dateValue) {
+  if (!dateValue) return "";
+  const parts = dateValue.split("-").map(Number);
+  const [y, m, d] = parts;
+  const date = new Date(y || 0, (m || 1) - 1, d || 1);
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function openMealDetailsModal(meal) {
+  if (!meal) return;
+  const body = document.createElement("div");
+  body.className = "diary-detail-body";
+
+  const meta = document.createElement("div");
+  meta.className = "diary-detail-meta";
+
+  const mealRow = document.createElement("div");
+  mealRow.className = "diary-detail-meta-row";
+  mealRow.innerHTML = `<span class="diary-detail-meta-label">Meal</span><span class="diary-detail-meta-value">${
+    meal.meal_type
+      ? meal.meal_type.charAt(0).toUpperCase() + meal.meal_type.slice(1)
+      : "Meal"
+  }</span>`;
+  meta.appendChild(mealRow);
+
+  if (meal.meal_date) {
+    const dateRow = document.createElement("div");
+    dateRow.className = "diary-detail-meta-row";
+    dateRow.innerHTML = `<span class="diary-detail-meta-label">Date</span><span class="diary-detail-meta-value">${formatMealDateLabel(
+      meal.meal_date
+    )}</span>`;
+    meta.appendChild(dateRow);
+  }
+
+  body.appendChild(meta);
+
+  if (meal.notes) {
+    const notes = document.createElement("p");
+    notes.className = "diary-detail-note";
+    notes.textContent = meal.notes;
+    body.appendChild(notes);
+  }
+
+  openModal({
+    title: meal.title || "Meal",
+    body,
+    primaryLabel: "Log this meal",
+    onPrimary: async () => {
+      await logMealToDiary(
+        {
+          title: meal.title,
+          meal_type: meal.meal_type,
+          notes: meal.notes,
+        },
+        { date: selectedDate }
+      );
+    },
+  });
+}
 
 setDinnerLogHandler(async (meal) => {
-  await logMealToToday({
-    title: meal.title,
-    meal_type: "dinner",
-    notes: meal.description || meal.notes,
-  });
+  await logMealToDiary(
+    {
+      title: meal.title,
+      meal_type: "dinner",
+      notes: meal.description || meal.notes,
+    },
+    { date: selectedDate }
+  );
 });
 
 export function setMealsFamilyState() {
@@ -90,43 +206,7 @@ export async function fetchMealsByDate(dateValue) {
 }
 
 async function logMealToToday(meal) {
-  if (!currentUser || !currentFamilyId) {
-    showToast("Join a family to log meals.");
-    return;
-  }
-
-  const today = getTodayDate();
-  const title = meal.title?.trim();
-  if (!title) return;
-
-  const mealType = meal.meal_type || meal.mealType || "dinner";
-  const notes = meal.notes || null;
-
-  const { error } = await supabase.from("family_meals").insert({
-    family_group_id: currentFamilyId,
-    added_by: currentUser.id,
-    meal_date: today,
-    meal_type: mealType,
-    title,
-    notes,
-  });
-
-  if (error) {
-    console.error("Error logging meal:", error);
-    showToast("Could not add meal to log");
-    return;
-  }
-
-  showToast("Added to today’s log");
-  maybeVibrate([16]);
-  const isViewingToday = selectedDate === today;
-  if (!isViewingToday) {
-    setSelectedDate(today);
-  }
-  document.dispatchEvent(
-    new CustomEvent("diary:refresh", { detail: { date: today, entity: "meal" } })
-  );
-  await loadMeals();
+  await logMealToDiary(meal, { date: selectedDate || getTodayDate() });
 }
 
 function renderMeals(items) {
@@ -144,6 +224,7 @@ function renderMeals(items) {
     li.dataset.mealId = meal.id;
     li.dataset.mealType = meal.meal_type;
     li.dataset.mealTitle = meal.title;
+    li.dataset.mealDate = meal.meal_date;
     li.dataset.mealNotes = meal.notes || "";
     li.style.display = "flex";
     li.style.flexDirection = "column";
@@ -255,6 +336,18 @@ if (mealsForm) {
       return;
     }
 
+    const guidedDate = mealsForm.dataset.targetDate;
+    const guidedMealType = mealsForm.dataset.targetMealType;
+    const shouldMirrorToLog =
+      guidedDate && guidedMealType && (guidedDate !== dateValue || guidedMealType !== mealType);
+
+    if (shouldMirrorToLog) {
+      await logMealToDiary(
+        { title, meal_type: guidedMealType, notes: notes || null },
+        { date: guidedDate, silent: true, skipReload: true }
+      );
+    }
+
     mealsForm.reset();
     await loadMeals();
     document.dispatchEvent(
@@ -274,7 +367,12 @@ if (mealsList) {
     const mealId = li.dataset.mealId;
     if (!mealId) return;
 
-    if (e.target.classList.contains("meal-log-btn")) {
+    const logBtn = e.target.closest(".meal-log-btn");
+    const deleteBtn = e.target.closest(".meal-delete");
+
+    if (logBtn) {
+      e.preventDefault();
+      e.stopPropagation();
       await logMealToToday({
         title: li.dataset.mealTitle,
         meal_type: li.dataset.mealType,
@@ -283,7 +381,9 @@ if (mealsList) {
       return;
     }
 
-    if (e.target.classList.contains("meal-delete")) {
+    if (deleteBtn) {
+      e.preventDefault();
+      e.stopPropagation();
       const { error } = await supabase
         .from("family_meals")
         .delete()
@@ -300,5 +400,12 @@ if (mealsList) {
       );
       return;
     }
+
+    openMealDetailsModal({
+      title: li.dataset.mealTitle,
+      meal_type: li.dataset.mealType,
+      meal_date: li.dataset.mealDate,
+      notes: li.dataset.mealNotes,
+    });
   });
 }

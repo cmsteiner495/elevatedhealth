@@ -56,6 +56,7 @@ import {
   selectedDate,
   getTodayDate,
   onSelectedDateChange,
+  addDays,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
 import { loadMeals, setMealsFamilyState } from "./meals.js";
@@ -89,6 +90,7 @@ let activeThemeMode = "dark";
 let diaryRealtimeChannel;
 let mealsGuidedMode = false;
 let isCalendarOpen = false;
+let isQuickSheetOpen = false;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 const THEME_STORAGE_KEY = "eh-theme";
@@ -406,6 +408,10 @@ function activateTab(targetId) {
   if (targetId !== "meals-tab" && mealsGuidedMode) {
     mealsGuidedMode = false;
     document.body.classList.remove("meals-guided");
+    if (mealsForm) {
+      delete mealsForm.dataset.targetDate;
+      delete mealsForm.dataset.targetMealType;
+    }
   }
 
   tabButtons.forEach((btn) => {
@@ -511,6 +517,8 @@ function openMealFlow(section, date) {
   if (mealDateInput) mealDateInput.value = date;
   if (mealTypeInput) mealTypeInput.value = section;
   if (mealsForm) {
+    mealsForm.dataset.targetDate = date;
+    mealsForm.dataset.targetMealType = section;
     mealsForm.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   if (mealTitleInput) {
@@ -519,12 +527,7 @@ function openMealFlow(section, date) {
 }
 
 function offsetDiaryDate(baseDate, delta) {
-  const parts = baseDate?.split("-").map(Number);
-  if (!parts || parts.length < 3) return baseDate;
-  const [y, m, d] = parts;
-  const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
-  date.setUTCDate(date.getUTCDate() + delta);
-  return date.toISOString().slice(0, 10);
+  return addDays(baseDate, delta);
 }
 
 function bindDiaryDateNav() {
@@ -634,12 +637,12 @@ async function logUpcomingMealToToday(entryEl) {
   if (!title.trim()) return;
   const notes = entryEl.dataset.mealNotes || null;
   const mealType = entryEl.dataset.mealType || "dinner";
-  const today = getTodayDate();
+  const targetDate = selectedDate || getTodayDate();
 
   const { error } = await supabase.from("family_meals").insert({
     family_group_id: currentFamilyId,
     added_by: currentUser.id,
-    meal_date: today,
+    meal_date: targetDate,
     meal_type: mealType,
     title,
     notes,
@@ -651,15 +654,17 @@ async function logUpcomingMealToToday(entryEl) {
     return;
   }
 
-  const viewingToday = selectedDate === today;
-  if (!viewingToday) {
-    setSelectedDate(today, { force: true });
+  const viewingTarget = selectedDate === targetDate;
+  if (!viewingTarget) {
+    setSelectedDate(targetDate, { force: true });
   } else {
     document.dispatchEvent(
-      new CustomEvent("diary:refresh", { detail: { date: today, entity: "meal" } })
+      new CustomEvent("diary:refresh", {
+        detail: { date: targetDate, entity: "meal" },
+      })
     );
   }
-  showToast("Added to today’s log");
+  showToast("Added to log");
 }
 
 function bindMealsLogButtons() {
@@ -943,12 +948,24 @@ function ensureInputVisible(target) {
   }, 120);
 }
 
+function syncQuickButtonState(isOpen) {
+  if (!quickAddButton) return;
+  quickAddButton.classList.toggle("is-open", isOpen);
+  const label = quickAddButton.querySelector("span");
+  if (label) {
+    label.textContent = isOpen ? "×" : "＋";
+  }
+  quickAddButton.setAttribute("aria-pressed", String(isOpen));
+}
+
 function openQuickSheet() {
   if (!quickSheetBackdrop) return;
   quickSheetBackdrop.classList.remove("is-closing");
   quickSheetBackdrop.classList.add("is-open");
   document.body.classList.add("sheet-open");
   if (isCoarsePointer) maybeVibrate([8, 12]);
+  isQuickSheetOpen = true;
+  syncQuickButtonState(true);
   syncViewportOffset();
 }
 
@@ -957,6 +974,8 @@ function closeQuickSheet() {
   quickSheetBackdrop.classList.add("is-closing");
   quickSheetBackdrop.classList.remove("is-open");
   document.body.classList.remove("sheet-open");
+  isQuickSheetOpen = false;
+  syncQuickButtonState(false);
   setTimeout(() => quickSheetBackdrop.classList.remove("is-closing"), 220);
 }
 
@@ -1178,7 +1197,11 @@ function handleQuickAction(action) {
 // Mobile FAB (bottom nav + button)
 if (quickAddButton) {
   quickAddButton.addEventListener("click", () => {
-    openQuickSheet();
+    if (isQuickSheetOpen) {
+      closeQuickSheet();
+    } else {
+      openQuickSheet();
+    }
   });
 }
 
