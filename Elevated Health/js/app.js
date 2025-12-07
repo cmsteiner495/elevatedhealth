@@ -113,6 +113,13 @@ function initInitialState() {
   selectedThemeStyle = next.selectedThemeStyle;
 }
 
+initInitialState();
+initThemeToggle();
+initThemeStyles();
+initModal();
+initAIDinnerCards();
+initInstallState();
+
 // Show / hide auth vs app
 
 function showAuth() {
@@ -518,22 +525,8 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
 });
 
 if (dashboardAiShortcut) {
-  dashboardAiShortcut.addEventListener("click", async () => {
-    const originalLabel = dashboardAiShortcut.textContent;
-    dashboardAiShortcut.disabled = true;
-    dashboardAiShortcut.textContent = "Refreshing…";
-    try {
-      await runWeeklyPlanGeneration();
-      document.dispatchEvent(
-        new CustomEvent("diary:refresh", { detail: { entity: "plan" } })
-      );
-    } catch (err) {
-      console.error("Weekly plan refresh failed", err);
-      showToast("Could not refresh the 7-day plan");
-    } finally {
-      dashboardAiShortcut.disabled = false;
-      dashboardAiShortcut.textContent = originalLabel;
-    }
+  dashboardAiShortcut.addEventListener("click", () => {
+    runWeeklyPlanGeneration();
   });
 }
 
