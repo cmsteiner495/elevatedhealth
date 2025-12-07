@@ -23,6 +23,7 @@ import {
   coachMessages,
   mealDateInput,
   mealTypeInput,
+  mealTitleInput,
   mealsForm,
   mealsList,
   workoutDateInput,
@@ -57,7 +58,7 @@ import {
   onSelectedDateChange,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
-import { setMealsFamilyState } from "./meals.js";
+import { loadMeals, setMealsFamilyState } from "./meals.js";
 import { setWorkoutsFamilyState } from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
@@ -86,9 +87,47 @@ let isAppInstalled;
 let selectedThemeStyle;
 let activeThemeMode = "dark";
 let diaryRealtimeChannel;
+let mealsGuidedMode = false;
+let isCalendarOpen = false;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 const THEME_STORAGE_KEY = "eh-theme";
+const THEME_TOKEN_MAP = {
+  dark: {
+    "--bg-app": "#031c2c",
+    "--surface-primary": "#06263d",
+    "--surface-secondary": "#0a324d",
+    "--surface-elevated": "#0d3a57",
+    "--surface-soft": "#0b304a",
+    "--text-primary": "#f4f7fb",
+    "--text-muted": "rgba(244, 247, 251, 0.7)",
+    "--text-soft": "rgba(244, 247, 251, 0.86)",
+    "--border-subtle": "rgba(0, 154, 154, 0.35)",
+    "--accent": "#00a3a3",
+    "--accent-soft": "rgba(0, 163, 163, 0.22)",
+    "--accent-strong": "#ff6b1a",
+    "--nav-surface": "rgba(4, 6, 11, 0.96)",
+    "--nav-surface-border": "rgba(255, 255, 255, 0.08)",
+    "--nav-icon-color": "rgba(244, 247, 251, 0.78)",
+  },
+  light: {
+    "--bg-app": "#eef3f6",
+    "--surface-primary": "#ffffff",
+    "--surface-secondary": "#f5f7fa",
+    "--surface-elevated": "#ffffff",
+    "--surface-soft": "#f1f4f8",
+    "--text-primary": "#031c2c",
+    "--text-muted": "rgba(3, 28, 44, 0.65)",
+    "--text-soft": "rgba(3, 28, 44, 0.82)",
+    "--border-subtle": "rgba(3, 28, 44, 0.12)",
+    "--accent": "#009a9a",
+    "--accent-soft": "rgba(0, 154, 154, 0.12)",
+    "--accent-strong": "#ff6b1a",
+    "--nav-surface": "#f8fbfd",
+    "--nav-surface-border": "rgba(3, 28, 44, 0.08)",
+    "--nav-icon-color": "rgba(3, 28, 44, 0.7)",
+  },
+};
 
 const TAB_TITLE_MAP = {
   "dashboard-tab": "Overview",
@@ -115,6 +154,14 @@ function createInitialState() {
   };
 }
 
+function applyThemeTokens(themeKey) {
+  const root = document.documentElement;
+  const tokenMap = THEME_TOKEN_MAP[themeKey] || THEME_TOKEN_MAP.dark;
+  Object.entries(tokenMap).forEach(([key, value]) => {
+    root.style.setProperty(key, value);
+  });
+}
+
 function initInitialState() {
   const next = createInitialState();
   activeTabId = next.activeTabId;
@@ -134,6 +181,7 @@ function applyThemeMode(theme) {
   } else {
     root.removeAttribute("data-theme");
   }
+  applyThemeTokens(activeThemeMode);
   if (themeToggleButton)
     themeToggleButton.setAttribute("aria-pressed", activeThemeMode === "light");
   if (themeLabel)
@@ -355,6 +403,11 @@ function activateTab(targetId) {
   if (!targetId || !tabButtons || !tabPanels) return;
   activeTabId = targetId;
 
+  if (targetId !== "meals-tab" && mealsGuidedMode) {
+    mealsGuidedMode = false;
+    document.body.classList.remove("meals-guided");
+  }
+
   tabButtons.forEach((btn) => {
     const btnTab = btn.dataset.tab;
     if (!btnTab) return;
@@ -453,10 +506,15 @@ function focusLogSection(sectionKey) {
 
 function openMealFlow(section, date) {
   activateTab("meals-tab");
+  mealsGuidedMode = true;
+  document.body.classList.add("meals-guided");
   if (mealDateInput) mealDateInput.value = date;
   if (mealTypeInput) mealTypeInput.value = section;
   if (mealsForm) {
     mealsForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (mealTitleInput) {
+    setTimeout(() => mealTitleInput.focus({ preventScroll: true }), 120);
   }
 }
 
@@ -517,12 +575,18 @@ function bindDiaryDateNav() {
         e.preventDefault();
         e.stopImmediatePropagation();
         diaryDatePicker.value = selectedDate;
+        if (isCalendarOpen) {
+          diaryDatePicker.blur();
+          isCalendarOpen = false;
+          return;
+        }
         if (typeof diaryDatePicker.showPicker === "function") {
           diaryDatePicker.showPicker();
         } else {
           diaryDatePicker.focus();
           diaryDatePicker.click();
         }
+        isCalendarOpen = true;
       },
       { capture: true }
     );
@@ -533,6 +597,10 @@ function bindDiaryDateNav() {
     diaryDatePicker.addEventListener("change", (e) => {
       const next = e.target.value;
       if (next) setSelectedDate(next, { force: true });
+      isCalendarOpen = false;
+    });
+    diaryDatePicker.addEventListener("blur", () => {
+      isCalendarOpen = false;
     });
   }
 }
@@ -605,6 +673,64 @@ function bindMealsLogButtons() {
       e.stopImmediatePropagation();
       const li = btn.closest("li");
       await logUpcomingMealToToday(li);
+    },
+    { capture: true }
+  );
+}
+
+function bindMealsListRemoveButtons() {
+  if (!mealsList) return;
+  mealsList.addEventListener(
+    "click",
+    async (e) => {
+      const deleteBtn = e.target.closest(".meal-delete");
+      const logBtn = e.target.closest(".meal-log-btn");
+      if (!deleteBtn && !logBtn) return;
+      const li = e.target.closest("li");
+      if (!li) return;
+
+      if (logBtn) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        logBtn.disabled = true;
+        await logUpcomingMealToToday(li);
+        logBtn.disabled = false;
+        return;
+      }
+
+      if (!li.dataset.mealId) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      li.classList.add("list-removing");
+      const removeAfter = () => {
+        setTimeout(async () => {
+          const { error } = await supabase
+            .from("family_meals")
+            .delete()
+            .eq("id", li.dataset.mealId);
+
+          if (error) {
+            console.error("Error deleting meal", error);
+            li.classList.remove("list-removing");
+            return;
+          }
+
+          await loadMeals();
+          document.dispatchEvent(
+            new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
+          );
+        }, 180);
+      };
+
+      const transitionTarget =
+        li.matches(".list-removing") && li.getAnimations
+          ? li.getAnimations()
+          : [];
+      if (transitionTarget.length) {
+        Promise.all(transitionTarget.map((a) => a.finished)).then(removeAfter);
+      } else {
+        removeAfter();
+      }
     },
     { capture: true }
   );
@@ -819,6 +945,7 @@ function ensureInputVisible(target) {
 
 function openQuickSheet() {
   if (!quickSheetBackdrop) return;
+  quickSheetBackdrop.classList.remove("is-closing");
   quickSheetBackdrop.classList.add("is-open");
   document.body.classList.add("sheet-open");
   if (isCoarsePointer) maybeVibrate([8, 12]);
@@ -827,8 +954,10 @@ function openQuickSheet() {
 
 function closeQuickSheet() {
   if (!quickSheetBackdrop) return;
+  quickSheetBackdrop.classList.add("is-closing");
   quickSheetBackdrop.classList.remove("is-open");
   document.body.classList.remove("sheet-open");
+  setTimeout(() => quickSheetBackdrop.classList.remove("is-closing"), 220);
 }
 
 if (moreNavButton) {
@@ -1155,6 +1284,10 @@ syncViewportOffset();
 
 onSelectedDateChange((dateValue) => {
   syncDateInputs(dateValue);
+  const diaryShell = document.querySelector(".diary-shell");
+  if (diaryShell) {
+    diaryShell.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 });
 syncDateInputs(selectedDate);
 
@@ -1213,6 +1346,7 @@ async function instantiateAppAfterInitialization() {
   bindDiaryDateNav();
   bindDiaryAddButtons();
   bindMealsLogButtons();
+  bindMealsListRemoveButtons();
   initInstallState();
   initCoachHandlers();
   initDiary();
