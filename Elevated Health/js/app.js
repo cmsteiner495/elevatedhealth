@@ -999,7 +999,7 @@ if (logoutButton) {
 async function instantiateAppAfterInitialization() {
   initInitialState();
   initThemeToggle();
-  applyThemeStyle(selectedThemeStyle);
+  initThemeStyles();
   initModal();
   initAIDinnerCards();
   initInstallState();
