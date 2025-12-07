@@ -334,7 +334,12 @@ async function removeMealFromDiary(mealId, entryEl) {
   };
 
   if (entryEl) {
-    setTimeout(updateUI, 180);
+    const handler = () => {
+      if (entryEl) entryEl.removeEventListener("transitionend", handler);
+      updateUI();
+    };
+    entryEl.addEventListener("transitionend", handler, { once: true });
+    setTimeout(() => updateUI(), 220);
   } else {
     updateUI();
   }

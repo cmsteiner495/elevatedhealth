@@ -130,6 +130,15 @@ body {
   transition: background var(--transition-med), color var(--transition-med);
 }
 
+.page-title {
+  font-size: var(--font-size-xxl);
+  letter-spacing: 0.01em;
+}
+
+.page-subtitle {
+  margin-top: 4px;
+}
+
 .sheet-open {
   overflow: hidden;
 }
@@ -777,6 +786,15 @@ body {
   flex-wrap: wrap;
 }
 
+.diary-header h3 {
+  font-size: 1.35rem;
+  margin-bottom: 2px;
+}
+
+.diary-header .subtitle.small {
+  font-size: 0.95rem;
+}
+
 .diary-date-nav {
   display: flex;
   align-items: center;
@@ -784,6 +802,7 @@ body {
   background: var(--bg-card-soft);
   padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-pill);
+  position: relative;
 }
 
 .diary-calendar-btn {
@@ -794,9 +813,11 @@ body {
 
 .diary-date-picker {
   position: absolute;
+  inset: 0 auto 0 0;
+  width: 42px;
+  height: 42px;
   opacity: 0;
-  width: 1px;
-  height: 1px;
+  pointer-events: none;
 }
 
 .diary-date-meta {
@@ -838,6 +859,14 @@ body {
 @media (max-width: 640px) {
   .diary-calories {
     grid-template-columns: 1fr;
+  }
+  .diary-header {
+    align-items: flex-start;
+  }
+  .diary-date-nav {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 
@@ -993,6 +1022,7 @@ ul {
   border: 1px solid var(--border-subtle);
   margin-bottom: var(--space-8);
   font-size: var(--font-size-sm);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
 .list-removing {
@@ -1890,6 +1920,11 @@ input[type="submit"] {
   gap: var(--space-12);
 }
 
+.meals-guided #ai-dinner-grid > :nth-child(n + 3),
+.meals-guided #meals-list > li:nth-child(n + 3) {
+  display: none;
+}
+
 @media (min-width: 700px) {
   .ai-dinner-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2196,7 +2231,10 @@ input[type="submit"] {
 
 .quick-sheet-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(66px + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: center;
   align-items: flex-end;
@@ -2213,6 +2251,10 @@ input[type="submit"] {
   pointer-events: auto;
 }
 
+.quick-sheet-backdrop.is-closing {
+  pointer-events: none;
+}
+
 .quick-sheet {
   width: 100%;
   max-width: 520px;
@@ -2223,7 +2265,7 @@ input[type="submit"] {
     0 0 0 1px rgba(255, 255, 255, 0.05);
   transform: translateY(100%);
   opacity: 0;
-  transition: transform var(--transition-fast), opacity var(--transition-fast);
+  transition: transform var(--transition-med), opacity var(--transition-med);
   border: 1px solid rgba(0, 154, 154, 0.28);
   gap: 0.5rem;
 }
@@ -2231,6 +2273,11 @@ input[type="submit"] {
 .quick-sheet-backdrop.is-open .quick-sheet {
   transform: translateY(0);
   opacity: 1;
+}
+
+.quick-sheet-backdrop.is-closing .quick-sheet {
+  transform: translateY(102%);
+  opacity: 0;
 }
 
 .quick-sheet-handle {
