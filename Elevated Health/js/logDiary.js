@@ -286,6 +286,20 @@ function showMealDetails(entry) {
   const body = document.createElement("div");
   body.className = "diary-detail-body";
 
+  if (type || date) {
+    const headline = document.createElement("div");
+    headline.className = "diary-detail-meta-row diary-detail-headline";
+    const parts = [];
+    if (type) {
+      parts.push(type.charAt(0).toUpperCase() + type.slice(1));
+    }
+    if (date) {
+      parts.push(formatDateSubLabel(date));
+    }
+    headline.textContent = parts.join(" · ");
+    body.appendChild(headline);
+  }
+
   const metaBlock = document.createElement("div");
   metaBlock.className = "diary-detail-meta";
   metaBlock.appendChild(
@@ -576,22 +590,11 @@ export function initDiary() {
   attachDiaryListHandlers();
 
   onSelectedDateChange(async (dateValue) => {
-    const startScroll = window.scrollY;
-    let userScrolled = false;
-    const markScroll = () => {
-      userScrolled = true;
-    };
-    window.addEventListener("scroll", markScroll, { passive: true, once: true });
     setDateText(dateValue);
     await loadDiary(dateValue);
     document.dispatchEvent(
       new CustomEvent("diary:date-changed", { detail: { date: dateValue } })
     );
-    requestAnimationFrame(() => {
-      if (!userScrolled) {
-        window.scrollTo({ top: startScroll, behavior: "auto" });
-      }
-    });
   });
 
   document.addEventListener("diary:refresh", (event) => {

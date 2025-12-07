@@ -530,9 +530,9 @@ function scrollAndFocus(target, focusEl) {
 }
 
 function openMealsQuickEntry() {
-  const today = getTodayDate();
+  const targetDate = selectedDate || getTodayDate();
   activateTab("meals-tab");
-  if (mealDateInput) mealDateInput.value = today;
+  if (mealDateInput) mealDateInput.value = targetDate;
   if (mealTypeInput) mealTypeInput.value = "dinner";
   setTimeout(() => {
     const addMealAnchor = mealsForm?.closest(".card") || mealsForm;
@@ -543,9 +543,9 @@ function openMealsQuickEntry() {
 }
 
 function openWorkoutQuickEntry() {
-  const today = getTodayDate();
+  const targetDate = selectedDate || getTodayDate();
   activateTab("workouts-tab");
-  if (workoutDateInput) workoutDateInput.value = today;
+  if (workoutDateInput) workoutDateInput.value = targetDate;
   setTimeout(() => {
     const workoutAnchor = workoutsForm?.closest(".card") || workoutsForm;
     if (workoutAnchor) {
@@ -555,9 +555,9 @@ function openWorkoutQuickEntry() {
 }
 
 function openProgressQuickEntry(target) {
-  const today = getTodayDate();
+  const targetDate = selectedDate || getTodayDate();
   activateTab("progress-tab");
-  if (progressDateInput) progressDateInput.value = today;
+  if (progressDateInput) progressDateInput.value = targetDate;
   const focusTarget =
     target === "water" ? progressWaterInput : progressWeightInput;
   setTimeout(() => {

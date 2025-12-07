@@ -206,7 +206,10 @@ export async function fetchMealsByDate(dateValue) {
 }
 
 async function logMealToToday(meal) {
-  await logMealToDiary(meal, { date: selectedDate || getTodayDate() });
+  await logMealToDiary(meal, {
+    date: selectedDate || getTodayDate(),
+    skipReload: true,
+  });
 }
 
 function renderMeals(items) {
@@ -396,8 +399,9 @@ if (mealsList) {
         return;
       }
 
-      setTimeout(() => li.remove(), 160);
-      await loadMeals();
+      const removeNode = () => li.remove();
+      li.addEventListener("transitionend", removeNode, { once: true });
+      setTimeout(removeNode, 220);
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
       );
