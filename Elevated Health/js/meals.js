@@ -384,6 +384,7 @@ if (mealsList) {
     if (deleteBtn) {
       e.preventDefault();
       e.stopPropagation();
+      li.classList.add("list-removing");
       const { error } = await supabase
         .from("family_meals")
         .delete()
@@ -391,9 +392,11 @@ if (mealsList) {
 
       if (error) {
         console.error("Error deleting meal:", error);
+        li.classList.remove("list-removing");
         return;
       }
 
+      setTimeout(() => li.remove(), 160);
       await loadMeals();
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
