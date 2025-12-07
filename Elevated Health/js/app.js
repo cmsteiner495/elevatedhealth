@@ -33,6 +33,7 @@ import {
   progressForm,
   progressWaterInput,
   progressWeightInput,
+  aiDinnerGrid,
   quickAddButton,
   quickSheetBackdrop,
   quickSheetActionButtons,
@@ -534,8 +535,9 @@ function openMealsQuickEntry() {
   if (mealDateInput) mealDateInput.value = today;
   if (mealTypeInput) mealTypeInput.value = "dinner";
   setTimeout(() => {
-    if (mealsForm) {
-      scrollAndFocus(mealsForm, mealTitleInput);
+    const addMealAnchor = mealsForm?.closest(".card") || mealsForm;
+    if (addMealAnchor) {
+      scrollAndFocus(addMealAnchor, mealTitleInput);
     }
   }, 80);
 }
@@ -545,8 +547,9 @@ function openWorkoutQuickEntry() {
   activateTab("workouts-tab");
   if (workoutDateInput) workoutDateInput.value = today;
   setTimeout(() => {
-    if (workoutsForm) {
-      scrollAndFocus(workoutsForm, workoutTitleInput);
+    const workoutAnchor = workoutsForm?.closest(".card") || workoutsForm;
+    if (workoutAnchor) {
+      scrollAndFocus(workoutAnchor, workoutTitleInput);
     }
   }, 80);
 }
@@ -558,8 +561,9 @@ function openProgressQuickEntry(target) {
   const focusTarget =
     target === "water" ? progressWaterInput : progressWeightInput;
   setTimeout(() => {
-    if (progressForm) {
-      scrollAndFocus(progressForm, focusTarget);
+    const progressAnchor = focusTarget?.closest("div") || progressForm;
+    if (progressAnchor) {
+      scrollAndFocus(progressAnchor, focusTarget);
     }
   }, 80);
 }
@@ -1042,6 +1046,9 @@ if (moreNavButton) {
   moreNavButton.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
+    if (isQuickSheetOpen) {
+      closeQuickSheet();
+    }
     const isOpen = moreMenuBackdrop?.classList.contains("is-open");
     if (isOpen) {
       closeMoreMenu();
@@ -1216,6 +1223,8 @@ function setDesktopFabMenuOpen(isOpen) {
 }
 
 function handleQuickAction(action) {
+  closeQuickSheet();
+  setDesktopFabMenuOpen(false);
   if (isCoarsePointer) maybeVibrate([10]);
   switch (action) {
     case "log-meal":
@@ -1224,10 +1233,16 @@ function handleQuickAction(action) {
 
     case "log-ella-meal":
       activateTab("meals-tab");
-      document.getElementById("ai-dinner-grid")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      setTimeout(() => {
+        const grid = aiDinnerGrid || document.getElementById("ai-dinner-grid");
+        if (grid) {
+          grid.scrollIntoView({ behavior: "smooth", block: "start" });
+          const firstCard = grid.querySelector(".ai-dinner-card");
+          if (firstCard) {
+            firstCard.focus({ preventScroll: true });
+          }
+        }
+      }, 80);
       showToast("Opening Ella’s picks");
       break;
 
@@ -1252,8 +1267,6 @@ function handleQuickAction(action) {
     default:
       break;
   }
-
-  closeQuickSheet();
 }
 
 // Mobile FAB (bottom nav + button)

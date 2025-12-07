@@ -23,6 +23,7 @@ import {
 } from "./dom.js";
 import {
   currentFamilyId,
+  currentUser,
   addDays,
   getTodayDate,
   onSelectedDateChange,
@@ -32,7 +33,7 @@ import {
 } from "./state.js";
 import { fetchMealsByDate } from "./meals.js";
 import { fetchWorkoutsByDate } from "./workouts.js";
-import { openModal } from "./ui.js";
+import { closeModal, openModal, showToast } from "./ui.js";
 
 const sectionLists = {
   breakfast: diaryBreakfastList,
@@ -94,6 +95,11 @@ function createMealEntry(item, sectionKey) {
   li.dataset.mealDate = item.meal_date || "";
   li.dataset.mealTitle = item.title || "";
   li.dataset.mealNotes = item.notes || "";
+  li.dataset.mealDescription = item.description || "";
+  li.dataset.mealCalories = item.calories || item.nutrition?.calories || "";
+  li.dataset.mealProtein = item.protein || item.nutrition?.protein || "";
+  li.dataset.mealCarbs = item.carbs || item.nutrition?.carbs || "";
+  li.dataset.mealFat = item.fat || item.nutrition?.fat || "";
   li.dataset.mealUrl = item.recipe_url || item.recipeUrl || "";
 
   const row = document.createElement("div");
@@ -201,16 +207,81 @@ function buildMealMetaRow(label, value) {
   return row;
 }
 
+function buildNutritionPills(nutrition = {}) {
+  const hasAny = ["calories", "protein", "carbs", "fat"].some(
+    (key) => nutrition[key]
+  );
+  if (!hasAny) return null;
+
+  const row = document.createElement("div");
+  row.className = "ai-dinner-meta";
+
+  const addPill = (label, value) => {
+    if (!value) return;
+    const pill = document.createElement("span");
+    pill.className = "ai-dinner-pill";
+    pill.textContent = `${label}: ${value}`;
+    row.appendChild(pill);
+  };
+
+  addPill("Calories", nutrition.calories);
+  addPill("Protein", nutrition.protein);
+  addPill("Carbs", nutrition.carbs);
+  addPill("Fat", nutrition.fat);
+
+  return row;
+}
+
+async function logMealFromDetail(meal) {
+  if (!meal) return;
+  if (!currentFamilyId) {
+    showToast("Join a family to log meals.");
+    return;
+  }
+
+  const title = meal.title || meal.name;
+  if (!title) return;
+
+  const mealType = meal.meal_type || meal.mealType || meal.type || "dinner";
+  const notes = meal.notes || meal.description || null;
+
+  const { error } = await supabase.from("family_meals").insert({
+    family_group_id: currentFamilyId,
+    added_by: currentUser?.id || null,
+    meal_date: selectedDate,
+    meal_type: mealType,
+    title,
+    notes,
+  });
+
+  if (error) {
+    console.error("Error logging meal from detail", error);
+    showToast("Could not add meal to log");
+    return;
+  }
+
+  document.dispatchEvent(
+    new CustomEvent("diary:refresh", { detail: { date: selectedDate, entity: "meal" } })
+  );
+  showToast("Added to log");
+  closeModal();
+}
+
 function showMealDetails(entry) {
   if (!entry) return;
+  const entryId = entry.dataset.mealId;
+  const mealData = currentDiaryMeals.find((meal) => String(meal.id) === entryId) || {};
+
   const title =
+    mealData.title ||
     entry.dataset.mealTitle ||
     entry.querySelector(".diary-entry-title")?.textContent ||
     "Meal";
-  const notes = entry.dataset.mealNotes || "No notes yet.";
-  const type = entry.dataset.mealType;
-  const date = entry.dataset.mealDate;
-  const recipeUrl = entry.dataset.mealUrl;
+  const notes = mealData.notes || entry.dataset.mealNotes || "";
+  const description = mealData.description || entry.dataset.mealDescription || "";
+  const type = mealData.meal_type || entry.dataset.mealType;
+  const date = mealData.meal_date || entry.dataset.mealDate;
+  const recipeUrl = mealData.recipe_url || mealData.recipeUrl || entry.dataset.mealUrl;
 
   const body = document.createElement("div");
   body.className = "diary-detail-body";
@@ -228,11 +299,30 @@ function showMealDetails(entry) {
   }
   body.appendChild(metaBlock);
 
-  if (notes) {
+  if (description) {
+    const desc = document.createElement("p");
+    desc.textContent = description;
+    desc.className = "diary-detail-note";
+    body.appendChild(desc);
+  }
+
+  if (notes && notes !== description) {
     const notesEl = document.createElement("p");
     notesEl.textContent = notes;
     notesEl.className = "diary-detail-note";
     body.appendChild(notesEl);
+  }
+
+  const nutritionSource =
+    mealData.nutrition || {
+      calories: mealData.calories || entry.dataset.mealCalories,
+      protein: mealData.protein || entry.dataset.mealProtein,
+      carbs: mealData.carbs || entry.dataset.mealCarbs,
+      fat: mealData.fat || entry.dataset.mealFat,
+    };
+  const nutrition = buildNutritionPills(nutritionSource);
+  if (nutrition) {
+    body.appendChild(nutrition);
   }
 
   if (recipeUrl) {
@@ -245,7 +335,20 @@ function showMealDetails(entry) {
     body.appendChild(link);
   }
 
-  openModal({ title, body, primaryLabel: null });
+  const modalConfig = { title, body, primaryLabel: null };
+  const canLog = Boolean(currentFamilyId && title);
+  if (canLog) {
+    modalConfig.primaryLabel = "Log this meal";
+    modalConfig.onPrimary = () => logMealFromDetail({
+      ...mealData,
+      title,
+      meal_type: type,
+      description,
+      notes,
+    });
+  }
+
+  openModal(modalConfig);
 }
 
 function setDateText(dateValue) {
@@ -425,7 +528,7 @@ function attachDiaryListHandlers() {
 }
 
 export function refreshDiaryForSelectedDate() {
-  loadDiary(selectedDate);
+  return loadDiary(selectedDate);
 }
 
 export function initDiary() {
@@ -472,12 +575,23 @@ export function initDiary() {
   handleAddButtons();
   attachDiaryListHandlers();
 
-  onSelectedDateChange((dateValue) => {
+  onSelectedDateChange(async (dateValue) => {
+    const startScroll = window.scrollY;
+    let userScrolled = false;
+    const markScroll = () => {
+      userScrolled = true;
+    };
+    window.addEventListener("scroll", markScroll, { passive: true, once: true });
     setDateText(dateValue);
-    loadDiary(dateValue);
+    await loadDiary(dateValue);
     document.dispatchEvent(
       new CustomEvent("diary:date-changed", { detail: { date: dateValue } })
     );
+    requestAnimationFrame(() => {
+      if (!userScrolled) {
+        window.scrollTo({ top: startScroll, behavior: "auto" });
+      }
+    });
   });
 
   document.addEventListener("diary:refresh", (event) => {
