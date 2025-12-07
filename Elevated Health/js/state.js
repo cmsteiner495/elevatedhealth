@@ -2,9 +2,33 @@
 export let currentUser = null;
 export let currentFamilyId = null;
 
-// Shared, app-wide selected date state (YYYY-MM-DD)
-const today = new Date();
-const isoToday = today.toISOString().slice(0, 10);
+// Shared, app-wide selected date state (YYYY-MM-DD) using local time
+function toLocalDateString(date) {
+  if (!(date instanceof Date)) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateString(value) {
+  if (!value) return null;
+  if (value instanceof Date) return toLocalDateString(value);
+  if (typeof value === "string") {
+    const parts = value.split("-").map(Number);
+    if (parts.length >= 3 && parts.every((n) => !Number.isNaN(n))) {
+      const [y, m, d] = parts;
+      return toLocalDateString(new Date(y, (m || 1) - 1, d || 1));
+    }
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return toLocalDateString(parsed);
+    }
+  }
+  return null;
+}
+
+const isoToday = toLocalDateString(new Date());
 export let selectedDate = isoToday;
 
 const dateListeners = new Set();
@@ -19,7 +43,8 @@ export function setCurrentFamilyId(familyId) {
 
 export function setSelectedDate(nextDate, options = {}) {
   if (!nextDate) return;
-  const normalized = nextDate.slice(0, 10);
+  const normalized = normalizeDateString(nextDate);
+  if (!normalized) return;
   const force = options.force === true;
   if (!force && normalized === selectedDate) return;
   selectedDate = normalized;
@@ -34,3 +59,15 @@ export function onSelectedDateChange(cb) {
 export function getTodayDate() {
   return isoToday;
 }
+
+export function addDays(dateValue, daysDelta) {
+  const normalized = normalizeDateString(dateValue);
+  if (!normalized) return dateValue;
+  const [y, m, d] = normalized.split("-").map(Number);
+  const date = new Date(y, (m || 1) - 1, d || 1);
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + daysDelta);
+  return toLocalDateString(date);
+}
+
+export { toLocalDateString };

@@ -825,6 +825,13 @@ body {
   flex-direction: column;
   gap: var(--space-4);
   min-width: 150px;
+  cursor: pointer;
+}
+
+.diary-date-meta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
 }
 
 .diary-date-label {
@@ -993,6 +1000,42 @@ body {
 .diary-entry-removing {
   opacity: 0;
   transform: translateX(-6px);
+}
+
+.diary-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.diary-detail-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.diary-detail-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-soft);
+}
+
+.diary-detail-meta-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+}
+
+.diary-detail-meta-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.diary-detail-note {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--text-soft);
 }
 
 .diary-section.log-card-highlight {
@@ -1515,6 +1558,12 @@ input[type="submit"] {
   transform: translateY(-1px);
 }
 
+.bottom-nav-plus.is-open {
+  background: var(--surface-elevated);
+  color: var(--accent-strong);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+}
+
 /* Theme toggle */
 
 .theme-toggle {
@@ -1660,6 +1709,13 @@ input[type="submit"] {
   flex-direction: column;
   gap: var(--space-4);
   min-width: 150px;
+  cursor: pointer;
+}
+
+.diary-date-meta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
 }
 
 .diary-date-label {

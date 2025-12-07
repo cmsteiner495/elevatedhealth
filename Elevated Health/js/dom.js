@@ -45,6 +45,7 @@ export const diaryNextDayBtn = document.getElementById("diary-next-day");
 export const diaryTodayBtn = document.getElementById("diary-today-btn");
 export const diaryCalendarBtn = document.getElementById("diary-calendar-btn");
 export const diaryDatePicker = document.getElementById("diary-date-picker");
+export const diaryDateMeta = document.getElementById("diary-date-meta");
 export const diaryDateLabel = document.getElementById("diary-date-label");
 export const diaryDateSub = document.getElementById("diary-date-sub");
 export const diaryAddButtons = document.querySelectorAll("[data-diary-add]");
