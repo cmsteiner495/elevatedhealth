@@ -1,4 +1,5 @@
 // js/logDiary.js
+import { supabase } from "./supabaseClient.js";
 import {
   diaryPrevDayBtn,
   diaryNextDayBtn,
@@ -36,6 +37,9 @@ const sectionLists = {
 
 const emptyMessage = "No entries yet";
 
+let currentDiaryMeals = [];
+let currentDiaryWorkouts = [];
+
 function formatDateLabel(dateValue) {
   const date = new Date(dateValue);
   return new Intl.DateTimeFormat("en", {
@@ -59,7 +63,45 @@ function setListLoading(listEl) {
   listEl.innerHTML = '<li class="diary-empty">Loading…</li>';
 }
 
-function renderList(listEl, items) {
+function createMealEntry(item, sectionKey) {
+  const li = document.createElement("li");
+  li.className = "diary-entry";
+  li.dataset.mealId = item.id;
+  li.dataset.mealType = sectionKey;
+  li.dataset.mealDate = item.meal_date || "";
+
+  const row = document.createElement("div");
+  row.className = "diary-entry-row";
+
+  const textWrap = document.createElement("div");
+  textWrap.className = "diary-entry-copy";
+
+  const title = document.createElement("div");
+  title.className = "diary-entry-title";
+  title.textContent = item.title;
+  textWrap.appendChild(title);
+
+  if (item.notes) {
+    const notes = document.createElement("div");
+    notes.className = "diary-entry-notes";
+    notes.textContent = item.notes;
+    textWrap.appendChild(notes);
+  }
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "ghost-btn diary-entry-remove";
+  removeBtn.textContent = "✕";
+  removeBtn.setAttribute("aria-label", `Remove ${item.title} from ${sectionKey}`);
+
+  row.appendChild(textWrap);
+  row.appendChild(removeBtn);
+  li.appendChild(row);
+
+  return li;
+}
+
+function renderList(listEl, items, sectionKey) {
   if (!listEl) return;
 
   if (!items.length) {
@@ -69,23 +111,7 @@ function renderList(listEl, items) {
 
   listEl.innerHTML = "";
   items.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = "diary-entry";
-
-    const title = document.createElement("div");
-    title.className = "diary-entry-title";
-    title.textContent = item.title;
-
-    li.appendChild(title);
-
-    if (item.notes) {
-      const notes = document.createElement("div");
-      notes.className = "diary-entry-notes";
-      notes.textContent = item.notes;
-      li.appendChild(notes);
-    }
-
-    listEl.appendChild(li);
+    listEl.appendChild(createMealEntry(item, sectionKey));
   });
 }
 
@@ -162,12 +188,32 @@ function calculateCalories(meals, workouts) {
   }
 }
 
+function groupMealsByType(meals) {
+  const byType = {
+    breakfast: [],
+    lunch: [],
+    dinner: [],
+    snacks: [],
+  };
+
+  meals.forEach((meal) => {
+    const normalized = (meal.meal_type || "").toLowerCase();
+    if (byType[normalized]) {
+      byType[normalized].push(meal);
+    }
+  });
+
+  return byType;
+}
+
 async function loadDiary(dateValue) {
   setDateText(dateValue);
 
   if (!currentFamilyId) {
-    Object.values(sectionLists).forEach((listEl) =>
-      renderList(listEl, [])
+    currentDiaryMeals = [];
+    currentDiaryWorkouts = [];
+    Object.entries(sectionLists).forEach(([key, listEl]) =>
+      renderList(listEl, [], key)
     );
     renderExercise(diaryExerciseList, []);
     calculateCalories([], []);
@@ -182,23 +228,13 @@ async function loadDiary(dateValue) {
     fetchWorkoutsByDate(dateValue),
   ]);
 
-  const byType = {
-    breakfast: [],
-    lunch: [],
-    dinner: [],
-    snacks: [],
-  };
+  currentDiaryMeals = meals || [];
+  currentDiaryWorkouts = workouts || [];
 
-  meals.forEach((meal) => {
-    const key = meal.meal_type || "";
-    const normalized = key.toLowerCase();
-    if (byType[normalized]) {
-      byType[normalized].push(meal);
-    }
-  });
+  const byType = groupMealsByType(currentDiaryMeals);
 
   Object.entries(sectionLists).forEach(([key, listEl]) => {
-    renderList(listEl, byType[key] || []);
+    renderList(listEl, byType[key] || [], key);
   });
 
   renderExercise(diaryExerciseList, workouts || []);
@@ -227,6 +263,66 @@ function handleAddButtons() {
   });
 }
 
+// Remove a meal from the log and refresh UI without a full reload.
+async function removeMealFromDiary(mealId, entryEl) {
+  if (!mealId) return;
+  if (entryEl) {
+    entryEl.classList.add("diary-entry-removing");
+  }
+
+  const { error } = await supabase
+    .from("family_meals")
+    .delete()
+    .eq("id", mealId);
+
+  if (error) {
+    console.error("Error removing meal from diary:", error);
+    if (entryEl) {
+      entryEl.classList.remove("diary-entry-removing");
+    }
+    return;
+  }
+
+  currentDiaryMeals = currentDiaryMeals.filter((meal) => meal.id !== mealId);
+
+  const updateUI = () => {
+    const byType = groupMealsByType(currentDiaryMeals);
+
+    Object.entries(sectionLists).forEach(([key, listEl]) => {
+      renderList(listEl, byType[key] || [], key);
+    });
+
+    calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
+  };
+
+  if (entryEl) {
+    setTimeout(updateUI, 180);
+  } else {
+    updateUI();
+  }
+}
+
+function attachDiaryListHandlers() {
+  const lists = [
+    diaryBreakfastList,
+    diaryLunchList,
+    diaryDinnerList,
+    diarySnacksList,
+  ];
+
+  lists.forEach((listEl) => {
+    if (!listEl) return;
+    listEl.addEventListener("click", (event) => {
+      const removeBtn = event.target.closest(".diary-entry-remove");
+      if (!removeBtn) return;
+      const entry = removeBtn.closest(".diary-entry");
+      const mealId = entry?.dataset?.mealId;
+      if (!mealId) return;
+      removeMealFromDiary(mealId, entry);
+    });
+  });
+}
+
 export function refreshDiaryForSelectedDate() {
   loadDiary(selectedDate);
 }
@@ -240,6 +336,7 @@ export function initDiary() {
     diaryTodayBtn.addEventListener("click", () => setSelectedDate(getTodayDate()));
 
   handleAddButtons();
+  attachDiaryListHandlers();
 
   onSelectedDateChange((dateValue) => {
     setDateText(dateValue);

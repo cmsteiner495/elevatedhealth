@@ -22,6 +22,7 @@ import {
   coachMessages,
   mealDateInput,
   mealTypeInput,
+  mealsForm,
   workoutDateInput,
   progressDateInput,
   quickAddButton,
@@ -403,6 +404,15 @@ function focusLogSection(sectionKey) {
   }
 }
 
+function openMealFlow(section, date) {
+  activateTab("meals-tab");
+  if (mealDateInput) mealDateInput.value = date;
+  if (mealTypeInput) mealTypeInput.value = section;
+  if (mealsForm) {
+    mealsForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
 // SIGN UP
 
 if (signupForm) {
@@ -521,9 +531,7 @@ document.addEventListener("diary:add", (event) => {
     return;
   }
 
-  activateTab("meals-tab");
-  if (mealDateInput) mealDateInput.value = date;
-  if (mealTypeInput) mealTypeInput.value = section;
+  openMealFlow(section, date);
 });
 
 // QUICK ACTION SHEET + DESKTOP FAB MENU
