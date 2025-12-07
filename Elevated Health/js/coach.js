@@ -478,6 +478,56 @@ async function callAICoach(promptText, options = {}) {
 }
 
 // Public init for coach UI
+export async function runWeeklyPlanGeneration() {
+  if (!currentUser || !currentFamilyId) {
+    if (coachStatus) {
+      coachStatus.textContent =
+        "You need to be logged in and connected to a family group to generate plans.";
+      coachStatus.style.color = "red";
+    }
+    return;
+  }
+
+  const promptText = `
+Generate a simple 7-day workout and dinner plan for a small family.
+Keep meals budget-friendly and easy to cook.
+Keep workouts realistic for busy adults (30–45 minutes, mix of strength, walking, and rest days).
+Return your answer in clear sections: Workouts and Meals.
+  `.trim();
+
+  const userDisplayText =
+    "Generate a simple 7-day workout and dinner plan for us.";
+
+  appendCoachMessage("user", userDisplayText);
+  logCoachMessage("user", userDisplayText, "plan");
+  setCoachThinking(true);
+
+  if (coachStatus) {
+    coachStatus.textContent = "";
+    coachStatus.style.color = "";
+  }
+
+  try {
+    const { reply } = await callAICoach(promptText, { mode: "plan" });
+    appendCoachMessage("assistant", reply);
+    logCoachMessage("assistant", reply, "plan");
+    setCoachThinking(false);
+    showToast("Ella completed a 7-day plan");
+    maybeVibrate([14, 18]);
+  } catch (err) {
+    console.error(err);
+    const fallback =
+      "I couldn’t generate the plan right now. Please try again later.";
+    appendCoachMessage("assistant", fallback);
+    logCoachMessage("assistant", fallback, "plan");
+    setCoachThinking(false);
+    if (coachStatus) {
+      coachStatus.textContent = "Error generating plan.";
+      coachStatus.style.color = "red";
+    }
+  }
+}
+
 export function initCoachHandlers() {
   // Chat submit
   if (coachForm && coachInput) {
@@ -519,54 +569,6 @@ export function initCoachHandlers() {
 
   // 7-day plan button
   if (coachGenerateWeek) {
-    coachGenerateWeek.addEventListener("click", async () => {
-      if (!currentUser || !currentFamilyId) {
-        if (coachStatus) {
-          coachStatus.textContent =
-            "You need to be logged in and connected to a family group to generate plans.";
-          coachStatus.style.color = "red";
-        }
-        return;
-      }
-
-      const promptText = `
-Generate a simple 7-day workout and dinner plan for a small family.
-Keep meals budget-friendly and easy to cook.
-Keep workouts realistic for busy adults (30–45 minutes, mix of strength, walking, and rest days).
-Return your answer in clear sections: Workouts and Meals.
-      `.trim();
-
-      const userDisplayText =
-        "Generate a simple 7-day workout and dinner plan for us.";
-
-      appendCoachMessage("user", userDisplayText);
-      logCoachMessage("user", userDisplayText, "plan");
-      setCoachThinking(true);
-
-      if (coachStatus) {
-        coachStatus.textContent = "";
-        coachStatus.style.color = "";
-      }
-
-      try {
-        const { reply } = await callAICoach(promptText, { mode: "plan" });
-        appendCoachMessage("assistant", reply);
-        logCoachMessage("assistant", reply, "plan");
-        setCoachThinking(false);
-        showToast("Ella completed a 7-day plan");
-        maybeVibrate([14, 18]);
-      } catch (err) {
-        console.error(err);
-        const fallback =
-          "I couldn’t generate the plan right now. Please try again later.";
-        appendCoachMessage("assistant", fallback);
-        logCoachMessage("assistant", fallback, "plan");
-        setCoachThinking(false);
-        if (coachStatus) {
-          coachStatus.textContent = "Error generating plan.";
-          coachStatus.style.color = "red";
-        }
-      }
-    });
+    coachGenerateWeek.addEventListener("click", () => runWeeklyPlanGeneration());
   }
 }

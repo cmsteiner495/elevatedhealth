@@ -786,6 +786,19 @@ body {
   border-radius: var(--radius-pill);
 }
 
+.diary-calendar-btn {
+  padding-inline: 10px;
+  border-radius: 12px;
+  font-size: 1rem;
+}
+
+.diary-date-picker {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
 .diary-date-meta {
   display: flex;
   flex-direction: column;
@@ -907,6 +920,21 @@ body {
   background: var(--bg-card-soft);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-soft);
+  transition: opacity 180ms ease, transform 180ms ease;
+  cursor: pointer;
+}
+
+.diary-entry-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-8);
+  align-items: flex-start;
+}
+
+.diary-entry-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .diary-entry-title {
@@ -918,6 +946,25 @@ body {
   color: var(--text-muted);
   font-size: var(--font-size-sm);
   margin-top: var(--space-4);
+}
+
+.diary-entry-remove {
+  padding: 6px 10px;
+  border-radius: 10px;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.diary-entry-remove:hover,
+.diary-entry-remove:focus-visible {
+  opacity: 1;
+}
+
+.diary-entry-removing {
+  opacity: 0;
+  transform: translateX(-6px);
 }
 
 .diary-section.log-card-highlight {

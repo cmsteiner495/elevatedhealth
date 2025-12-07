@@ -7,14 +7,41 @@ import {
   modalTitle,
   themeLabel,
   themeToggleButton,
+  themeStyleChips,
   toastContainer,
 } from "./dom.js";
 
 const THEME_KEY = "eh-theme";
+const THEME_STYLE_KEY = "eh-theme-style";
 let activeTheme = "dark";
+let activeThemeStyle = "mountain";
 let modalKeyHandler = null;
 let previousFocus = null;
 let dinnerLogHandler = null;
+
+const THEME_STYLE_MAP = {
+  mountain: {
+    "--accent": "#00a3a3",
+    "--accent-soft": "rgba(0, 163, 163, 0.22)",
+    "--accent-strong": "#ff7a2f",
+    "--color-accent-primary": "#ff7a2f",
+    "--accent-blue": "#4aa5ff",
+  },
+  summer: {
+    "--accent": "#ff8f3f",
+    "--accent-soft": "rgba(255, 143, 63, 0.22)",
+    "--accent-strong": "#ff4d79",
+    "--color-accent-primary": "#ff8f3f",
+    "--accent-blue": "#ffcf4a",
+  },
+  winter: {
+    "--accent": "#4aa5ff",
+    "--accent-soft": "rgba(74, 165, 255, 0.18)",
+    "--accent-strong": "#00c2c7",
+    "--color-accent-primary": "#4aa5ff",
+    "--accent-blue": "#9bd4ff",
+  },
+};
 
 export function maybeVibrate(pattern = [12]) {
   if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function")
@@ -118,6 +145,22 @@ function persistTheme(theme) {
   }
 }
 
+function persistThemeStyle(styleKey) {
+  try {
+    localStorage.setItem(THEME_STYLE_KEY, styleKey);
+  } catch (e) {
+    // noop for environments without storage
+  }
+}
+
+function applyThemeStyleVars(styleKey) {
+  const tokens = THEME_STYLE_MAP[styleKey] || THEME_STYLE_MAP.mountain;
+  const root = document.documentElement;
+  Object.entries(tokens).forEach(([key, value]) => {
+    root.style.setProperty(key, value);
+  });
+}
+
 export function setTheme(theme) {
   const nextTheme = theme === "light" ? "light" : "dark";
   activeTheme = nextTheme;
@@ -134,6 +177,23 @@ export function setTheme(theme) {
   if (themeToggleButton) {
     themeToggleButton.setAttribute("aria-pressed", nextTheme === "light");
   }
+}
+
+function updateThemeStyleChips(styleKey) {
+  if (!themeStyleChips?.length) return;
+  themeStyleChips.forEach((chip) => {
+    const isActive = chip.dataset.themeStyle === styleKey;
+    chip.classList.toggle("active", isActive);
+    chip.setAttribute("aria-pressed", isActive);
+  });
+}
+
+export function setThemeStyle(styleKey) {
+  const nextStyle = THEME_STYLE_MAP[styleKey] ? styleKey : "mountain";
+  activeThemeStyle = nextStyle;
+  applyThemeStyleVars(nextStyle);
+  updateThemeStyleChips(nextStyle);
+  persistThemeStyle(nextStyle);
 }
 
 export function initThemeToggle() {
@@ -153,6 +213,28 @@ export function initThemeToggle() {
     setTheme(next);
     showToast("Settings saved");
     maybeVibrate([10]);
+  });
+}
+
+export function initThemeStyles() {
+  const storedStyle = (() => {
+    try {
+      return localStorage.getItem(THEME_STYLE_KEY);
+    } catch (e) {
+      return null;
+    }
+  })();
+
+  setThemeStyle(storedStyle || activeThemeStyle);
+
+  if (!themeStyleChips?.length) return;
+  themeStyleChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const styleKey = chip.dataset.themeStyle;
+      setThemeStyle(styleKey);
+      showToast("Theme updated");
+      maybeVibrate([10]);
+    });
   });
 }
 

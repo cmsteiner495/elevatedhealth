@@ -17,9 +17,12 @@ export function setCurrentFamilyId(familyId) {
   currentFamilyId = familyId;
 }
 
-export function setSelectedDate(nextDate) {
-  if (!nextDate || nextDate === selectedDate) return;
-  selectedDate = nextDate;
+export function setSelectedDate(nextDate, options = {}) {
+  if (!nextDate) return;
+  const normalized = nextDate.slice(0, 10);
+  const force = options.force === true;
+  if (!force && normalized === selectedDate) return;
+  selectedDate = normalized;
   dateListeners.forEach((cb) => cb(selectedDate));
 }
 
