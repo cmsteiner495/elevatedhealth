@@ -37,6 +37,11 @@
       sizes="512x512"
       href="img/favicon/favicon-512x512.png"
     />
+    <script
+      src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+      integrity="sha384-knuDqX8tlKlFoE6TbEiZLZwCJVksArGIWkCuu3qv1ujYJO0iL7nWTJoh3ETGFdP4"
+      crossorigin="anonymous"
+    ></script>
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
@@ -319,6 +324,92 @@
                         A weekly summary of your meals, workouts, and wins will live
                         here. Tap preview to test the placeholder.
                       </p>
+                    </div>
+                  </div>
+
+                  <div class="dashboard-insights">
+                    <div class="card-header">
+                      <div>
+                        <h3>Insights</h3>
+                        <p class="subtitle small">Trends from your recent logs.</p>
+                      </div>
+                    </div>
+                    <div class="insights-grid">
+                      <div
+                        id="insight-macros-card"
+                        class="insight-card"
+                        role="button"
+                        tabindex="0"
+                        aria-label="View today's macros in Meals"
+                      >
+                        <div class="card-header">
+                          <div>
+                            <h4>Macros Today</h4>
+                            <p class="subtitle tiny">Protein · Carbs · Fat</p>
+                          </div>
+                        </div>
+                        <div class="insight-body">
+                          <div id="macros-empty" class="insight-empty">
+                            No data yet — start logging to see insights.
+                          </div>
+                          <canvas
+                            id="macros-chart"
+                            class="insight-canvas"
+                            aria-label="Macros today donut chart"
+                          ></canvas>
+                        </div>
+                      </div>
+
+                      <div
+                        id="insight-calories-card"
+                        class="insight-card"
+                        role="button"
+                        tabindex="0"
+                        aria-label="View calories in Log"
+                      >
+                        <div class="card-header">
+                          <div>
+                            <h4>Calories — Last 7 Days</h4>
+                            <p class="subtitle tiny">Oldest to newest</p>
+                          </div>
+                        </div>
+                        <div class="insight-body">
+                          <div id="calories-empty" class="insight-empty">
+                            No data yet — start logging to see insights.
+                          </div>
+                          <canvas
+                            id="calories-chart"
+                            class="insight-canvas"
+                            aria-label="Calories last 7 days line chart"
+                          ></canvas>
+                        </div>
+                      </div>
+
+                      <div
+                        id="insight-workouts-card"
+                        class="insight-card"
+                        role="button"
+                        tabindex="0"
+                        aria-label="View workouts"
+                      >
+                        <div class="card-header">
+                          <div>
+                            <h4>Workouts — Last 7 Days</h4>
+                            <p class="subtitle tiny">Sessions per day</p>
+                          </div>
+                        </div>
+                        <div class="insight-body">
+                          <div id="workouts-empty" class="insight-empty">
+                            No data yet — start logging to see insights.
+                          </div>
+                          <canvas
+                            id="workouts-chart"
+                            class="insight-canvas"
+                            aria-label="Workouts last 7 days bar chart"
+                          ></canvas>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

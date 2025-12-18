@@ -750,6 +750,70 @@ body {
   margin-top: var(--space-12);
 }
 
+.dashboard-insights {
+  margin-top: var(--space-20);
+}
+
+.insights-grid {
+  display: grid;
+  gap: var(--space-12);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .insights-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.insight-card {
+  background: var(--surface-elevated);
+  border-radius: 18px;
+  padding: var(--space-12);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  transition: transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.insight-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.insight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-floating);
+  border-color: rgba(0, 163, 163, 0.48);
+}
+
+.insight-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: var(--space-12);
+}
+
+.insight-canvas {
+  width: 100%;
+  height: 240px;
+  display: block;
+}
+
+.insight-empty {
+  text-align: center;
+  width: 100%;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .streak-card .card-header {
   align-items: center;
 }
