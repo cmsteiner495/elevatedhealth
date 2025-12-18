@@ -1,0 +1,1451 @@
+// js/app.js
+import { supabase } from "./supabaseClient.js";
+import {
+  authSection,
+  appSection,
+  signupForm,
+  signupEmail,
+  signupPassword,
+  signupDisplayName,
+  signupMessage,
+  loginForm,
+  loginEmail,
+  loginPassword,
+  loginMessage,
+  logoutButton,
+  welcomeText,
+  mobilePageTitle,
+  mobileOverline,
+  profileAvatar,
+  dashboardAiShortcut,
+  tabButtons,
+  tabPanels,
+  coachMessages,
+  mealDateInput,
+  mealTypeInput,
+  mealTitleInput,
+  mealsForm,
+  mealsList,
+  workoutDateInput,
+  workoutTitleInput,
+  workoutsForm,
+  progressDateInput,
+  progressForm,
+  progressWaterInput,
+  progressWeightInput,
+  aiDinnerGrid,
+  quickAddButton,
+  quickSheetBackdrop,
+  quickSheetActionButtons,
+  moreNavButton,
+  moreMenuBackdrop,
+  moreMenuItems,
+  moreMenuInstallButton,
+  settingsEmailLabel,
+  installHelperButton,
+  settingsInstallButton,
+  themeToggleButton,
+  themeLabel,
+  diaryPrevDayBtn,
+  diaryNextDayBtn,
+  diaryTodayBtn,
+  diaryCalendarBtn,
+  diaryDatePicker,
+  diaryAddButtons,
+} from "./dom.js";
+import {
+  currentUser,
+  currentFamilyId,
+  setCurrentUser,
+  setCurrentFamilyId,
+  setSelectedDate,
+  selectedDate,
+  getTodayDate,
+  onSelectedDateChange,
+  addDays,
+} from "./state.js";
+import { setGroceryFamilyState } from "./grocery.js";
+import { loadMeals, setMealsFamilyState } from "./meals.js";
+import { setWorkoutsFamilyState } from "./workouts.js";
+import { setProgressFamilyState } from "./progress.js";
+import { loadFamilyState } from "./family.js";
+import { initCoachHandlers, runWeeklyPlanGeneration } from "./coach.js";
+import { initDiary, refreshDiaryForSelectedDate } from "./logDiary.js";
+import {
+  initAIDinnerCards,
+  initModal,
+  initThemeStyles,
+  openModal,
+  showToast,
+  maybeVibrate,
+} from "./ui.js";
+
+console.log(
+  "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
+);
+
+// Global UI/install state
+let activeTabId;
+let displayNameValue;
+let displayNavMenu;
+let deferredInstallPrompt;
+let isStandaloneMode;
+let isAppInstalled;
+let selectedThemeStyle;
+let activeThemeMode = "dark";
+let diaryRealtimeChannel;
+let mealsGuidedMode = false;
+let isCalendarOpen = false;
+let isQuickSheetOpen = false;
+const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+
+const THEME_STORAGE_KEY = "eh-theme";
+const THEME_TOKEN_MAP = {
+  dark: {
+    "--bg-app": "#031c2c",
+    "--surface-primary": "#06263d",
+    "--surface-secondary": "#0a324d",
+    "--surface-elevated": "#0d3a57",
+    "--surface-soft": "#0b304a",
+    "--text-primary": "#f4f7fb",
+    "--text-muted": "rgba(244, 247, 251, 0.7)",
+    "--text-soft": "rgba(244, 247, 251, 0.86)",
+    "--border-subtle": "rgba(0, 154, 154, 0.35)",
+    "--accent": "#00a3a3",
+    "--accent-soft": "rgba(0, 163, 163, 0.22)",
+    "--accent-strong": "#ff6b1a",
+    "--nav-surface": "rgba(4, 6, 11, 0.96)",
+    "--nav-surface-border": "rgba(255, 255, 255, 0.08)",
+    "--nav-icon-color": "rgba(244, 247, 251, 0.78)",
+  },
+  light: {
+    "--bg-app": "#eef3f6",
+    "--surface-primary": "#ffffff",
+    "--surface-secondary": "#f5f7fa",
+    "--surface-elevated": "#ffffff",
+    "--surface-soft": "#f1f4f8",
+    "--text-primary": "#031c2c",
+    "--text-muted": "rgba(3, 28, 44, 0.65)",
+    "--text-soft": "rgba(3, 28, 44, 0.82)",
+    "--border-subtle": "rgba(3, 28, 44, 0.12)",
+    "--accent": "#009a9a",
+    "--accent-soft": "rgba(0, 154, 154, 0.12)",
+    "--accent-strong": "#ff6b1a",
+    "--nav-surface": "#f8fbfd",
+    "--nav-surface-border": "rgba(3, 28, 44, 0.08)",
+    "--nav-icon-color": "rgba(3, 28, 44, 0.7)",
+  },
+};
+
+const TAB_TITLE_MAP = {
+  "dashboard-tab": "Overview",
+  "log-tab": "Log",
+  "meals-tab": "Meals",
+  "workouts-tab": "Workouts",
+  "grocery-tab": "Grocery",
+  "progress-tab": "Progress",
+  "family-tab": "Family",
+  "coach-tab": "Ella",
+  "settings-tab": "Settings",
+  "more-tab": "More",
+};
+
+function createInitialState() {
+  return {
+    activeTabId: "dashboard-tab",
+    displayNameValue: "",
+    displayNavMenu: false,
+    deferredInstallPrompt: null,
+    isStandaloneMode: false,
+    isAppInstalled: false,
+    selectedThemeStyle: "mountain",
+  };
+}
+
+function applyThemeTokens(themeKey) {
+  const root = document.documentElement;
+  const tokenMap = THEME_TOKEN_MAP[themeKey] || THEME_TOKEN_MAP.dark;
+  Object.entries(tokenMap).forEach(([key, value]) => {
+    root.style.setProperty(key, value);
+  });
+}
+
+function initInitialState() {
+  const next = createInitialState();
+  activeTabId = next.activeTabId;
+  displayNameValue = next.displayNameValue;
+  displayNavMenu = next.displayNavMenu;
+  deferredInstallPrompt = next.deferredInstallPrompt;
+  isStandaloneMode = next.isStandaloneMode;
+  isAppInstalled = next.isAppInstalled;
+  selectedThemeStyle = next.selectedThemeStyle;
+}
+
+function applyThemeMode(theme) {
+  const root = document.documentElement;
+  activeThemeMode = theme === "light" ? "light" : "dark";
+  if (activeThemeMode === "light") {
+    root.setAttribute("data-theme", "light");
+  } else {
+    root.removeAttribute("data-theme");
+  }
+  applyThemeTokens(activeThemeMode);
+  if (themeToggleButton)
+    themeToggleButton.setAttribute("aria-pressed", activeThemeMode === "light");
+  if (themeLabel)
+    themeLabel.textContent = activeThemeMode === "light" ? "Light" : "Dark";
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, activeThemeMode);
+  } catch (err) {
+    console.warn("Could not persist theme", err);
+  }
+}
+
+function initThemeMode() {
+  const stored = (() => {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY);
+    } catch (err) {
+      return null;
+    }
+  })();
+  applyThemeMode(stored || "dark");
+
+  if (!themeToggleButton) return;
+  themeToggleButton.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const next = activeThemeMode === "dark" ? "light" : "dark";
+    applyThemeMode(next);
+  });
+}
+
+// Show / hide auth vs app
+
+function showAuth() {
+  if (authSection) authSection.style.display = "block";
+  if (appSection) appSection.style.display = "none";
+}
+
+function showApp() {
+  if (authSection) authSection.style.display = "none";
+  if (appSection) appSection.style.display = "block";
+}
+
+function triggerAIDigestPlaceholder() {
+  openModal({
+    title: "Ella Weekly Digest",
+    body: "Your personalized digest is coming soon. We'll use your meals, workouts, and progress to craft insights.",
+    primaryLabel: "Got it",
+  });
+}
+
+function getDisplayName() {
+  return (
+    displayNameValue ||
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.fullName ||
+    currentUser?.user_metadata?.name ||
+    currentUser?.email ||
+    "there"
+  );
+}
+
+function deriveFirstName() {
+  const metaFullName =
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.fullName ||
+    currentUser?.user_metadata?.name;
+
+  const source = metaFullName || displayNameValue || currentUser?.email || "there";
+  const isEmail = source.includes("@");
+  const emailPart = isEmail ? source.split("@")[0] : source;
+  const withoutSeparators = emailPart.split(/[._]/)[0] || emailPart;
+  const firstWord = withoutSeparators.trim().split(/\s+/)[0] || "there";
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+}
+
+function updateAvatar(initialsSource) {
+  if (!profileAvatar) return;
+  const base = initialsSource || getDisplayName();
+  const initial = base?.trim().charAt(0)?.toUpperCase() || "U";
+  profileAvatar.textContent = initial;
+  profileAvatar.setAttribute("aria-label", `Profile for ${base}`);
+}
+
+function updateWelcomeCopy() {
+  const firstName = deriveFirstName();
+  if (welcomeText) {
+    welcomeText.textContent = `Welcome, ${firstName}`;
+  }
+}
+
+function updateMobileHeader(targetId = activeTabId) {
+  if (targetId) {
+    activeTabId = targetId;
+  }
+  if (mobilePageTitle) {
+    if (targetId === "dashboard-tab") {
+      const firstName = deriveFirstName();
+      mobilePageTitle.textContent = `Welcome, ${firstName}`;
+    } else {
+      mobilePageTitle.textContent = TAB_TITLE_MAP[targetId] || "";
+    }
+  }
+  if (mobileOverline) {
+    if (targetId === "dashboard-tab") {
+      mobileOverline.textContent = "Today";
+      mobileOverline.style.visibility = "visible";
+    } else {
+      mobileOverline.textContent = "";
+      mobileOverline.style.visibility = "hidden";
+    }
+  }
+}
+
+function updateSettingsEmail(email) {
+  if (settingsEmailLabel) {
+    settingsEmailLabel.textContent = email || "you@example.com";
+  }
+}
+
+// Load profile
+
+async function loadUserProfile(user) {
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error loading profile:", error);
+    displayNameValue =
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.user_metadata?.fullName ||
+      currentUser?.user_metadata?.name ||
+      user.email;
+    updateWelcomeCopy();
+    updateAvatar(displayNameValue);
+    updateMobileHeader(activeTabId);
+    updateSettingsEmail(user.email);
+    return;
+  }
+
+  if (!profile) {
+    const { data: newProfile, error: insertError } = await supabase
+      .from("profiles")
+      .insert({
+        user_id: user.id,
+        display_name: user.email,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Error creating profile:", insertError);
+      displayNameValue =
+        currentUser?.user_metadata?.full_name ||
+        currentUser?.user_metadata?.fullName ||
+        currentUser?.user_metadata?.name ||
+        user.email;
+      updateWelcomeCopy();
+      updateAvatar(displayNameValue);
+      updateMobileHeader(activeTabId);
+      updateSettingsEmail(user.email);
+      return;
+    }
+
+    displayNameValue =
+      newProfile.display_name ||
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.user_metadata?.fullName ||
+      currentUser?.user_metadata?.name ||
+      user.email;
+    updateWelcomeCopy();
+    updateAvatar(displayNameValue);
+    updateMobileHeader(activeTabId);
+    updateSettingsEmail(user.email);
+    return;
+  }
+
+  displayNameValue =
+    profile.display_name ||
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.fullName ||
+    currentUser?.user_metadata?.name ||
+    user.email;
+  updateWelcomeCopy();
+  updateAvatar(displayNameValue);
+  updateMobileHeader(activeTabId);
+  updateSettingsEmail(profile.display_name || user.email);
+}
+
+// Init
+
+async function init() {
+  const { data } = await supabase.auth.getSession();
+  const session = data.session;
+
+  if (session?.user) {
+    setCurrentUser(session.user);
+    await loadUserProfile(session.user);
+    await loadFamilyState(session.user);
+    setupDiaryRealtime();
+    showApp();
+  } else {
+    setCurrentUser(null);
+    setCurrentFamilyId(null);
+    setGroceryFamilyState();
+    setMealsFamilyState();
+    setWorkoutsFamilyState();
+    setProgressFamilyState();
+    teardownDiaryRealtime();
+    showAuth();
+  }
+}
+
+// Shared tab helper
+
+function activateTab(targetId) {
+  if (!targetId || !tabButtons || !tabPanels) return;
+  activeTabId = targetId;
+
+  if (targetId !== "meals-tab" && mealsGuidedMode) {
+    mealsGuidedMode = false;
+    document.body.classList.remove("meals-guided");
+    if (mealsForm) {
+      delete mealsForm.dataset.targetDate;
+      delete mealsForm.dataset.targetMealType;
+    }
+  }
+
+  tabButtons.forEach((btn) => {
+    const btnTab = btn.dataset.tab;
+    if (!btnTab) return;
+    btn.classList.toggle("active", btnTab === targetId);
+  });
+
+  tabPanels.forEach((panel) => {
+    const isTarget = panel.id === targetId;
+    panel.classList.toggle("is-active", isTarget);
+    panel.style.display = isTarget ? "block" : "none";
+  });
+
+  if (targetId !== "settings-tab") {
+    closeMoreMenu();
+  }
+
+  updateMobileHeader(targetId);
+
+  if (isCoarsePointer) {
+    maybeVibrate([6]);
+  }
+
+  if (targetId === "log-tab") {
+    refreshDiaryForSelectedDate();
+  }
+}
+
+function syncDateInputs(dateValue) {
+  if (mealDateInput) mealDateInput.value = dateValue;
+  if (workoutDateInput) workoutDateInput.value = dateValue;
+  if (progressDateInput) progressDateInput.value = dateValue;
+}
+
+function teardownDiaryRealtime() {
+  if (!diaryRealtimeChannel) return;
+  supabase.removeChannel(diaryRealtimeChannel);
+  diaryRealtimeChannel = null;
+}
+
+function setupDiaryRealtime() {
+  teardownDiaryRealtime();
+  if (!currentFamilyId) return;
+
+  const handleChange = () => {
+    refreshDiaryForSelectedDate();
+  };
+
+  diaryRealtimeChannel = supabase
+    .channel("diary-log-sync")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "family_meals",
+        filter: `family_group_id=eq.${currentFamilyId}`,
+      },
+      handleChange
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "family_workouts",
+        filter: `family_group_id=eq.${currentFamilyId}`,
+      },
+      handleChange
+    )
+    .subscribe();
+}
+
+// Helper: highlight a section on the Log tab
+
+function focusLogSection(sectionKey) {
+  activateTab("log-tab");
+
+  const allCards = document.querySelectorAll(".diary-section");
+  allCards.forEach((c) => c.classList.remove("log-card-highlight"));
+
+  const targetKeyMap = {
+    meal: "breakfast",
+    workout: "exercise",
+    exercise: "exercise",
+    progress: "exercise",
+  };
+  const targetKey = targetKeyMap[sectionKey] || sectionKey;
+  const target = document.querySelector(
+    `.diary-section[data-section="${targetKey}"]`
+  );
+  if (target) {
+    target.classList.add("log-card-highlight");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function scrollAndFocus(target, focusEl) {
+  if (target) {
+    try {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      /* non-fatal */
+    }
+  }
+  if (focusEl) {
+    setTimeout(() => focusEl.focus({ preventScroll: true }), 60);
+  }
+}
+
+function openMealsQuickEntry() {
+  const targetDate = selectedDate || getTodayDate();
+  activateTab("meals-tab");
+  if (mealDateInput) mealDateInput.value = targetDate;
+  if (mealTypeInput) mealTypeInput.value = "dinner";
+  setTimeout(() => {
+    const addMealAnchor = mealsForm?.closest(".card") || mealsForm;
+    if (addMealAnchor) {
+      scrollAndFocus(addMealAnchor, mealTitleInput);
+    }
+  }, 80);
+}
+
+function openWorkoutQuickEntry() {
+  const targetDate = selectedDate || getTodayDate();
+  activateTab("workouts-tab");
+  if (workoutDateInput) workoutDateInput.value = targetDate;
+  setTimeout(() => {
+    const workoutAnchor = workoutsForm?.closest(".card") || workoutsForm;
+    if (workoutAnchor) {
+      scrollAndFocus(workoutAnchor, workoutTitleInput);
+    }
+  }, 80);
+}
+
+function openProgressQuickEntry(target) {
+  const targetDate = selectedDate || getTodayDate();
+  activateTab("progress-tab");
+  if (progressDateInput) progressDateInput.value = targetDate;
+  const focusTarget =
+    target === "water" ? progressWaterInput : progressWeightInput;
+  setTimeout(() => {
+    const progressAnchor = focusTarget?.closest("div") || progressForm;
+    if (progressAnchor) {
+      scrollAndFocus(progressAnchor, focusTarget);
+    }
+  }, 80);
+}
+
+function openMealFlow(section, date) {
+  activateTab("meals-tab");
+  mealsGuidedMode = true;
+  document.body.classList.add("meals-guided");
+  if (mealDateInput) mealDateInput.value = date;
+  if (mealTypeInput) mealTypeInput.value = section;
+  if (mealsForm) {
+    mealsForm.dataset.targetDate = date;
+    mealsForm.dataset.targetMealType = section;
+    mealsForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (mealTitleInput) {
+    setTimeout(() => mealTitleInput.focus({ preventScroll: true }), 120);
+  }
+}
+
+function offsetDiaryDate(baseDate, delta) {
+  return addDays(baseDate, delta);
+}
+
+function bindDiaryDateNav() {
+  if (diaryPrevDayBtn && !diaryPrevDayBtn.dataset.bound) {
+    diaryPrevDayBtn.dataset.bound = "true";
+    diaryPrevDayBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setSelectedDate(offsetDiaryDate(selectedDate, -1), { force: true });
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryNextDayBtn && !diaryNextDayBtn.dataset.bound) {
+    diaryNextDayBtn.dataset.bound = "true";
+    diaryNextDayBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setSelectedDate(offsetDiaryDate(selectedDate, 1), { force: true });
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryTodayBtn && !diaryTodayBtn.dataset.bound) {
+    diaryTodayBtn.dataset.bound = "true";
+    diaryTodayBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setSelectedDate(getTodayDate(), { force: true });
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryCalendarBtn && diaryDatePicker && !diaryCalendarBtn.dataset.bound) {
+    diaryCalendarBtn.dataset.bound = "true";
+    diaryCalendarBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        diaryDatePicker.value = selectedDate;
+        if (isCalendarOpen) {
+          diaryDatePicker.blur();
+          isCalendarOpen = false;
+          return;
+        }
+        if (typeof diaryDatePicker.showPicker === "function") {
+          diaryDatePicker.showPicker();
+        } else {
+          diaryDatePicker.focus();
+          diaryDatePicker.click();
+        }
+        isCalendarOpen = true;
+      },
+      { capture: true }
+    );
+  }
+
+  if (diaryDatePicker && !diaryDatePicker.dataset.bound) {
+    diaryDatePicker.dataset.bound = "true";
+    diaryDatePicker.addEventListener("change", (e) => {
+      const next = e.target.value;
+      if (next) setSelectedDate(next, { force: true });
+      isCalendarOpen = false;
+    });
+    diaryDatePicker.addEventListener("blur", () => {
+      isCalendarOpen = false;
+    });
+  }
+}
+
+function bindDiaryAddButtons() {
+  if (!diaryAddButtons?.length) return;
+  diaryAddButtons.forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "true";
+    btn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const section = btn.dataset.diaryAdd;
+        if (!section) return;
+        openMealFlow(section, selectedDate);
+      },
+      { capture: true }
+    );
+  });
+}
+
+async function logUpcomingMealToToday(entryEl) {
+  if (!entryEl || !currentFamilyId || !currentUser) {
+    showToast("Join a family to log meals.");
+    return;
+  }
+
+  const title = entryEl.dataset.mealTitle || "";
+  if (!title.trim()) return;
+  const notes = entryEl.dataset.mealNotes || null;
+  const mealType = entryEl.dataset.mealType || "dinner";
+  const targetDate = selectedDate || getTodayDate();
+
+  const { error } = await supabase.from("family_meals").insert({
+    family_group_id: currentFamilyId,
+    added_by: currentUser.id,
+    meal_date: targetDate,
+    meal_type: mealType,
+    title,
+    notes,
+  });
+
+  if (error) {
+    console.error("Error logging meal to today", error);
+    showToast("Could not add meal to log");
+    return;
+  }
+
+  const viewingTarget = selectedDate === targetDate;
+  if (!viewingTarget) {
+    setSelectedDate(targetDate, { force: true });
+  } else {
+    document.dispatchEvent(
+      new CustomEvent("diary:refresh", {
+        detail: { date: targetDate, entity: "meal" },
+      })
+    );
+  }
+  showToast("Added to log");
+}
+
+function bindMealsLogButtons() {
+  if (!mealsList) return;
+  mealsList.addEventListener(
+    "click",
+    async (e) => {
+      const btn = e.target.closest(".meal-log-btn");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const li = btn.closest("li");
+      await logUpcomingMealToToday(li);
+    },
+    { capture: true }
+  );
+}
+
+function bindMealsListRemoveButtons() {
+  if (!mealsList) return;
+  mealsList.addEventListener(
+    "click",
+    async (e) => {
+      const deleteBtn = e.target.closest(".meal-delete");
+      const logBtn = e.target.closest(".meal-log-btn");
+      if (!deleteBtn && !logBtn) return;
+      const li = e.target.closest("li");
+      if (!li) return;
+
+      if (logBtn) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        logBtn.disabled = true;
+        await logUpcomingMealToToday(li);
+        logBtn.disabled = false;
+        return;
+      }
+
+      if (!li.dataset.mealId) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      li.classList.add("list-removing");
+      const removeAfter = () => {
+        setTimeout(async () => {
+          const { error } = await supabase
+            .from("family_meals")
+            .delete()
+            .eq("id", li.dataset.mealId);
+
+          if (error) {
+            console.error("Error deleting meal", error);
+            li.classList.remove("list-removing");
+            return;
+          }
+
+          await loadMeals();
+          document.dispatchEvent(
+            new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
+          );
+        }, 180);
+      };
+
+      const transitionTarget =
+        li.matches(".list-removing") && li.getAnimations
+          ? li.getAnimations()
+          : [];
+      if (transitionTarget.length) {
+        Promise.all(transitionTarget.map((a) => a.finished)).then(removeAfter);
+      } else {
+        removeAfter();
+      }
+    },
+    { capture: true }
+  );
+}
+
+// SIGN UP
+
+if (signupForm) {
+  signupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (signupMessage) {
+      signupMessage.textContent = "";
+      signupMessage.style.color = "";
+    }
+
+    const email = signupEmail.value.trim();
+    const password = signupPassword.value;
+    const displayName = signupDisplayName.value.trim();
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error(error);
+      if (signupMessage) {
+        signupMessage.textContent = error.message;
+        signupMessage.style.color = "red";
+      }
+      return;
+    }
+
+    if (signupMessage) {
+      signupMessage.textContent =
+        "Account created! If email confirmation is required, check your inbox, then log in.";
+      signupMessage.style.color = "limegreen";
+    }
+    signupForm.reset();
+  });
+}
+
+// LOGIN
+
+if (loginForm) {
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (loginMessage) {
+      loginMessage.textContent = "";
+      loginMessage.style.color = "";
+    }
+
+    const email = loginEmail.value.trim();
+    const password = loginPassword.value;
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error(error);
+      if (loginMessage) {
+        loginMessage.textContent = error.message;
+        loginMessage.style.color = "red";
+      }
+      return;
+    }
+
+    const user = data.user;
+    if (user) {
+      setCurrentUser(user);
+      await loadUserProfile(user);
+      await loadFamilyState(user);
+      showApp();
+      loginForm.reset();
+      if (loginMessage) loginMessage.textContent = "";
+    }
+  });
+}
+
+// TAB SWITCHING (desktop + mobile nav buttons)
+
+if (tabButtons && tabPanels) {
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.dataset.tab;
+      if (!targetId) return;
+      if (isQuickSheetOpen) {
+        closeQuickSheet();
+        setTimeout(() => activateTab(targetId), 230);
+      } else {
+        activateTab(targetId);
+      }
+    });
+  });
+}
+
+// "More" tab tiles → switch to underlying tab
+
+document.querySelectorAll(".more-tile[data-tab-target]").forEach((tile) => {
+  tile.addEventListener("click", () => {
+    const targetId = tile.getAttribute("data-tab-target");
+    if (!targetId) return;
+    activateTab(targetId);
+  });
+});
+
+// Log tab buttons → go straight to the right tab (for now)
+
+document.querySelectorAll(".log-card-button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const targetId = btn.getAttribute("data-log-target");
+    if (!targetId) return;
+    activateTab(targetId);
+  });
+});
+
+if (dashboardAiShortcut) {
+  dashboardAiShortcut.addEventListener("click", async () => {
+    const originalLabel = dashboardAiShortcut.textContent;
+    dashboardAiShortcut.disabled = true;
+    dashboardAiShortcut.textContent = "Refreshing…";
+    try {
+      await runWeeklyPlanGeneration();
+      document.dispatchEvent(
+        new CustomEvent("diary:refresh", { detail: { entity: "plan" } })
+      );
+    } catch (err) {
+      console.error("Weekly plan refresh failed", err);
+      showToast("Could not refresh the 7-day plan");
+    } finally {
+      dashboardAiShortcut.disabled = false;
+      dashboardAiShortcut.textContent = originalLabel;
+    }
+  });
+}
+
+document.addEventListener("diary:add", (event) => {
+  const { section, date } = event.detail || {};
+  if (!section || !date) return;
+
+  if (section === "exercise") {
+    activateTab("workouts-tab");
+    if (workoutDateInput) workoutDateInput.value = date;
+    return;
+  }
+
+  openMealFlow(section, date);
+});
+
+// QUICK ACTION SHEET + DESKTOP FAB MENU
+
+function openMoreMenu() {
+  if (!moreMenuBackdrop || !moreNavButton) return;
+  moreMenuBackdrop.classList.add("is-open");
+  moreMenuBackdrop.setAttribute("aria-hidden", "false");
+  moreNavButton.setAttribute("aria-expanded", "true");
+  moreNavButton.classList.add("active");
+}
+
+function closeMoreMenu() {
+  if (!moreMenuBackdrop || !moreNavButton) return;
+  moreMenuBackdrop.classList.remove("is-open");
+  moreMenuBackdrop.setAttribute("aria-hidden", "true");
+  moreNavButton.setAttribute("aria-expanded", "false");
+  moreNavButton.classList.remove("active");
+}
+
+// Desktop floating FAB + vertical menu
+const desktopQuickFab = document.getElementById("desktop-quick-fab");
+const desktopFabMenu = document.getElementById("desktop-fab-menu");
+const desktopFabMenuButtons = desktopFabMenu
+  ? desktopFabMenu.querySelectorAll(".desktop-fab-menu-item")
+  : [];
+const quickSheet = quickSheetBackdrop
+  ? quickSheetBackdrop.querySelector(".quick-sheet")
+  : null;
+const keyboardAwareSelectors = [
+  "input",
+  "textarea",
+  "#coach-input",
+  "#meal-title",
+  "#meal-notes",
+  "#workout-title",
+  "#workout-notes",
+  "#progress-weight",
+  "#progress-water",
+  "#progress-notes",
+  "#login-email",
+  "#login-password",
+  "#signup-email",
+  "#signup-password",
+  "#signup-display-name",
+];
+
+// Mobile bottom-sheet helpers
+function syncViewportOffset() {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+  const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  document.body.style.setProperty("--keyboard-offset", `${offset}px`);
+  document.body.classList.toggle("keyboard-visible", offset > 0);
+}
+
+function ensureInputVisible(target) {
+  if (!target) return;
+  syncViewportOffset();
+  setTimeout(() => {
+    try {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (err) {
+      // non-fatal: some elements may not support scrollIntoView in older browsers
+    }
+  }, 120);
+}
+
+function syncQuickButtonState(isOpen) {
+  if (!quickAddButton) return;
+  quickAddButton.classList.toggle("is-open", isOpen);
+  const label = quickAddButton.querySelector("span");
+  if (label) {
+    label.textContent = isOpen ? "×" : "＋";
+  }
+  quickAddButton.setAttribute("aria-pressed", String(isOpen));
+}
+
+function openQuickSheet() {
+  if (!quickSheetBackdrop) return;
+  quickSheetBackdrop.classList.remove("is-closing");
+  quickSheetBackdrop.classList.add("is-open");
+  document.body.classList.add("sheet-open");
+  if (isCoarsePointer) maybeVibrate([8, 12]);
+  isQuickSheetOpen = true;
+  syncQuickButtonState(true);
+  syncViewportOffset();
+}
+
+function closeQuickSheet() {
+  if (!quickSheetBackdrop) return;
+  quickSheetBackdrop.classList.add("is-closing");
+  quickSheetBackdrop.classList.remove("is-open");
+  document.body.classList.remove("sheet-open");
+  isQuickSheetOpen = false;
+  syncQuickButtonState(false);
+  setTimeout(() => quickSheetBackdrop.classList.remove("is-closing"), 220);
+}
+
+if (moreNavButton) {
+  moreNavButton.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (isQuickSheetOpen) {
+      closeQuickSheet();
+    }
+    const isOpen = moreMenuBackdrop?.classList.contains("is-open");
+    if (isOpen) {
+      closeMoreMenu();
+    } else {
+      openMoreMenu();
+    }
+  });
+}
+
+if (moreMenuBackdrop) {
+  moreMenuBackdrop.addEventListener("click", (e) => {
+    if (e.target === moreMenuBackdrop) {
+      closeMoreMenu();
+    }
+  });
+}
+
+if (moreMenuItems && moreMenuItems.length) {
+  moreMenuItems.forEach((item) => {
+    item.addEventListener("click", () => {
+      const target = item.dataset.menuTarget;
+      closeMoreMenu();
+      if (!target) return;
+      const resolved = target === "settings" ? "settings-tab" : target;
+      const delay = resolved === "settings-tab" ? 160 : 0;
+      if (delay) {
+        setTimeout(() => activateTab(resolved), delay);
+      } else {
+        activateTab(resolved);
+      }
+    });
+  });
+}
+
+function checkStandalone() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+function updateInstallUI() {
+  const installAvailable = Boolean(deferredInstallPrompt) && !isStandaloneMode;
+  const showGuidance = !isStandaloneMode;
+
+  if (installHelperButton) {
+    installHelperButton.style.display = installAvailable ? "inline-flex" : "none";
+  }
+
+  if (settingsInstallButton) {
+    const installCard = settingsInstallButton.closest(".install-card");
+    if (installCard) {
+      installCard.style.display = showGuidance ? "" : "none";
+    }
+    settingsInstallButton.style.display = showGuidance ? "inline-flex" : "none";
+  }
+
+  if (moreMenuInstallButton) {
+    moreMenuInstallButton.style.display = showGuidance ? "block" : "none";
+    const subtitle = moreMenuInstallButton.querySelector(".more-menu-sub");
+    if (subtitle) {
+      subtitle.textContent = installAvailable
+        ? "Add Elevated Health to your device"
+        : "Use your browser's Add to Home Screen";
+    }
+  }
+}
+
+async function requestInstall() {
+  if (isStandaloneMode) return;
+
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if (outcome === "accepted") {
+      isStandaloneMode = true;
+    }
+    updateInstallUI();
+    return;
+  }
+
+  showInstallHelper();
+}
+
+function initInstallState() {
+  isStandaloneMode = checkStandalone();
+  updateInstallUI();
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    updateInstallUI();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    isStandaloneMode = true;
+    updateInstallUI();
+  });
+}
+
+function detectPlatform() {
+  const ua = (navigator.userAgent || "").toLowerCase();
+  if (/iphone|ipad|ipod/.test(ua)) return "ios";
+  if (/android/.test(ua)) return "android";
+  return "desktop";
+}
+
+function showInstallHelper() {
+  const platform = detectPlatform();
+  const copy = {
+    ios: {
+      intro: "Install Elevated Health to launch it like a native app on iPhone.",
+      steps: [
+        "Tap the Share icon in Safari.",
+        "Choose 'Add to Home Screen'.",
+        "Confirm to place the Elevated Health icon on your Home Screen.",
+      ],
+    },
+    android: {
+      intro: "Install Elevated Health from Chrome for quick access.",
+      steps: [
+        "Open the Chrome menu (⋮).",
+        "Tap 'Install app' or 'Add to Home screen'.",
+        "Accept the prompt to save Elevated Health.",
+      ],
+    },
+    desktop: {
+      intro:
+        "Save Elevated Health as an app from your browser for a focused window.",
+      steps: [
+        "Open your browser menu and choose the Install/Save as app option.",
+        "Name the shortcut and confirm.",
+        "Pin the new app to your dock or taskbar for easy access.",
+      ],
+    },
+  };
+
+  const content = document.createElement("div");
+  content.className = "install-helper-body";
+  const intro = document.createElement("p");
+  intro.textContent = copy[platform].intro;
+  const steps = document.createElement("ol");
+  steps.className = "install-helper-steps";
+  copy[platform].steps.forEach((line) => {
+    const li = document.createElement("li");
+    li.textContent = line;
+    steps.appendChild(li);
+  });
+  content.appendChild(intro);
+  content.appendChild(steps);
+
+  openModal({
+    title: "Install Elevated Health",
+    body: content,
+    primaryLabel: null,
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeMoreMenu();
+  }
+});
+
+// Desktop FAB open/close helper
+function setDesktopFabMenuOpen(isOpen) {
+  if (!desktopQuickFab || !desktopFabMenu) return;
+  desktopQuickFab.classList.toggle("is-open", isOpen);
+  desktopFabMenu.classList.toggle("is-open", isOpen);
+}
+
+function handleQuickAction(action) {
+  closeQuickSheet();
+  setDesktopFabMenuOpen(false);
+  if (isCoarsePointer) maybeVibrate([10]);
+  switch (action) {
+    case "log-meal":
+      openMealsQuickEntry();
+      break;
+
+    case "log-ella-meal":
+      activateTab("meals-tab");
+      setTimeout(() => {
+        const grid = aiDinnerGrid || document.getElementById("ai-dinner-grid");
+        if (grid) {
+          grid.scrollIntoView({ behavior: "smooth", block: "start" });
+          const firstCard = grid.querySelector(".ai-dinner-card");
+          if (firstCard) {
+            firstCard.focus({ preventScroll: true });
+          }
+        }
+      }, 80);
+      showToast("Opening Ella’s picks");
+      break;
+
+    case "log-water":
+      openProgressQuickEntry("water");
+      break;
+
+    case "log-weight":
+      openProgressQuickEntry("weight");
+      break;
+
+    case "log-exercise":
+      openWorkoutQuickEntry();
+      break;
+
+    case "barcode":
+    case "meal-scan":
+      activateTab("log-tab");
+      showToast("Coming soon: quick scans");
+      break;
+
+    default:
+      break;
+  }
+}
+
+// Mobile FAB (bottom nav + button)
+if (quickAddButton) {
+  quickAddButton.addEventListener("click", () => {
+    if (isQuickSheetOpen) {
+      closeQuickSheet();
+    } else {
+      openQuickSheet();
+    }
+  });
+}
+
+// Desktop floating FAB toggles vertical menu
+if (desktopQuickFab) {
+  desktopQuickFab.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = !desktopQuickFab.classList.contains("is-open");
+    setDesktopFabMenuOpen(isOpen);
+  });
+}
+
+// Desktop FAB menu buttons
+if (desktopFabMenuButtons && desktopFabMenuButtons.length) {
+  desktopFabMenuButtons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      if (action) {
+        handleQuickAction(action);
+      }
+      setDesktopFabMenuOpen(false);
+    });
+  });
+}
+
+// Close desktop FAB menu when clicking outside
+document.addEventListener("click", (e) => {
+  if (!desktopQuickFab || !desktopFabMenu) return;
+  if (!desktopQuickFab.classList.contains("is-open")) return;
+
+  const target = e.target;
+  if (
+    target === desktopQuickFab ||
+    desktopQuickFab.contains(target) ||
+    desktopFabMenu.contains(target)
+  ) {
+    return;
+  }
+  setDesktopFabMenuOpen(false);
+});
+
+// Tap outside mobile sheet to close
+if (quickSheetBackdrop) {
+  quickSheetBackdrop.addEventListener("click", (e) => {
+    if (e.target === quickSheetBackdrop) {
+      closeQuickSheet();
+    }
+  });
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncViewportOffset);
+  window.visualViewport.addEventListener("scroll", syncViewportOffset);
+}
+
+// Sheet buttons (mobile)
+if (quickSheetActionButtons && quickSheetActionButtons.length) {
+  quickSheetActionButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const action = btn.dataset.action;
+      handleQuickAction(action);
+    });
+  });
+}
+
+document.addEventListener("focusin", (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!keyboardAwareSelectors.some((selector) => target.matches(selector))) {
+    return;
+  }
+  ensureInputVisible(target);
+});
+
+[
+  installHelperButton,
+  settingsInstallButton,
+  moreMenuInstallButton,
+].forEach((btn) => {
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (btn === moreMenuInstallButton) {
+      closeMoreMenu();
+    }
+    await requestInstall();
+  });
+});
+
+document.querySelectorAll("[data-placeholder-toggle]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const isActive = btn.getAttribute("aria-pressed") === "true";
+    const next = !isActive;
+    btn.setAttribute("aria-pressed", String(next));
+    const label = btn.querySelector(".switch-label");
+    if (label) {
+      label.textContent = next ? "On" : "Off";
+    }
+  });
+});
+
+syncViewportOffset();
+
+onSelectedDateChange((dateValue) => {
+  syncDateInputs(dateValue);
+});
+syncDateInputs(selectedDate);
+
+document.addEventListener("family:changed", () => {
+  setupDiaryRealtime();
+  if (activeTabId === "log-tab") {
+    refreshDiaryForSelectedDate();
+  }
+});
+
+if (mealDateInput) {
+  mealDateInput.addEventListener("change", (e) => {
+    if (e.target.value) setSelectedDate(e.target.value);
+  });
+}
+
+if (workoutDateInput) {
+  workoutDateInput.addEventListener("change", (e) => {
+    if (e.target.value) setSelectedDate(e.target.value);
+  });
+}
+
+if (progressDateInput) {
+  progressDateInput.addEventListener("change", (e) => {
+    if (e.target.value) setSelectedDate(e.target.value);
+  });
+}
+
+// LOGOUT
+
+if (logoutButton) {
+  logoutButton.addEventListener("click", async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setCurrentFamilyId(null);
+    setGroceryFamilyState();
+    setMealsFamilyState();
+    setWorkoutsFamilyState();
+    setProgressFamilyState();
+    teardownDiaryRealtime();
+    if (coachMessages) {
+      coachMessages.innerHTML = "";
+    }
+    showAuth();
+  });
+}
+
+// Init coach + app
+
+async function instantiateAppAfterInitialization() {
+  initInitialState();
+  initThemeMode();
+  initThemeStyles();
+  initModal();
+  initAIDinnerCards();
+  bindDiaryDateNav();
+  bindDiaryAddButtons();
+  bindMealsLogButtons();
+  bindMealsListRemoveButtons();
+  initInstallState();
+  initCoachHandlers();
+  initDiary();
+  await init();
+  await calculateWorkoutStreak();
+}
+
+instantiateAppAfterInitialization();

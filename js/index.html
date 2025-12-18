@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Elevated Health</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div class="app-frame">
+      <!-- AUTH SECTION -->
+      <section id="auth-section">
+        <div class="auth-card-shell">
+          <h1>Elevated Health</h1>
+          <p class="subtitle">
+            Log in or create an account to start planning meals &amp; workouts.
+          </p>
+
+          <div class="auth-forms">
+            <div class="auth-card">
+              <h2>Log In</h2>
+              <form id="login-form">
+                <div>
+                  <label for="login-email">Email</label>
+                  <input
+                    type="email"
+                    id="login-email"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="login-password">Password</label>
+                  <input
+                    type="password"
+                    id="login-password"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                <button type="submit" class="primary">Log In</button>
+                <div id="login-message"></div>
+              </form>
+            </div>
+
+            <div class="auth-card">
+              <h2>Create Account</h2>
+              <form id="signup-form">
+                <div>
+                  <label for="signup-display-name">Display name</label>
+                  <input
+                    type="text"
+                    id="signup-display-name"
+                    placeholder="Clayton"
+                  />
+                </div>
+                <div>
+                  <label for="signup-email">Email</label>
+                  <input
+                    type="email"
+                    id="signup-email"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="signup-password">Password</label>
+                  <input
+                    type="password"
+                    id="signup-password"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                <button type="submit" class="primary">Sign Up</button>
+                <div id="signup-message"></div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MAIN APP SHELL -->
+      <section id="app-section" style="display: none">
+        <!-- TOP BAR -->
+        <header class="top-bar">
+          <div class="top-bar-left">
+            <span class="brand-pill">ELEVATED HEALTH</span>
+            <span id="welcome-text" class="top-bar-title">Welcome</span>
+          </div>
+          <div class="top-bar-right">
+            <span class="badge-pill">Beta</span>
+            <button id="logout-button" class="ghost-btn">Log Out</button>
+          </div>
+        </header>
+
+        <!-- DESKTOP TAB ROW -->
+        <nav class="tab-nav tab-nav-top">
+          <button class="tab-button active" data-tab="dashboard-tab">
+            Overview
+          </button>
+          <button class="tab-button" data-tab="log-tab">Log</button>
+          <button class="tab-button" data-tab="meals-tab">Meals</button>
+          <button class="tab-button" data-tab="workouts-tab">Workouts</button>
+          <button class="tab-button" data-tab="grocery-tab">Grocery</button>
+          <button class="tab-button" data-tab="progress-tab">Progress</button>
+          <button class="tab-button" data-tab="family-tab">Family</button>
+          <button class="tab-button" data-tab="coach-tab">Ella</button>
+        </nav>
+
+        <!-- CONTENT AREA -->
+        <main class="content-shell">
+          <div class="tab-panels-wrapper">
+            <!-- DASHBOARD -->
+            <section
+              id="dashboard-tab"
+              class="tab-panel full-width"
+              style="display: block"
+            >
+              <div class="card large-card">
+                <div class="card-header">
+                  <div>
+                    <h3>Today</h3>
+                    <p class="subtitle small">
+                      Quick overview of your plan &amp; progress.
+                    </p>
+                  </div>
+                </div>
+                <div class="dashboard-main">
+                  <div class="dashboard-calories">
+                    <div class="calories-number">Weekly Plan</div>
+                    <div class="calories-label">
+                      Meals &amp; workouts synced for this week.
+                    </div>
+                    <div class="calories-bar">
+                      <div class="calories-bar-fill"></div>
+                    </div>
+                    <button
+                      type="button"
+                      class="primary full-width"
+                      id="dashboard-ai-shortcut"
+                    >
+                      Refresh 7-Day Plan
+                    </button>
+                  </div>
+
+                  <div class="dashboard-grid">
+                    <div class="metric-card">
+                      <div class="metric-label">Meals planned</div>
+                      <div class="metric-value">7 days</div>
+                      <div class="metric-subtext">
+                        Dinner covered for the whole week.
+                      </div>
+                    </div>
+                    <div class="metric-card">
+                      <div class="metric-label">Workouts scheduled</div>
+                      <div class="metric-value">7 sessions</div>
+                      <div class="metric-subtext">
+                        Check the Workouts tab for details.
+                      </div>
+                    </div>
+                    <div class="metric-card">
+                      <div class="metric-label">Grocery list</div>
+                      <div class="metric-value">Synced</div>
+                      <div class="metric-subtext">
+                        Items pulled from your meal plan.
+                      </div>
+                    </div>
+                    <div class="metric-card">
+                      <div class="metric-label">Progress</div>
+                      <div class="metric-value">Log today</div>
+                      <div class="metric-subtext">
+                        Track weight, water, sleep &amp; steps.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- CENTRAL LOG TAB -->
+            <section id="log-tab" class="tab-panel full-width">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Log</h3>
+                    <p class="subtitle small">
+                      One place to log meals, workouts, and daily progress.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="log-grid">
+                  <div class="log-card" id="log-section-meal">
+                    <h4>Meals</h4>
+                    <p class="subtitle tiny">
+                      Add or edit meals in your weekly plan.
+                    </p>
+                    <button
+                      type="button"
+                      class="primary log-card-button"
+                      data-log-target="meals-tab"
+                    >
+                      Open meal log
+                    </button>
+                  </div>
+
+                  <div class="log-card" id="log-section-workout">
+                    <h4>Workouts</h4>
+                    <p class="subtitle tiny">
+                      Schedule or update your next workout.
+                    </p>
+                    <button
+                      type="button"
+                      class="primary log-card-button"
+                      data-log-target="workouts-tab"
+                    >
+                      Open workout log
+                    </button>
+                  </div>
+
+                  <div class="log-card" id="log-section-progress">
+                    <h4>Daily progress</h4>
+                    <p class="subtitle tiny">
+                      Log weight, water, sleep, steps, and mood.
+                    </p>
+                    <button
+                      type="button"
+                      class="primary log-card-button"
+                      data-log-target="progress-tab"
+                    >
+                      Open daily log
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- MEALS TAB -->
+            <section id="meals-tab" class="tab-panel">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Meals</h3>
+                    <p class="subtitle small">
+                      Plan breakfast, lunch &amp; dinner.
+                    </p>
+                  </div>
+                </div>
+
+                <div id="meals-no-family">
+                  <p class="text-soft">
+                    Create a family group first so you can share meal plans.
+                  </p>
+                </div>
+
+                <div id="meals-has-family" style="display: none">
+                  <form id="meals-form" class="form-grid">
+                    <div>
+                      <label for="meal-date">Date</label>
+                      <input type="date" id="meal-date" required />
+                    </div>
+                    <div>
+                      <label for="meal-type">Meal type</label>
+                      <select id="meal-type" required>
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner" selected>Dinner</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="meal-title">Title</label>
+                      <input
+                        type="text"
+                        id="meal-title"
+                        placeholder="Chicken stir-fry"
+                        required
+                      />
+                    </div>
+                    <div class="full-width">
+                      <label for="meal-notes">Notes (optional)</label>
+                      <textarea
+                        id="meal-notes"
+                        placeholder="Prep veggies night before"
+                      ></textarea>
+                    </div>
+                    <div class="full-width">
+                      <button type="submit" class="primary full-width">
+                        Add Meal
+                      </button>
+                    </div>
+                    <div id="meals-message" class="full-width"></div>
+                  </form>
+
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <h3>Upcoming meals</h3>
+                    </div>
+                    <ul id="meals-list">
+                      <li class="list-empty">No meals yet. Add one above.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- WORKOUTS TAB -->
+            <section id="workouts-tab" class="tab-panel">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Workouts</h3>
+                    <p class="subtitle small">
+                      Schedule movement for the week.
+                    </p>
+                  </div>
+                </div>
+
+                <div id="workouts-no-family">
+                  <p class="text-soft">
+                    Create a family group to share workout plans.
+                  </p>
+                </div>
+
+                <div id="workouts-has-family" style="display: none">
+                  <form id="workouts-form" class="form-grid">
+                    <div>
+                      <label for="workout-date">Date</label>
+                      <input type="date" id="workout-date" required />
+                    </div>
+                    <div>
+                      <label for="workout-title">Title</label>
+                      <input
+                        type="text"
+                        id="workout-title"
+                        placeholder="Full-body strength"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label for="workout-type">Workout type</label>
+                      <select id="workout-type" required>
+                        <option value="cardio">Cardio</option>
+                        <option value="strength">Strength</option>
+                        <option value="mobility">Mobility</option>
+                        <option value="rest">Rest</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="workout-difficulty">Difficulty</label>
+                      <select id="workout-difficulty">
+                        <option value="">Select…</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="workout-duration">Duration (min)</label>
+                      <input
+                        type="number"
+                        id="workout-duration"
+                        min="0"
+                        step="5"
+                      />
+                    </div>
+                    <div class="full-width">
+                      <label for="workout-notes">Notes</label>
+                      <textarea
+                        id="workout-notes"
+                        placeholder="Focus on form, light weight"
+                      ></textarea>
+                    </div>
+                    <div class="full-width">
+                      <button type="submit" class="primary full-width">
+                        Add Workout
+                      </button>
+                    </div>
+                    <div id="workouts-message" class="full-width"></div>
+                  </form>
+
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <h3>Scheduled workouts</h3>
+                    </div>
+                    <ul id="workouts-list">
+                      <li class="list-empty">
+                        No workouts yet. Add one above or use Ella.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- GROCERY TAB -->
+            <section id="grocery-tab" class="tab-panel">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Grocery List</h3>
+                    <p class="subtitle small">
+                      One shared list for the whole family.
+                    </p>
+                  </div>
+                </div>
+
+                <div id="grocery-no-family">
+                  <p class="text-soft">
+                    Create a family group to share this grocery list.
+                  </p>
+                </div>
+
+                <div id="grocery-has-family" style="display: none">
+                  <form id="grocery-form" class="form-grid">
+                    <div>
+                      <label for="grocery-name">Item</label>
+                      <input
+                        type="text"
+                        id="grocery-name"
+                        placeholder="Chicken breasts"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label for="grocery-quantity">Quantity</label>
+                      <input
+                        type="text"
+                        id="grocery-quantity"
+                        placeholder="2 lb"
+                      />
+                    </div>
+                    <div>
+                      <label for="grocery-category">Category</label>
+                      <select id="grocery-category">
+                        <option value="">Uncategorized</option>
+                        <option value="Produce">Produce</option>
+                        <option value="Protein">Protein</option>
+                        <option value="Pantry">Pantry</option>
+                        <option value="Frozen">Frozen</option>
+                        <option value="Snacks">Snacks</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div class="full-width">
+                      <button type="submit" class="primary full-width">
+                        Add Item
+                      </button>
+                    </div>
+                    <div id="grocery-message" class="full-width"></div>
+                  </form>
+
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <h3>List</h3>
+                    </div>
+                    <ul id="grocery-list">
+                      <li class="list-empty">No items yet. Add one above.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- PROGRESS TAB -->
+            <section id="progress-tab" class="tab-panel">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Progress</h3>
+                    <p class="subtitle small">Daily check-in.</p>
+                  </div>
+                </div>
+
+                <div id="progress-no-family">
+                  <p class="text-soft">
+                    Create a family group to log and share progress.
+                  </p>
+                </div>
+
+                <div id="progress-has-family" style="display: none">
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <h3>Weight trend</h3>
+                      <span class="subtitle tiny">Last 30 days</span>
+                    </div>
+                    <div class="chart-placeholder">
+                      <div class="chart-line"></div>
+                    </div>
+                  </div>
+
+                  <form id="progress-form" class="form-grid">
+                    <div>
+                      <label for="progress-date">Date</label>
+                      <input type="date" id="progress-date" required />
+                    </div>
+                    <div>
+                      <label for="progress-weight">Weight (lb)</label>
+                      <input type="number" id="progress-weight" step="0.1" />
+                    </div>
+                    <div>
+                      <label for="progress-water">Water (oz)</label>
+                      <input type="number" id="progress-water" step="1" />
+                    </div>
+                    <div>
+                      <label for="progress-sleep">Sleep (hours)</label>
+                      <input type="number" id="progress-sleep" step="0.1" />
+                    </div>
+                    <div>
+                      <label for="progress-steps">Steps</label>
+                      <input type="number" id="progress-steps" step="1" />
+                    </div>
+                    <div>
+                      <label for="progress-mood">Mood</label>
+                      <input
+                        type="text"
+                        id="progress-mood"
+                        placeholder="Optimistic, stressed, etc."
+                      />
+                    </div>
+                    <div class="full-width">
+                      <label for="progress-notes">Notes</label>
+                      <textarea
+                        id="progress-notes"
+                        placeholder="Anything notable about today"
+                      ></textarea>
+                    </div>
+                    <div class="full-width">
+                      <button type="submit" class="primary full-width">
+                        Log Progress
+                      </button>
+                    </div>
+                    <div id="progress-message" class="full-width"></div>
+                  </form>
+
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <h3>History</h3>
+                    </div>
+                    <ul id="progress-list">
+                      <li class="list-empty">
+                        No progress entries yet. Add one above.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- FAMILY TAB -->
+            <section id="family-tab" class="tab-panel">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Family</h3>
+                    <p class="subtitle small">Shared space.</p>
+                  </div>
+                </div>
+                <div id="family-status"></div>
+              </div>
+            </section>
+
+            <!-- AI COACH TAB -->
+            <section id="coach-tab" class="tab-panel full-width">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Ella</h3>
+                    <p class="subtitle small">
+                    Ask Ella anything about meals, workouts, or progress.
+                    </p>
+                  </div>
+                  <button id="coach-generate-week" class="primary">
+                    Generate 7-Day Plan
+                  </button>
+                </div>
+
+                <div id="coach-messages"></div>
+
+                <div id="coach-typing-pill">
+                  <span></span><span></span><span></span>
+                </div>
+
+                <form id="coach-form">
+                  <input
+                    type="text"
+                    id="coach-input"
+                  placeholder="Ask Ella anything…"
+                  />
+                  <button type="submit" class="primary">Send</button>
+                </form>
+
+                <div id="coach-message"></div>
+              </div>
+            </section>
+
+            <!-- MORE TAB (mobile hub for extra pages) -->
+            <section id="more-tab" class="tab-panel full-width">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>More</h3>
+                    <p class="subtitle small">
+                      Shortcuts to everything that doesn’t fit in the main nav.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="more-grid">
+                  <button
+                    class="more-tile"
+                    data-tab-target="grocery-tab"
+                  >
+                    <span class="more-title">Grocery list</span>
+                    <span class="more-subtitle">Shared shopping list</span>
+                  </button>
+                  <button class="more-tile" disabled>
+                    <span class="more-title">Calendar</span>
+                    <span class="more-subtitle">Coming soon</span>
+                  </button>
+                  <button
+                    class="more-tile"
+                    data-tab-target="family-tab"
+                  >
+                    <span class="more-title">Family</span>
+                    <span class="more-subtitle">Manage your group</span>
+                  </button>
+                  <button
+                    class="more-tile"
+                    data-tab-target="progress-tab"
+                  >
+                    <span class="more-title">Progress history</span>
+                    <span class="more-subtitle">View past logs</span>
+                  </button>
+                  <button class="more-tile" disabled>
+                    <span class="more-title">Settings</span>
+                    <span class="more-subtitle">Coming soon</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <!-- BOTTOM NAV (mobile) -->
+        <nav class="bottom-nav">
+          <button class="bottom-nav-item tab-button" data-tab="dashboard-tab">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Home</span>
+          </button>
+
+          <button class="bottom-nav-item tab-button" data-tab="log-tab">
+            <span class="nav-icon">➕</span>
+            <span class="nav-label">Log</span>
+          </button>
+
+          <!-- Quick actions button -->
+          <button id="quick-add-button" class="bottom-nav-plus" type="button">
+            <span>＋</span>
+          </button>
+
+          <button class="bottom-nav-item tab-button" data-tab="coach-tab">
+            <span class="nav-icon">🤖</span>
+            <span class="nav-label">Coach</span>
+          </button>
+
+          <button class="bottom-nav-item tab-button" data-tab="more-tab">
+            <span class="nav-icon">⋯</span>
+            <span class="nav-label">More</span>
+          </button>
+        </nav>
+
+        <!-- QUICK ACTION SHEET (mobile) -->
+        <div id="quick-sheet-backdrop" class="quick-sheet-backdrop">
+          <div class="quick-sheet">
+            <div class="quick-sheet-handle"></div>
+            <h3 class="quick-sheet-title">Quick actions</h3>
+
+            <button class="quick-sheet-item" data-action="log-meal">
+              Log meal
+              <span class="quick-sheet-item-sub">Add a meal to your plan</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="barcode">
+              Barcode scan
+              <span class="quick-sheet-item-sub">Coming soon</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="meal-scan">
+              Meal scan
+              <span class="quick-sheet-item-sub">Coming soon</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="log-water">
+              Log water
+              <span class="quick-sheet-item-sub">
+                Track your hydration today
+              </span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="log-weight">
+              Log weight
+              <span class="quick-sheet-item-sub">Update your progress</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="log-exercise">
+              Log exercise
+              <span class="quick-sheet-item-sub">Add a workout session</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- DESKTOP QUICK ACTION FAB + VERTICAL MENU -->
+        <button
+          id="desktop-quick-fab"
+          class="eh-fab"
+          type="button"
+          aria-label="Quick actions"
+        >
+          <span class="eh-fab-icon">＋</span>
+        </button>
+
+        <div id="desktop-fab-menu" class="desktop-fab-menu">
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-meal"
+          >
+            Log meal
+          </button>
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-water"
+          >
+            Log water
+          </button>
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-weight"
+          >
+            Log weight
+          </button>
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-exercise"
+          >
+            Log exercise
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

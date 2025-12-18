@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Elevated Health</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div class="app-frame">
+      <!-- AUTH SECTION -->
+      <section id="auth-section">
+        <div class="auth-card-shell">
+          <h1>Elevated Health</h1>
+          <p class="subtitle">
+            Log in or create an account to start planning meals &amp; workouts.
+          </p>
+
+          <div class="auth-forms">
+            <div class="auth-card">
+              <h2>Log In</h2>
+              <form id="login-form">
+                <div>
+                  <label for="login-email">Email</label>
+                  <input
+                    type="email"
+                    id="login-email"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="login-password">Password</label>
+                  <input
+                    type="password"
+                    id="login-password"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                <button type="submit" class="primary">Log In</button>
+                <div id="login-message"></div>
+              </form>
+            </div>
+
+            <div class="auth-card">
+              <h2>Create Account</h2>
+              <form id="signup-form">
+                <div>
+                  <label for="signup-display-name">Display name</label>
+                  <input
+                    type="text"
+                    id="signup-display-name"
+                    placeholder="Clayton"
+                  />
+                </div>
+                <div>
+                  <label for="signup-email">Email</label>
+                  <input
+                    type="email"
+                    id="signup-email"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="signup-password">Password</label>
+                  <input
+                    type="password"
+                    id="signup-password"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                <button type="submit" class="primary">Sign Up</button>
+                <div id="signup-message"></div>
+              </form>
+                  </div>
+                </div>
+              </section>
+
+      <!-- MAIN APP SHELL -->
+      <section id="app-section" style="display: none">
+        <div class="app-shell">
+          <!-- TOP BAR -->
+          <header class="top-bar">
+            <div class="top-bar-inner">
+            <div class="top-bar-left">
+              <div class="logo-mark desktop-only" aria-label="Elevated Health logo">
+                <span class="logo-mark-initials">EH</span>
+              </div>
+              <button
+                class="icon-button notification-button desktop-only"
+                type="button"
+                aria-label="Notifications"
+              >
+                <span class="nav-icon"
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v3.4l-.94 2.35a.6.6 0 0 0 .55.82h9.78a.6.6 0 0 0 .55-.82l-.94-2.35V9a4.5 4.5 0 0 0-4.5-4.5Z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path d="M10 18.5a2 2 0 0 0 4 0" stroke-linecap="round" />
+                  </svg>
+                </span>
+              </button>
+              <button
+                class="icon-button notification-button mobile-only"
+                type="button"
+                aria-label="Notifications"
+              >
+                  <span class="nav-icon"
+                    ><svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v3.4l-.94 2.35a.6.6 0 0 0 .55.82h9.78a.6.6 0 0 0 .55-.82l-.94-2.35V9a4.5 4.5 0 0 0-4.5-4.5Z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path d="M10 18.5a2 2 0 0 0 4 0" stroke-linecap="round" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+
+              <div class="top-bar-title-group">
+                <span class="brand-pill desktop-only">ELEVATED HEALTH</span>
+                <span id="welcome-text" class="top-bar-title desktop-only"
+                  >Welcome</span
+                >
+                <div class="top-bar-mobile-stack mobile-only">
+                  <span
+                    id="mobile-page-title"
+                    class="top-bar-title mobile-header-title"
+                    aria-live="polite"
+                    >Welcome</span
+                  >
+                </div>
+              </div>
+
+              <div class="top-bar-right">
+                <button
+                  id="install-helper-button"
+                  class="primary install-btn desktop-only"
+                  type="button"
+                >
+                  <span class="nav-icon"
+                    ><svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m12 3.75 4 4m-4-4-4 4m4-4V16m7 2v1.25c0 .69-.56 1.25-1.25 1.25H6.25A1.25 1.25 0 0 1 5 19.25V18"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  Install app
+                </button>
+                <span class="badge-pill desktop-only">Beta</span>
+                <button id="logout-button" class="ghost-btn desktop-only">
+                  Log Out
+                </button>
+                <div id="profile-avatar" class="profile-avatar" aria-hidden="true">
+                  U
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <!-- DESKTOP TAB ROW -->
+          <nav class="tab-nav tab-nav-top page-tabs">
+            <button class="tab-button active" data-tab="dashboard-tab">
+              Overview
+            </button>
+            <button class="tab-button" data-tab="log-tab">Log</button>
+            <button class="tab-button" data-tab="meals-tab">Meals</button>
+            <button class="tab-button" data-tab="workouts-tab">Workouts</button>
+            <button class="tab-button" data-tab="grocery-tab">Grocery</button>
+            <button class="tab-button" data-tab="progress-tab">Progress</button>
+            <button class="tab-button" data-tab="family-tab">Family</button>
+            <button class="tab-button" data-tab="coach-tab">Ella</button>
+            <button class="tab-button" data-tab="settings-tab">Settings</button>
+          </nav>
+        </div>
+
+        <!-- CONTENT AREA -->
+        <main class="content-shell page page-content">
+          <div class="tab-panels-wrapper">
+            <!-- DASHBOARD -->
+            <section
+              id="dashboard-tab"
+              class="tab-panel full-width is-active"
+            >
+              <div class="app-content">
+                <div class="card large-card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Today</h3>
+                      <p class="subtitle small">
+                        Quick overview of your plan &amp; progress.
+                      </p>
+                    </div>
+                  </div>
+                  <div class="dashboard-main">
+                    <div class="dashboard-calories">
+                      <div class="calories-number">Weekly Plan</div>
+                      <div class="calories-label">
+                        Meals &amp; workouts synced for this week.
+                      </div>
+                      <div class="calories-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                        <div
+                          id="dashboard-calories-fill"
+                          class="calories-bar-fill"
+                          aria-label="Daily calories progress"
+                        ></div>
+                      </div>
+                      <button
+                        type="button"
+                        class="primary full-width"
+                        id="dashboard-ai-shortcut"
+                      >
+                        Refresh 7-Day Plan
+                      </button>
+                    </div>
+
+                    <div class="dashboard-grid">
+                      <div class="metric-card">
+                        <div class="metric-label">Meals planned</div>
+                        <div class="metric-value">7 days</div>
+                        <div class="metric-subtext">
+                          Dinner covered for the whole week.
+                        </div>
+                      </div>
+                      <div class="metric-card">
+                        <div class="metric-label">Workouts scheduled</div>
+                        <div class="metric-value">7 sessions</div>
+                        <div class="metric-subtext">
+                          Check the Workouts tab for details.
+                        </div>
+                      </div>
+                      <div class="metric-card">
+                        <div class="metric-label">Grocery list</div>
+                        <div class="metric-value">Synced</div>
+                        <div class="metric-subtext">
+                          Items pulled from your meal plan.
+                        </div>
+                      </div>
+                      <div class="metric-card">
+                        <div class="metric-label">Progress</div>
+                        <div class="metric-value">Log today</div>
+                        <div class="metric-subtext">
+                          Track weight, water, sleep &amp; steps.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="dashboard-secondary-grid">
+                    <div class="card streak-card">
+                      <div class="card-header">
+                        <div>
+                          <h3>🔥 Streak</h3>
+                          <p class="subtitle small">Consecutive workout days</p>
+                        </div>
+                        <div id="streak-count" class="streak-count">0</div>
+                      </div>
+                      <p class="subtitle tiny">
+                        Keep logging workouts to extend your streak.
+                      </p>
+                    </div>
+
+                    <div class="card ai-digest-card">
+                      <div class="card-header">
+                        <div>
+                          <h3>Ella Weekly Digest</h3>
+                          <p class="subtitle small">Coming soon</p>
+                        </div>
+                        <button
+                          id="ai-digest-trigger"
+                          class="ghost-btn"
+                          type="button"
+                        >
+                          Preview
+                        </button>
+                      </div>
+                      <p>
+                        A weekly summary of your meals, workouts, and wins will live
+                        here. Tap preview to test the placeholder.
+                      </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- CENTRAL LOG TAB -->
+            <section id="log-tab" class="tab-panel full-width">
+              <div class="app-content">
+                <div class="card diary-shell">
+                  <div class="diary-header">
+                    <div>
+                      <h2 class="page-title">Log</h2>
+                      <p class="subtitle small page-subtitle">Daily diary</p>
+                    </div>
+
+                    <div class="diary-date-nav">
+                      <button
+                        type="button"
+                        class="ghost-btn diary-calendar-btn"
+                        id="diary-calendar-btn"
+                        aria-label="Pick a date"
+                      >
+                        📅
+                      </button>
+                      <input
+                        type="date"
+                        id="diary-date-picker"
+                        class="diary-date-picker"
+                        aria-label="Change diary date"
+                      />
+                      <button
+                        type="button"
+                        class="ghost-btn diary-nav-btn"
+                        id="diary-prev-day"
+                        aria-label="Previous day"
+                      >
+                        ←
+                      </button>
+
+                      <div id="diary-date-meta" class="diary-date-meta" tabindex="0" aria-label="Open date picker">
+                        <div id="diary-date-label" class="diary-date-label">
+                          Loading date…
+                        </div>
+                        <div id="diary-date-sub" class="subtitle tiny">
+                          —
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="ghost-btn diary-nav-btn"
+                        id="diary-next-day"
+                        aria-label="Next day"
+                      >
+                        →
+                      </button>
+
+                      <button
+                        type="button"
+                        class="ghost-btn diary-today-btn"
+                        id="diary-today-btn"
+                      >
+                        Today
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="diary-calories" id="diary-calories-card">
+                    <div class="calories-remaining">
+                      <div class="subtitle tiny">Calories remaining</div>
+                      <div id="diary-calories-remaining" class="calories-big">
+                        —
+                      </div>
+                    </div>
+                    <div class="calories-breakdown">
+                      <div class="calories-row">
+                        <span>Goal</span>
+                        <strong id="diary-calories-goal">—</strong>
+                      </div>
+                      <div class="calories-row">
+                        <span>Food</span>
+                        <strong id="diary-calories-food">—</strong>
+                      </div>
+                      <div class="calories-row">
+                        <span>Exercise</span>
+                        <strong id="diary-calories-exercise">—</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="diary-grid">
+                    <div class="diary-section" data-section="breakfast">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Breakfast</div>
+                          <div class="subtitle tiny">Morning fuel</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="breakfast"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-breakfast-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+
+                    <div class="diary-section" data-section="lunch">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Lunch</div>
+                          <div class="subtitle tiny">Midday energy</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="lunch"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-lunch-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+
+                    <div class="diary-section" data-section="dinner">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Dinner</div>
+                          <div class="subtitle tiny">Evening wrap-up</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="dinner"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-dinner-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+
+                    <div class="diary-section" data-section="snacks">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Snacks</div>
+                          <div class="subtitle tiny">Small bites</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="snacks"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-snacks-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+
+                    <div class="diary-section" data-section="exercise">
+                      <div class="diary-section-head">
+                        <div>
+                          <div class="diary-section-title">Exercise</div>
+                          <div class="subtitle tiny">Workouts &amp; movement</div>
+                        </div>
+                        <button
+                          class="ghost-btn"
+                          type="button"
+                          data-diary-add="exercise"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <ul id="diary-exercise-list" class="diary-list">
+                        <li class="diary-empty">Loading…</li>
+                      </ul>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+            <!-- MEALS TAB -->
+            <section id="meals-tab" class="tab-panel full-width">
+              <div class="app-content">
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Meals</h3>
+                      <p class="subtitle small">
+                        Plan breakfast, lunch &amp; dinner.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <div>
+                        <h3>Ella Dinner Picks</h3>
+                        <p class="subtitle small">
+                          Tap to view ingredients and quick nutrition.
+                        </p>
+                      </div>
+                    </div>
+                    <div id="ai-dinner-grid" class="ai-dinner-grid"></div>
+                  </div>
+
+                  <div id="meals-no-family">
+                    <p class="text-soft">
+                      Create a family group first so you can share meal plans.
+                    </p>
+                  </div>
+
+                  <div id="meals-has-family" style="display: none">
+                    <form id="meals-form" class="form-grid">
+                      <div>
+                        <label for="meal-date">Date</label>
+                        <input type="date" id="meal-date" required />
+                      </div>
+                      <div>
+                        <label for="meal-type">Meal type</label>
+                        <select id="meal-type" required>
+                          <option value="breakfast">Breakfast</option>
+                          <option value="lunch">Lunch</option>
+                          <option value="snacks">Snacks</option>
+                          <option value="dinner" selected>Dinner</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="meal-title">Title</label>
+                        <input
+                          type="text"
+                          id="meal-title"
+                          placeholder="Chicken stir-fry"
+                          required
+                        />
+                      </div>
+                      <div class="full-width">
+                        <label for="meal-notes">Notes (optional)</label>
+                        <textarea
+                          id="meal-notes"
+                          placeholder="Prep veggies night before"
+                        ></textarea>
+                      </div>
+                      <div class="full-width">
+                        <button type="submit" class="primary full-width">
+                          Add Meal
+                        </button>
+                      </div>
+                      <div id="meals-message" class="full-width"></div>
+                    </form>
+
+                    <div class="card nested-card">
+                      <div class="card-header">
+                        <h3>Upcoming meals</h3>
+                      </div>
+                      <ul id="meals-list">
+                        <li class="list-empty">No meals yet. Add one above.</li>
+                      </ul>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+            <!-- WORKOUTS TAB -->
+            <section id="workouts-tab" class="tab-panel full-width">
+              <div class="app-content">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Workouts</h3>
+                    <p class="subtitle small">
+                      Schedule movement for the week.
+                    </p>
+                  </div>
+                </div>
+
+                <div id="workouts-no-family">
+                  <p class="text-soft">
+                    Create a family group to share workout plans.
+                  </p>
+                </div>
+
+                <div id="workouts-has-family" style="display: none">
+                  <form id="workouts-form" class="form-grid">
+                    <div>
+                      <label for="workout-date">Date</label>
+                      <input type="date" id="workout-date" required />
+                    </div>
+                    <div>
+                      <label for="workout-title">Title</label>
+                      <input
+                        type="text"
+                        id="workout-title"
+                        placeholder="Full-body strength"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label for="workout-type">Workout type</label>
+                      <select id="workout-type" required>
+                        <option value="cardio">Cardio</option>
+                        <option value="strength">Strength</option>
+                        <option value="mobility">Mobility</option>
+                        <option value="rest">Rest</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="workout-difficulty">Difficulty</label>
+                      <select id="workout-difficulty">
+                        <option value="">Select…</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="workout-duration">Duration (min)</label>
+                      <input
+                        type="number"
+                        id="workout-duration"
+                        min="0"
+                        step="5"
+                      />
+                    </div>
+                    <div class="full-width">
+                      <label for="workout-notes">Notes</label>
+                      <textarea
+                        id="workout-notes"
+                        placeholder="Focus on form, light weight"
+                      ></textarea>
+                    </div>
+                    <div class="full-width">
+                      <button type="submit" class="primary full-width">
+                        Add Workout
+                      </button>
+                    </div>
+                    <div id="workouts-message" class="full-width"></div>
+                  </form>
+
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <h3>Scheduled workouts</h3>
+                    </div>
+                    <ul id="workouts-list">
+                      <li class="list-empty">
+                        No workouts yet. Add one above or use Ella.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              </div>
+            </section>
+
+            <!-- GROCERY TAB -->
+            <section id="grocery-tab" class="tab-panel full-width">
+              <div class="app-content">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3>Grocery List</h3>
+                    <p class="subtitle small">
+                      One shared list for the whole family.
+                    </p>
+                  </div>
+                </div>
+
+                <div id="grocery-no-family">
+                  <p class="text-soft">
+                    Create a family group to share this grocery list.
+                  </p>
+                </div>
+
+                <div id="grocery-has-family" style="display: none">
+                  <form id="grocery-form" class="form-grid">
+                    <div>
+                      <label for="grocery-name">Item</label>
+                      <input
+                        type="text"
+                        id="grocery-name"
+                        placeholder="Chicken breasts"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label for="grocery-quantity">Quantity</label>
+                      <input
+                        type="text"
+                        id="grocery-quantity"
+                        placeholder="2 lb"
+                      />
+                    </div>
+                    <div>
+                      <label for="grocery-category">Category</label>
+                      <select id="grocery-category">
+                        <option value="">Uncategorized</option>
+                        <option value="Produce">Produce</option>
+                        <option value="Protein">Protein</option>
+                        <option value="Pantry">Pantry</option>
+                        <option value="Frozen">Frozen</option>
+                        <option value="Snacks">Snacks</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div class="full-width">
+                      <button type="submit" class="primary full-width">
+                        Add Item
+                      </button>
+                    </div>
+                    <div id="grocery-message" class="full-width"></div>
+                  </form>
+
+                  <div class="card nested-card">
+                    <div class="card-header">
+                      <h3>List</h3>
+                    </div>
+                    <ul id="grocery-list">
+                      <li class="list-empty">No items yet. Add one above.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              </div>
+            </section>
+
+            <!-- PROGRESS TAB -->
+            <section id="progress-tab" class="tab-panel full-width">
+              <div class="app-content">
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Progress</h3>
+                      <p class="subtitle small">Daily check-in.</p>
+                    </div>
+                  </div>
+
+                  <div id="progress-no-family">
+                    <p class="text-soft">
+                      Create a family group to log and share progress.
+                    </p>
+                  </div>
+
+                  <div id="progress-has-family" style="display: none">
+                    <div class="card nested-card">
+                      <div class="card-header">
+                        <h3>Weight trend</h3>
+                        <span class="subtitle tiny">Last 30 days</span>
+                      </div>
+                      <div class="chart-placeholder">
+                        <div class="chart-line"></div>
+                      </div>
+                    </div>
+
+                    <form id="progress-form" class="form-grid">
+                      <div>
+                        <label for="progress-date">Date</label>
+                        <input type="date" id="progress-date" required />
+                      </div>
+                      <div>
+                        <label for="progress-weight">Weight (lb)</label>
+                        <input type="number" id="progress-weight" step="0.1" />
+                      </div>
+                      <div>
+                        <label for="progress-water">Water (oz)</label>
+                        <input type="number" id="progress-water" step="1" />
+                      </div>
+                      <div>
+                        <label for="progress-sleep">Sleep (hours)</label>
+                        <input type="number" id="progress-sleep" step="0.1" />
+                      </div>
+                      <div>
+                        <label for="progress-steps">Steps</label>
+                        <input type="number" id="progress-steps" step="1" />
+                      </div>
+                      <div>
+                        <label for="progress-mood">Mood</label>
+                        <input
+                          type="text"
+                          id="progress-mood"
+                          placeholder="Optimistic, stressed, etc."
+                        />
+                      </div>
+                      <div class="full-width">
+                        <label for="progress-notes">Notes</label>
+                        <textarea
+                          id="progress-notes"
+                          placeholder="Anything notable about today"
+                        ></textarea>
+                      </div>
+                      <div class="full-width">
+                        <button type="submit" class="primary full-width">
+                          Log Progress
+                        </button>
+                      </div>
+                      <div id="progress-message" class="full-width"></div>
+                    </form>
+
+                    <div class="card nested-card">
+                      <div class="card-header">
+                        <h3>History</h3>
+                      </div>
+                      <ul id="progress-list">
+                        <li class="list-empty">
+                          No progress entries yet. Add one above.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- FAMILY TAB -->
+            <section id="family-tab" class="tab-panel full-width">
+              <div class="app-content">
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Family</h3>
+                      <p class="subtitle small">Shared space.</p>
+                    </div>
+                  </div>
+                  <div id="family-status"></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- AI COACH TAB -->
+            <section id="coach-tab" class="tab-panel full-width">
+              <div class="app-content">
+                <div class="card">
+                  <div class="card-header coach-card-header">
+                    <div>
+                      <h3>Ella</h3>
+                      <p class="subtitle small">
+                        Ask Ella anything about meals, workouts, or progress.
+                      </p>
+                    </div>
+                    <button id="coach-generate-week" class="primary">
+                      Generate 7-Day Plan
+                    </button>
+                  </div>
+
+                  <div id="coach-messages"></div>
+
+                  <div id="coach-typing-pill">
+                    <span></span><span></span><span></span>
+                  </div>
+
+                  <form id="coach-form">
+                    <input
+                      type="text"
+                      id="coach-input"
+                      placeholder="Ask Ella anything…"
+                    />
+                    <button type="submit" class="primary">Send</button>
+                  </form>
+
+                  <div id="coach-message"></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- MORE TAB (mobile hub for extra pages) -->
+            <section id="more-tab" class="tab-panel full-width">
+              <div class="app-content">
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>More</h3>
+                      <p class="subtitle small">
+                        Shortcuts to everything that doesn’t fit in the main nav.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="more-grid">
+                    <button
+                      class="more-tile"
+                      data-tab-target="meals-tab"
+                    >
+                      <span class="more-title">Meals</span>
+                      <span class="more-subtitle">Plan your dinners</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="workouts-tab"
+                    >
+                      <span class="more-title">Workouts</span>
+                      <span class="more-subtitle">Sessions &amp; streak</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="grocery-tab"
+                    >
+                      <span class="more-title">Grocery list</span>
+                      <span class="more-subtitle">Shared shopping list</span>
+                    </button>
+                    <button class="more-tile" disabled>
+                      <span class="more-title">Calendar</span>
+                      <span class="more-subtitle">Coming soon</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="family-tab"
+                    >
+                      <span class="more-title">Family</span>
+                      <span class="more-subtitle">Manage your group</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="progress-tab"
+                    >
+                      <span class="more-title">Progress history</span>
+                      <span class="more-subtitle">View past logs</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="family-tab"
+                    >
+                      <span class="more-title">Family</span>
+                      <span class="more-subtitle">Manage your group</span>
+                    </button>
+                    <button
+                      class="more-tile"
+                      data-tab-target="settings-tab"
+                    >
+                      <span class="more-title">Settings</span>
+                      <span class="more-subtitle">Appearance &amp; account</span>
+                    </button>
+                    <button class="more-tile" data-action="download-app">
+                      <span class="more-title">Download App</span>
+                      <span class="more-subtitle">Get the latest build</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              </section>
+
+              <!-- SETTINGS -->
+            <section id="settings-tab" class="tab-panel full-width">
+              <div class="app-content">
+              <div class="card settings-card">
+                <div class="card-header">
+                  <div>
+                    <h3>Settings</h3>
+                    <p class="subtitle small">
+                      Tune the experience and manage your account.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-meta">
+                    <h4>Appearance</h4>
+                    <p class="subtitle tiny">Themes stay synced across the app.</p>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">Theme</div>
+                      <div class="setting-subtitle">
+                        Switch between light and dark for better readability.
+                      </div>
+                    </div>
+                    <button id="theme-toggle" class="switch-toggle" type="button">
+                      <span class="switch-label" id="theme-label">Dark</span>
+                      <span class="switch-handle"></span>
+                    </button>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">Theme style</div>
+                      <div class="setting-subtitle">
+                        Seasonal looks powered by theme tokens.
+                      </div>
+                    </div>
+                    <div
+                      class="chip-row"
+                      role="group"
+                      aria-label="Theme style selector"
+                      id="theme-style-chips"
+                    >
+                      <button class="chip active" data-theme-style="mountain" type="button">
+                        Mountain Blue
+                      </button>
+                      <button class="chip" data-theme-style="summer" type="button">
+                        Summer Glow
+                      </button>
+                      <button class="chip" data-theme-style="winter" type="button">
+                        Winter Frost
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-meta">
+                    <h4>Notifications</h4>
+                    <p class="subtitle tiny">Placeholders while we wire things up.</p>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">Daily reminders</div>
+                      <div class="setting-subtitle">Keep me on track with nudges.</div>
+                    </div>
+                    <button
+                      class="switch-toggle is-placeholder"
+                      type="button"
+                      aria-pressed="false"
+                      data-placeholder-toggle
+                    >
+                      <span class="switch-label">Off</span>
+                      <span class="switch-handle"></span>
+                    </button>
+                  </div>
+                  <div class="setting-row">
+                    <div>
+                      <div class="setting-title">Ella insights</div>
+                      <div class="setting-subtitle">
+                        Get a digest of new suggestions.
+                      </div>
+                    </div>
+                    <button
+                      class="switch-toggle is-placeholder"
+                      type="button"
+                      aria-pressed="false"
+                      data-placeholder-toggle
+                    >
+                      <span class="switch-label">Off</span>
+                      <span class="switch-handle"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-meta">
+                    <h4>Account</h4>
+                    <p class="subtitle tiny">Manage your details and access.</p>
+                  </div>
+                  <div class="setting-card install-card mobile-only">
+                    <div>
+                      <div class="setting-title">Install app</div>
+                      <div class="setting-subtitle">
+                        Add Elevated Health to your home screen.
+                      </div>
+                    </div>
+                    <button
+                      id="settings-install-button"
+                      class="ghost-btn install-btn"
+                      type="button"
+                    >
+                      <span class="nav-icon"
+                        ><svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3.75 4 4m-4-4-4 4m4-4V16m7 2v1.25c0 .69-.56 1.25-1.25 1.25H6.25A1.25 1.25 0 0 1 5 19.25V18"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      Install app
+                    </button>
+                  </div>
+                  <div class="setting-card">
+                    <div>
+                      <div class="setting-title">Signed in as</div>
+                      <div class="setting-subtitle" id="settings-email">
+                        you@example.com
+                      </div>
+                    </div>
+                    <button class="ghost-btn" type="button">Manage account</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </section>
+          </div>
+        </main>
+
+        <!-- BOTTOM NAV (mobile) -->
+        <nav class="bottom-nav">
+          <button class="bottom-nav-item tab-button" data-tab="dashboard-tab">
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 9.75 12 3l8 6.75v9.5a.75.75 0 0 1-.75.75H14v-5.5h-4v5.5H4.75A.75.75 0 0 1 4 19.25Z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="nav-label">Home</span>
+          </button>
+
+          <button class="bottom-nav-item tab-button" data-tab="log-tab">
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M7 5.75h10A1.25 1.25 0 0 1 18.25 7v12.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V7A1.25 1.25 0 0 1 8 5.75ZM9.75 3v2.75M14.25 3v2.75M9.75 10h4.5M9.75 13.5h4.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="nav-label">Log</span>
+          </button>
+
+          <!-- Quick actions button -->
+          <button id="quick-add-button" class="bottom-nav-plus" type="button">
+            <span>＋</span>
+          </button>
+
+          <button class="bottom-nav-item tab-button" data-tab="coach-tab">
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M8.75 6.75h6.5A2.75 2.75 0 0 1 18 9.5v5.25a2.75 2.75 0 0 1-2.75 2.75H8.75A2.75 2.75 0 0 1 6 14.75V9.5A2.75 2.75 0 0 1 8.75 6.75Z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M10 6.75V5a2 2 0 1 1 4 0v1.75M8 11.5h.01M16 11.5h.01M7 14.5h2.75M14.25 14.5H17"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="nav-label">Coach</span>
+          </button>
+
+          <button
+            id="more-nav-button"
+            class="bottom-nav-item tab-button"
+            type="button"
+            aria-expanded="false"
+            aria-controls="more-menu"
+          >
+            <span class="nav-icon"
+              ><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6.5 12h.01M12 12h.01M17.5 12h.01" stroke-linecap="round" />
+              </svg>
+            </span>
+            <span class="nav-label">More</span>
+          </button>
+        </nav>
+
+        <!-- MORE MENU (mobile) -->
+        <div id="more-menu-backdrop" class="more-menu-backdrop" aria-hidden="true">
+          <div id="more-menu" class="more-menu" role="menu">
+            <div class="more-menu-header">More</div>
+            <button class="more-menu-item" data-menu-target="meals-tab" role="menuitem">
+              Meals
+              <span class="more-menu-sub">Plan breakfast, lunch &amp; dinner</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="workouts-tab" role="menuitem">
+              Workouts
+              <span class="more-menu-sub">Schedule your sessions</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="grocery-tab" role="menuitem">
+              Grocery
+              <span class="more-menu-sub">Shared shopping list</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="progress-tab" role="menuitem">
+              Progress
+              <span class="more-menu-sub">Track weight &amp; wellness</span>
+            </button>
+            <button class="more-menu-item" data-menu-target="family-tab" role="menuitem">
+              Family
+              <span class="more-menu-sub">Manage your group</span>
+            </button>
+            <button
+              class="more-menu-item"
+              data-menu-target="settings-tab"
+              role="menuitem"
+            >
+              Settings
+              <span class="more-menu-sub">Appearance &amp; account</span>
+            </button>
+            <button id="more-menu-install" class="more-menu-item" role="menuitem">
+              Install app (mobile)
+              <span class="more-menu-sub">Add Elevated Health to your device</span>
+            </button>
+            <button class="more-menu-item" data-action="download-app" role="menuitem">
+              Download App
+              <span class="more-menu-sub">Desktop build</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- QUICK ACTION SHEET (mobile) -->
+        <div id="quick-sheet-backdrop" class="quick-sheet-backdrop">
+          <div class="quick-sheet">
+            <div class="quick-sheet-handle"></div>
+            <h3 class="quick-sheet-title">Quick actions</h3>
+
+            <button class="quick-sheet-item" data-action="log-meal">
+              Log meal
+              <span class="quick-sheet-item-sub">Add a meal to your plan</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="log-ella-meal">
+              Log Ella meal
+              <span class="quick-sheet-item-sub">Add an Ella pick to today</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="barcode">
+              Barcode scan
+              <span class="quick-sheet-item-sub">Coming soon</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="meal-scan">
+              Meal scan
+              <span class="quick-sheet-item-sub">Coming soon</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="log-water">
+              Log water
+              <span class="quick-sheet-item-sub">
+                Track your hydration today
+              </span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="log-weight">
+              Log weight
+              <span class="quick-sheet-item-sub">Update your progress</span>
+            </button>
+
+            <button class="quick-sheet-item" data-action="log-exercise">
+              Log exercise
+              <span class="quick-sheet-item-sub">Add a workout session</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- DESKTOP QUICK ACTION FAB + VERTICAL MENU -->
+        <button
+          id="desktop-quick-fab"
+          class="eh-fab"
+          type="button"
+          aria-label="Quick actions"
+        >
+          <span class="eh-fab-icon">＋</span>
+        </button>
+
+        <div id="desktop-fab-menu" class="desktop-fab-menu">
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-meal"
+          >
+            Log meal
+          </button>
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-water"
+          >
+            Log water
+          </button>
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-weight"
+          >
+            Log weight
+          </button>
+          <button
+            class="desktop-fab-menu-item"
+            data-action="log-exercise"
+          >
+            Log exercise
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="eh-modal"
+      class="eh-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="eh-modal-title"
+      aria-hidden="true"
+    >
+      <div class="eh-modal-dialog">
+        <div class="eh-modal-header">
+          <h3 id="eh-modal-title" class="eh-modal-title">Details</h3>
+          <button
+            class="modal-close"
+            type="button"
+            data-modal-close
+            aria-label="Close dialog"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="eh-modal-body" id="eh-modal-body"></div>
+        <div class="eh-modal-footer">
+          <button class="ghost-btn" type="button" data-modal-close>
+            Close
+          </button>
+          <button class="primary" type="button" data-modal-primary>
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
