@@ -52,6 +52,15 @@ import {
   diaryCalendarBtn,
   diaryDatePicker,
   diaryAddButtons,
+  insightMacrosCard,
+  insightCaloriesCard,
+  insightWorkoutsCard,
+  macrosChartCanvas,
+  caloriesChartCanvas,
+  workoutsChartCanvas,
+  macrosEmptyState,
+  caloriesEmptyState,
+  workoutsEmptyState,
 } from "./dom.js";
 import {
   currentUser,
@@ -63,6 +72,7 @@ import {
   getTodayDate,
   onSelectedDateChange,
   addDays,
+  toLocalDateString,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
 import { loadMeals, setMealsFamilyState } from "./meals.js";
@@ -97,6 +107,9 @@ let diaryRealtimeChannel;
 let mealsGuidedMode = false;
 let isCalendarOpen = false;
 let isQuickSheetOpen = false;
+let macrosChart;
+let caloriesChart;
+let workoutsChart;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 const THEME_STORAGE_KEY = "eh-theme";
@@ -149,6 +162,308 @@ const TAB_TITLE_MAP = {
   "settings-tab": "Settings",
   "more-tab": "More",
 };
+
+function getInsightPalette() {
+  const styles = getComputedStyle(document.documentElement);
+  const read = (token, fallback) =>
+    styles.getPropertyValue(token)?.trim() || fallback;
+
+  return {
+    accent: read("--accent", "#00a3a3"),
+    accentStrong: read("--accent-strong", "#ff6b1a"),
+    accentBlue: read("--accent-blue", "#4aa5ff"),
+    textMuted: read("--text-muted", "#7aa0b8"),
+    grid: read("--border-subtle", "rgba(0, 154, 154, 0.35)"),
+  };
+}
+
+function buildDateWindow() {
+  const today = getTodayDate();
+  const dates = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    dates.push(addDays(today, -i));
+  }
+  return dates;
+}
+
+function parseMetricNumber(value) {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function toggleInsightState(emptyEl, canvasEl, hasData) {
+  if (emptyEl) emptyEl.style.display = hasData ? "none" : "block";
+  if (canvasEl) canvasEl.style.display = hasData ? "block" : "none";
+}
+
+function destroyChart(chartRef) {
+  if (chartRef) chartRef.destroy();
+  return null;
+}
+
+function formatShortLabel(dateValue) {
+  if (!dateValue) return "";
+  const normalized = toLocalDateString(dateValue);
+  const parts = normalized.split("-").map(Number);
+  const [y, m, d] = parts;
+  const date = new Date(y || 0, (m || 1) - 1, d || 1);
+  return new Intl.DateTimeFormat("en", { weekday: "short" }).format(date);
+}
+
+async function getDashboardMetrics() {
+  const labels = buildDateWindow();
+
+  if (!currentFamilyId) {
+    return {
+      labels,
+      macrosToday: { protein: 0, carbs: 0, fat: 0 },
+      calories7Days: labels.map(() => 0),
+      workouts7Days: labels.map(() => 0),
+    };
+  }
+
+  try {
+    const startDate = labels[0];
+    const endDate = labels[labels.length - 1];
+
+    const [mealsResult, workoutsResult] = await Promise.all([
+      supabase
+        .from("family_meals")
+        .select("*")
+        .eq("family_group_id", currentFamilyId)
+        .gte("meal_date", startDate)
+        .lte("meal_date", endDate),
+      supabase
+        .from("family_workouts")
+        .select("*")
+        .eq("family_group_id", currentFamilyId)
+        .gte("workout_date", startDate)
+        .lte("workout_date", endDate),
+    ]);
+
+    const meals = mealsResult.data || [];
+    const workouts = workoutsResult.data || [];
+
+    const macrosToday = { protein: 0, carbs: 0, fat: 0 };
+    const caloriesByDate = Object.fromEntries(labels.map((date) => [date, 0]));
+    const workoutsByDate = Object.fromEntries(labels.map((date) => [date, 0]));
+
+    meals.forEach((meal) => {
+      const date = meal.meal_date;
+      if (!date) return;
+
+      const calories = parseMetricNumber(
+        meal.calories ?? meal.nutrition?.calories
+      );
+      if (caloriesByDate[date] !== undefined) {
+        caloriesByDate[date] += calories;
+      }
+
+      if (date === labels[labels.length - 1]) {
+        macrosToday.protein += parseMetricNumber(
+          meal.protein ?? meal.nutrition?.protein
+        );
+        macrosToday.carbs += parseMetricNumber(
+          meal.carbs ?? meal.nutrition?.carbs
+        );
+        macrosToday.fat += parseMetricNumber(
+          meal.fat ?? meal.nutrition?.fat
+        );
+      }
+    });
+
+    workouts.forEach((workout) => {
+      const date = workout.workout_date;
+      if (!date) return;
+      if (workoutsByDate[date] !== undefined) {
+        workoutsByDate[date] += 1;
+      }
+    });
+
+    return {
+      labels,
+      macrosToday,
+      calories7Days: labels.map((date) => caloriesByDate[date] || 0),
+      workouts7Days: labels.map((date) => workoutsByDate[date] || 0),
+    };
+  } catch (err) {
+    console.error("Error building dashboard metrics", err);
+    return {
+      labels,
+      macrosToday: { protein: 0, carbs: 0, fat: 0 },
+      calories7Days: labels.map(() => 0),
+      workouts7Days: labels.map(() => 0),
+    };
+  }
+}
+
+function renderMacrosInsight(macros) {
+  if (!macrosChartCanvas || typeof Chart === "undefined") return;
+  const totals = macros || { protein: 0, carbs: 0, fat: 0 };
+  const values = [totals.protein, totals.carbs, totals.fat].map(parseMetricNumber);
+  const hasData = values.some((v) => v > 0);
+
+  toggleInsightState(macrosEmptyState, macrosChartCanvas, hasData);
+
+  if (!hasData) {
+    macrosChart = destroyChart(macrosChart);
+    return;
+  }
+
+  const palette = getInsightPalette();
+  macrosChart = destroyChart(macrosChart);
+  macrosChart = new Chart(macrosChartCanvas, {
+    type: "doughnut",
+    data: {
+      labels: ["Protein", "Carbs", "Fat"],
+      datasets: [
+        {
+          data: values,
+          backgroundColor: [palette.accent, palette.accentBlue, palette.accentStrong],
+          borderWidth: 0,
+          hoverOffset: 4,
+        },
+      ],
+    },
+    options: {
+      cutout: "62%",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            color: palette.textMuted,
+            boxWidth: 12,
+          },
+        },
+      },
+      animation: {
+        duration: 280,
+      },
+    },
+  });
+}
+
+function renderCaloriesInsight(labels, calories) {
+  if (!caloriesChartCanvas || typeof Chart === "undefined") return;
+  const data = Array.isArray(calories) ? calories : [];
+  const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
+  const hasData = dataset.some((v) => v > 0);
+
+  toggleInsightState(caloriesEmptyState, caloriesChartCanvas, hasData);
+
+  if (!hasData) {
+    caloriesChart = destroyChart(caloriesChart);
+    return;
+  }
+
+  const palette = getInsightPalette();
+  const labelSet = labels.map((label) => formatShortLabel(label));
+  caloriesChart = destroyChart(caloriesChart);
+  caloriesChart = new Chart(caloriesChartCanvas, {
+    type: "line",
+    data: {
+      labels: labelSet,
+      datasets: [
+        {
+          label: "Calories",
+          data: dataset,
+          borderColor: palette.accent,
+          backgroundColor: "rgba(0, 163, 163, 0.14)",
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 4,
+          fill: true,
+        },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      responsive: true,
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: palette.textMuted },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(255,255,255,0.06)" },
+          ticks: { color: palette.textMuted },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+      },
+      animation: {
+        duration: 260,
+      },
+    },
+  });
+}
+
+function renderWorkoutsInsight(labels, workouts) {
+  if (!workoutsChartCanvas || typeof Chart === "undefined") return;
+  const data = Array.isArray(workouts) ? workouts : [];
+  const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
+  const hasData = dataset.some((v) => v > 0);
+
+  toggleInsightState(workoutsEmptyState, workoutsChartCanvas, hasData);
+
+  if (!hasData) {
+    workoutsChart = destroyChart(workoutsChart);
+    return;
+  }
+
+  const palette = getInsightPalette();
+  const labelSet = labels.map((label) => formatShortLabel(label));
+  workoutsChart = destroyChart(workoutsChart);
+  workoutsChart = new Chart(workoutsChartCanvas, {
+    type: "bar",
+    data: {
+      labels: labelSet,
+      datasets: [
+        {
+          label: "Sessions",
+          data: dataset,
+          backgroundColor: palette.accentStrong,
+          borderRadius: 10,
+        },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      responsive: true,
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: palette.textMuted },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(255,255,255,0.06)" },
+          ticks: { color: palette.textMuted, precision: 0 },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+      },
+      animation: {
+        duration: 240,
+      },
+    },
+  });
+}
+
+async function refreshDashboardInsights() {
+  if (!insightMacrosCard) return;
+  const metrics = await getDashboardMetrics();
+  const labels = metrics.labels || buildDateWindow();
+
+  renderMacrosInsight(metrics.macrosToday);
+  renderCaloriesInsight(labels, metrics.calories7Days);
+  renderWorkoutsInsight(labels, metrics.workouts7Days);
+}
 
 function createInitialState() {
   return {
@@ -391,6 +706,7 @@ async function init() {
     setCurrentUser(session.user);
     await loadUserProfile(session.user);
     await loadFamilyState(session.user);
+    await refreshDashboardInsights();
     setupDiaryRealtime();
     showApp();
   } else {
@@ -401,6 +717,7 @@ async function init() {
     setWorkoutsFamilyState();
     setProgressFamilyState();
     teardownDiaryRealtime();
+    await refreshDashboardInsights();
     showAuth();
   }
 }
@@ -527,6 +844,44 @@ function scrollAndFocus(target, focusEl) {
   if (focusEl) {
     setTimeout(() => focusEl.focus({ preventScroll: true }), 60);
   }
+}
+
+function bindInsightCards() {
+  const attachHandler = (card, handler) => {
+    if (!card) return;
+    card.addEventListener("click", handler);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        handler();
+      }
+    });
+  };
+
+  attachHandler(insightMacrosCard, () => {
+    const today = getTodayDate();
+    setSelectedDate(today, { force: true });
+    activateTab("meals-tab");
+    if (mealDateInput) mealDateInput.value = today;
+    const anchor = mealsForm?.closest(".card") || mealsForm;
+    scrollAndFocus(anchor, mealTitleInput);
+  });
+
+  attachHandler(insightCaloriesCard, () => {
+    const today = getTodayDate();
+    setSelectedDate(today, { force: true });
+    activateTab("log-tab");
+    focusLogSection("meal");
+  });
+
+  attachHandler(insightWorkoutsCard, () => {
+    const today = getTodayDate();
+    setSelectedDate(today, { force: true });
+    activateTab("workouts-tab");
+    if (workoutDateInput) workoutDateInput.value = today;
+    const anchor = workoutsForm?.closest(".card") || workoutsForm;
+    scrollAndFocus(anchor, workoutTitleInput);
+  });
 }
 
 function openMealsQuickEntry() {
@@ -868,6 +1223,7 @@ if (loginForm) {
       setCurrentUser(user);
       await loadUserProfile(user);
       await loadFamilyState(user);
+      await refreshDashboardInsights();
       showApp();
       loginForm.reset();
       if (loginMessage) loginMessage.textContent = "";
@@ -910,6 +1266,16 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
     if (!targetId) return;
     activateTab(targetId);
   });
+});
+
+bindInsightCards();
+
+document.addEventListener("family:changed", () => {
+  refreshDashboardInsights();
+});
+
+document.addEventListener("diary:refresh", () => {
+  refreshDashboardInsights();
 });
 
 if (dashboardAiShortcut) {
@@ -1422,6 +1788,7 @@ if (logoutButton) {
     setWorkoutsFamilyState();
     setProgressFamilyState();
     teardownDiaryRealtime();
+    await refreshDashboardInsights();
     if (coachMessages) {
       coachMessages.innerHTML = "";
     }
