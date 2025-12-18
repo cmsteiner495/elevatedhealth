@@ -314,6 +314,19 @@ body {
   max-width: 76vw;
 }
 
+.top-bar-logo-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.site-logo {
+  display: block;
+  height: 36px;
+  max-height: 42px;
+  width: auto;
+  object-fit: contain;
+}
+
 .logo-mark {
   display: inline-flex;
   align-items: center;
@@ -348,6 +361,10 @@ body {
 @media (max-width: 899px) {
   .mobile-overline {
     display: none;
+  }
+
+  .site-logo {
+    height: 32px;
   }
 }
 
