@@ -766,11 +766,18 @@ async function renderInsights(reason = "manual") {
       ? metrics.calories7Days[labels.length - 1] || 0
       : 0;
   const totals = metrics.macrosToday || {};
-  console.log(
-    `[EH DASH] render totals: cal=${caloriesToday} protein=${totals.protein || 0} carbs=${
-      totals.carbs || 0
-    } fat=${totals.fat || 0}`
-  );
+  const todayKey = metrics.todayKey || getTodayDate();
+  console.log("[EH DASH] meals snapshot", {
+    todayKey,
+    mealsToday: metrics.mealsTodayCount ?? 0,
+    firstMeal: metrics.firstMeal || null,
+    totals: {
+      calories: caloriesToday,
+      protein: totals.protein || 0,
+      carbs: totals.carbs || 0,
+      fat: totals.fat || 0,
+    },
+  });
   updateMacrosRing(metrics.macrosToday);
   if (reason === "resize") {
     resizeMacrosRing();
