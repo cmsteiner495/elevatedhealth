@@ -113,10 +113,18 @@ let diaryRealtimeChannel;
 let mealsGuidedMode = false;
 let isCalendarOpen = false;
 let isQuickSheetOpen = false;
+const MACROS_CANVAS_HEIGHT = 220;
+
 let macrosChart;
 let caloriesChart;
 let workoutsChart;
 let macrosLegendEl;
+let macrosResizeObserver;
+let macrosResizeHost;
+let macrosLastWidth = 0;
+let macrosRenderLock = false;
+let macrosRenderQueued = null;
+let macrosLatestTotals = null;
 let insightsRenderLock = false;
 let insightsRenderQueued = false;
 let insightsResizeTimer;
@@ -310,6 +318,34 @@ function cancelMacrosAsyncLoops() {
   }
 }
 
+function measureMacrosWidth(host) {
+  if (!host) return 0;
+  const rect = host.getBoundingClientRect?.();
+  const width = rect?.width || host.clientWidth || 0;
+  return Math.round(width);
+}
+
+function ensureMacrosResizeObserver(host) {
+  if (typeof ResizeObserver === "undefined" || !host) return;
+  if (macrosResizeObserver && macrosResizeHost === host) return;
+  if (macrosResizeObserver) {
+    macrosResizeObserver.disconnect();
+  }
+  const ro = new ResizeObserver((entries) => {
+    const entry = entries?.[0];
+    const w = Math.round(entry?.contentRect?.width || 0);
+    if (!w || Math.abs(w - macrosLastWidth) < 1) return;
+    scheduleMacrosRender("resize", macrosLatestTotals, {
+      width: w,
+      skipWidthCheck: true,
+    });
+  });
+  macrosResizeObserver = ro;
+  macrosResizeHost = host;
+  window.__EH_MACROS_RESIZE_OBSERVER__ = ro;
+  ro.observe(host);
+}
+
 function getMacrosHost() {
   return (
     insightMacrosCard?.querySelector(".insight-body") ||
@@ -326,34 +362,80 @@ function prepareMacrosHost(host) {
   if (macrosChartCanvas) host.appendChild(macrosChartCanvas);
 }
 
+function sizeMacrosCanvas(host) {
+  if (!macrosChartCanvas || !host) return;
+  const cssW = measureMacrosWidth(host);
+  const cssH = MACROS_CANVAS_HEIGHT;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  if (!cssW) return;
+
+  macrosLastWidth = cssW;
+  macrosChartCanvas.style.width = `${cssW}px`;
+  macrosChartCanvas.style.height = `${cssH}px`;
+  macrosChartCanvas.width = Math.floor(cssW * dpr);
+  macrosChartCanvas.height = Math.floor(cssH * dpr);
+
+  const ctx = macrosChartCanvas.getContext("2d");
+  if (ctx) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+}
+
 function safeRenderMacros(reason = "manual", macros) {
   const host = getMacrosHost();
   if (!macrosChartCanvas || !host) return;
-  if (window.__EH_MACROS_RENDERING__) return;
+  if (macros) {
+    macrosLatestTotals = macros;
+  }
+  if (macrosRenderLock) {
+    macrosRenderQueued = { reason, macros };
+    return;
+  }
 
+  macrosRenderLock = true;
   window.__EH_MACROS_RENDERING__ = true;
   try {
     cancelMacrosAsyncLoops();
+    ensureMacrosResizeObserver(host);
     prepareMacrosHost(host);
+    sizeMacrosCanvas(host);
     resetChartInstance(macrosChart, macrosChartCanvas);
     macrosChart = null;
     console.log("[macros] render", reason, "children:", host.childElementCount);
     renderMacrosInsight(macros);
   } finally {
+    macrosRenderLock = false;
     window.__EH_MACROS_RENDERING__ = false;
+    if (macrosRenderQueued) {
+      const queued = macrosRenderQueued;
+      macrosRenderQueued = null;
+      scheduleMacrosRender(queued.reason || "queued", queued.macros);
+    }
   }
 }
 
-function scheduleMacrosRender(reason = "manual", macros) {
+function scheduleMacrosRender(reason = "manual", macros, options = {}) {
   if (typeof window === "undefined") {
     safeRenderMacros(reason, macros);
     return;
+  }
+  if (macros) {
+    macrosLatestTotals = macros;
+  }
+  const host = getMacrosHost();
+  if (reason === "resize") {
+    const nextWidth = options.width || measureMacrosWidth(host);
+    if (!nextWidth) return;
+    if (!options.skipWidthCheck && Math.abs(nextWidth - macrosLastWidth) < 1) {
+      return;
+    }
+    macrosLastWidth = nextWidth;
   }
   cancelMacrosAsyncLoops();
   const delay = reason === "resize" ? 120 : 0;
   window.__EH_MACROS_TIMER_ID__ = window.setTimeout(() => {
     window.__EH_MACROS_TIMER_ID__ = null;
-    safeRenderMacros(reason, macros);
+    safeRenderMacros(reason, macrosLatestTotals || macros);
   }, delay);
 }
 
@@ -780,6 +862,7 @@ async function renderInsights(reason = "manual") {
   if (!insightMacrosCard) return;
   const metrics = await getDashboardMetrics();
   const labels = metrics.labels || buildDateWindow();
+  macrosLatestTotals = metrics.macrosToday;
 
   if (reason === "resize") {
     scheduleMacrosRender(reason, metrics.macrosToday);
