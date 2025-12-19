@@ -51,25 +51,35 @@ function parseMetricNumber(value) {
 export function computeDashboardModel(state = {}) {
   const labels = buildDateWindow();
   const today = getTodayDate();
-  const meals = Array.isArray(state.meals) ? state.meals : [];
+  const meals = Array.isArray(state.meals)
+    ? state.meals.map((meal) => ({
+        ...meal,
+        dateKey: meal.dateKey || normalizeLogDate(meal.meal_date || meal.date),
+      }))
+    : [];
   const workouts = Array.isArray(state.workouts) ? state.workouts : [];
 
   const macrosToday = { protein: 0, carbs: 0, fat: 0 };
   const caloriesByDate = Object.fromEntries(labels.map((date) => [date, 0]));
   const workoutsByDate = Object.fromEntries(labels.map((date) => [date, 0]));
+  const mealsToday = [];
 
   meals.forEach((meal) => {
-    const date = normalizeLogDate(meal.meal_date || meal.date);
+    const date = meal.dateKey || normalizeLogDate(meal.meal_date || meal.date);
     if (!date) return;
     if (caloriesByDate[date] !== undefined) {
-      const calories = parseMetricNumber(meal.calories ?? meal.nutrition?.calories);
+      const calories = parseMetricNumber(meal.calories);
       caloriesByDate[date] += calories;
     }
     if (date === today) {
-      MACRO_KEYS.forEach((key) => {
-        macrosToday[key] += parseMetricNumber(meal[key] ?? meal.nutrition?.[key]);
-      });
+      mealsToday.push(meal);
     }
+  });
+
+  mealsToday.forEach((meal) => {
+    MACRO_KEYS.forEach((key) => {
+      macrosToday[key] += parseMetricNumber(meal[key]);
+    });
   });
 
   workouts.forEach((workout) => {
@@ -85,5 +95,8 @@ export function computeDashboardModel(state = {}) {
     macrosToday,
     calories7Days: labels.map((date) => caloriesByDate[date] || 0),
     workouts7Days: labels.map((date) => workoutsByDate[date] || 0),
+    mealsTodayCount: mealsToday.length,
+    todayKey: today,
+    firstMeal: meals.length ? meals[0] : null,
   };
 }
