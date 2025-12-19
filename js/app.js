@@ -122,6 +122,18 @@ let insightsRenderQueued = false;
 let insightsResizeTimer;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
+if (typeof window !== "undefined") {
+  if (!("__EH_MACROS_RENDERING__" in window)) {
+    window.__EH_MACROS_RENDERING__ = false;
+  }
+  if (!("__EH_MACROS_RAF_ID__" in window)) {
+    window.__EH_MACROS_RAF_ID__ = null;
+  }
+  if (!("__EH_MACROS_TIMER_ID__" in window)) {
+    window.__EH_MACROS_TIMER_ID__ = null;
+  }
+}
+
 const DASHBOARD_CHARTS_INIT_FLAG = "__EH_DASHBOARD_CHARTS_INIT__";
 
 const THEME_STORAGE_KEY = "eh-theme";
@@ -284,6 +296,65 @@ function resetChartInstance(chartInstance, canvasEl) {
       ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
     }
   }
+}
+
+function cancelMacrosAsyncLoops() {
+  if (typeof window === "undefined") return;
+  if (window.__EH_MACROS_RAF_ID__) {
+    cancelAnimationFrame(window.__EH_MACROS_RAF_ID__);
+    window.__EH_MACROS_RAF_ID__ = null;
+  }
+  if (window.__EH_MACROS_TIMER_ID__) {
+    clearTimeout(window.__EH_MACROS_TIMER_ID__);
+    window.__EH_MACROS_TIMER_ID__ = null;
+  }
+}
+
+function getMacrosHost() {
+  return (
+    insightMacrosCard?.querySelector(".insight-body") ||
+    macrosChartCanvas?.parentElement ||
+    null
+  );
+}
+
+function prepareMacrosHost(host) {
+  if (!host) return;
+  host.innerHTML = "";
+  macrosLegendEl = null;
+  if (macrosEmptyState) host.appendChild(macrosEmptyState);
+  if (macrosChartCanvas) host.appendChild(macrosChartCanvas);
+}
+
+function safeRenderMacros(reason = "manual", macros) {
+  const host = getMacrosHost();
+  if (!macrosChartCanvas || !host) return;
+  if (window.__EH_MACROS_RENDERING__) return;
+
+  window.__EH_MACROS_RENDERING__ = true;
+  try {
+    cancelMacrosAsyncLoops();
+    prepareMacrosHost(host);
+    resetChartInstance(macrosChart, macrosChartCanvas);
+    macrosChart = null;
+    console.log("[macros] render", reason, "children:", host.childElementCount);
+    renderMacrosInsight(macros);
+  } finally {
+    window.__EH_MACROS_RENDERING__ = false;
+  }
+}
+
+function scheduleMacrosRender(reason = "manual", macros) {
+  if (typeof window === "undefined") {
+    safeRenderMacros(reason, macros);
+    return;
+  }
+  cancelMacrosAsyncLoops();
+  const delay = reason === "resize" ? 120 : 0;
+  window.__EH_MACROS_TIMER_ID__ = window.setTimeout(() => {
+    window.__EH_MACROS_TIMER_ID__ = null;
+    safeRenderMacros(reason, macros);
+  }, delay);
 }
 
 function formatShortLabel(dateValue) {
@@ -705,12 +776,16 @@ function renderWorkoutsInsight(labels, workouts) {
   });
 }
 
-async function renderInsights() {
+async function renderInsights(reason = "manual") {
   if (!insightMacrosCard) return;
   const metrics = await getDashboardMetrics();
   const labels = metrics.labels || buildDateWindow();
 
-  renderMacrosInsight(metrics.macrosToday);
+  if (reason === "resize") {
+    scheduleMacrosRender(reason, metrics.macrosToday);
+  } else {
+    safeRenderMacros(reason, metrics.macrosToday);
+  }
   renderCaloriesInsight(labels, metrics.calories7Days);
   renderWorkoutsInsight(labels, metrics.workouts7Days);
 }
