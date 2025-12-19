@@ -117,7 +117,12 @@ let macrosChart;
 let caloriesChart;
 let workoutsChart;
 let macrosLegendEl;
+let insightsRenderLock = false;
+let insightsRenderQueued = false;
+let insightsResizeTimer;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+
+const DASHBOARD_CHARTS_INIT_FLAG = "__EH_DASHBOARD_CHARTS_INIT__";
 
 const THEME_STORAGE_KEY = "eh-theme";
 // Default macro targets; adjust here to tune ring goals.
@@ -266,6 +271,18 @@ function toggleInsightState(emptyEl, canvasEl, hasData) {
   if (canvasEl) {
     canvasEl.style.display = "block";
     canvasEl.classList.toggle("insight-canvas-empty", !hasData);
+  }
+}
+
+function resetChartInstance(chartInstance, canvasEl) {
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+  if (canvasEl) {
+    const ctx = canvasEl.getContext("2d");
+    if (ctx && canvasEl.width && canvasEl.height) {
+      ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    }
   }
 }
 
@@ -510,18 +527,12 @@ function renderMacrosInsight(macros) {
     },
   };
 
-  if (!macrosChart) {
-    macrosChart = new Chart(macrosChartCanvas, {
-      type: "doughnut",
-      data: chartData,
-      options,
-    });
-  } else {
-    macrosChart.data.labels = chartData.labels;
-    macrosChart.data.datasets = chartData.datasets;
-    macrosChart.options = options;
-    macrosChart.update();
-  }
+  resetChartInstance(macrosChart, macrosChartCanvas);
+  macrosChart = new Chart(macrosChartCanvas, {
+    type: "doughnut",
+    data: chartData,
+    options,
+  });
 
   renderMacrosLegend(macroColors, numericTotals);
 }
@@ -622,18 +633,12 @@ function renderCaloriesInsight(labels, calories) {
     },
   };
 
-  if (!caloriesChart) {
-    caloriesChart = new Chart(caloriesChartCanvas, {
-      type: "line",
-      data: chartData,
-      options,
-    });
-  } else {
-    caloriesChart.data.labels = chartData.labels;
-    caloriesChart.data.datasets = chartData.datasets;
-    caloriesChart.options = options;
-    caloriesChart.update();
-  }
+  resetChartInstance(caloriesChart, caloriesChartCanvas);
+  caloriesChart = new Chart(caloriesChartCanvas, {
+    type: "line",
+    data: chartData,
+    options,
+  });
 }
 
 function renderWorkoutsInsight(labels, workouts) {
@@ -692,18 +697,12 @@ function renderWorkoutsInsight(labels, workouts) {
     },
   };
 
-  if (!workoutsChart) {
-    workoutsChart = new Chart(workoutsChartCanvas, {
-      type: "bar",
-      data: chartData,
-      options,
-    });
-  } else {
-    workoutsChart.data.labels = chartData.labels;
-    workoutsChart.data.datasets = chartData.datasets;
-    workoutsChart.options = options;
-    workoutsChart.update();
-  }
+  resetChartInstance(workoutsChart, workoutsChartCanvas);
+  workoutsChart = new Chart(workoutsChartCanvas, {
+    type: "bar",
+    data: chartData,
+    options,
+  });
 }
 
 async function renderInsights() {
@@ -716,7 +715,84 @@ async function renderInsights() {
   renderWorkoutsInsight(labels, metrics.workouts7Days);
 }
 
-const refreshDashboardInsights = renderInsights;
+async function runSafeInsightsRender(reason = "manual") {
+  if (!window[DASHBOARD_CHARTS_INIT_FLAG]) return;
+  if (insightsRenderLock) {
+    insightsRenderQueued = true;
+    return;
+  }
+  insightsRenderLock = true;
+  try {
+    await renderInsights(reason);
+  } finally {
+    insightsRenderLock = false;
+    if (insightsRenderQueued) {
+      insightsRenderQueued = false;
+      runSafeInsightsRender("queued");
+    }
+  }
+}
+
+function scheduleInsightsRender(reason = "manual", options = {}) {
+  if (!window[DASHBOARD_CHARTS_INIT_FLAG]) return;
+  if (options.debounceMs) {
+    clearTimeout(insightsResizeTimer);
+    insightsResizeTimer = setTimeout(
+      () => runSafeInsightsRender(reason),
+      options.debounceMs
+    );
+    return;
+  }
+  runSafeInsightsRender(reason);
+}
+
+const refreshDashboardInsights = (reason = "refresh") =>
+  runSafeInsightsRender(reason);
+
+function initDashboardInsights() {
+  if (window[DASHBOARD_CHARTS_INIT_FLAG]) return;
+  window[DASHBOARD_CHARTS_INIT_FLAG] = true;
+
+  bindInsightCards();
+
+  const handleDataChanged = (event) => {
+    scheduleInsightsRender("data-change");
+    const source = event?.detail?.source || event?.detail?.entity;
+    if (
+      !source ||
+      source === "workouts" ||
+      source === "workout" ||
+      source === "all"
+    ) {
+      calculateWorkoutStreak();
+    }
+  };
+
+  document.addEventListener("family:changed", () => {
+    scheduleInsightsRender("family-changed");
+    calculateWorkoutStreak();
+  });
+
+  document.addEventListener("diary:refresh", () => {
+    scheduleInsightsRender("diary-refresh");
+  });
+
+  window.addEventListener("eh:data-changed", handleDataChanged);
+  window.addEventListener("eh:dataChanged", handleDataChanged);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      scheduleInsightsRender("visibility");
+    }
+  });
+  document.addEventListener("DOMContentLoaded", () => {
+    scheduleInsightsRender("dom-ready");
+  });
+  window.addEventListener("resize", () =>
+    scheduleInsightsRender("resize", { debounceMs: 120 })
+  );
+
+  scheduleInsightsRender("init");
+}
 
 function createInitialState() {
   return {
@@ -1504,36 +1580,6 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
   });
 });
 
-bindInsightCards();
-
-document.addEventListener("family:changed", () => {
-  renderInsights();
-  calculateWorkoutStreak();
-});
-
-document.addEventListener("diary:refresh", () => {
-  renderInsights();
-});
-
-const handleDataChanged = (event) => {
-  renderInsights();
-  const source = event?.detail?.source || event?.detail?.entity;
-  if (!source || source === "workouts" || source === "workout" || source === "all") {
-    calculateWorkoutStreak();
-  }
-};
-
-window.addEventListener("eh:data-changed", handleDataChanged);
-window.addEventListener("eh:dataChanged", handleDataChanged);
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    renderInsights();
-  }
-});
-document.addEventListener("DOMContentLoaded", () => {
-  renderInsights();
-});
-
 window.EH_DEBUG = {
   getMeals,
   getWorkouts,
@@ -2067,6 +2113,7 @@ async function instantiateAppAfterInitialization() {
   initInitialState();
   initThemeMode();
   initThemeStyles();
+  initDashboardInsights();
   initModal();
   initAIDinnerCards();
   bindDiaryDateNav();

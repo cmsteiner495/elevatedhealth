@@ -758,6 +758,7 @@ body {
   display: grid;
   gap: var(--space-12);
   grid-template-columns: 1fr;
+  align-items: start;
 }
 
 @media (min-width: 900px) {
@@ -779,6 +780,7 @@ body {
   transition: transform var(--transition-fast),
     box-shadow var(--transition-fast),
     border-color var(--transition-fast);
+  overflow: hidden;
 }
 
 .insight-card:focus-visible {
@@ -800,6 +802,7 @@ body {
   position: relative;
   padding: var(--space-12);
   flex-direction: column;
+  overflow: hidden;
 }
 
 .insight-canvas {
