@@ -20,6 +20,7 @@ import {
 } from "./state.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
 import { readMealsStore, saveMeals } from "./dataAdapter.js";
+import { setMeals, upsertMeal, removeMeal } from "./ehStore.js";
 
 function readMealStore() {
   const snapshot = readMealsStore();
@@ -148,6 +149,8 @@ export async function logMealToDiary(meal, options = {}) {
     created_at: new Date().toISOString(),
   };
   upsertStoredMeal(currentFamilyId, localEntry);
+  upsertMeal(localEntry, { reason: "logMealToDiary" });
+  console.log("[EH MEAL] saved + store upsert");
 
   const viewingTarget = selectedDate === targetDate;
   if (!viewingTarget && options.syncDate !== false) {
@@ -282,17 +285,20 @@ export async function loadMeals() {
     if (storedMeals.length) {
       mealsList.innerHTML = "";
       renderMeals(storedMeals);
+      setMeals(storedMeals, { reason: "loadMeals:offline" });
       if (mealsMessage) {
         mealsMessage.textContent = "Showing saved meals (offline)";
         mealsMessage.style.color = "var(--text-muted)";
       }
     } else {
       mealsList.innerHTML = "<li>Could not load meals.</li>";
+      setMeals([], { reason: "loadMeals:error" });
     }
   } else {
     const remoteMeals = data || [];
     const merged = mergeMeals(remoteMeals, storedMeals);
     persistMealsForFamily(currentFamilyId, merged);
+    setMeals(merged, { reason: "loadMeals" });
     renderMeals(merged);
   }
 }
@@ -474,6 +480,8 @@ if (mealsForm) {
       created_at: new Date().toISOString(),
     };
     upsertStoredMeal(currentFamilyId, localEntry);
+    upsertMeal(localEntry, { reason: "addMeal" });
+    console.log("[EH MEAL] saved + store upsert");
 
     const guidedDate = mealsForm.dataset.targetDate;
     const guidedMealType = mealsForm.dataset.targetMealType;
@@ -540,6 +548,7 @@ if (mealsList) {
       li.addEventListener("transitionend", removeNode, { once: true });
       setTimeout(removeNode, 220);
       removeStoredMeal(currentFamilyId, mealId);
+      removeMeal(mealId, { reason: "deleteMeal" });
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
       );

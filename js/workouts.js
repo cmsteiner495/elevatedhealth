@@ -16,6 +16,7 @@ import {
 import { currentUser, currentFamilyId, toLocalDateString } from "./state.js";
 import { maybeVibrate, showToast } from "./ui.js";
 import { readWorkoutsStore, saveWorkouts } from "./dataAdapter.js";
+import { setWorkouts, upsertWorkout, removeWorkout } from "./ehStore.js";
 
 let workoutsCache = [];
 
@@ -130,6 +131,7 @@ export async function loadWorkouts() {
   const storedWorkouts = getStoredWorkouts(familyId);
   if (!familyId) {
     workoutsCache = storedWorkouts;
+    setWorkouts(storedWorkouts, { reason: "loadWorkouts:unscoped" });
     renderWorkouts();
     if (workoutsMessage && storedWorkouts.length) {
       workoutsMessage.textContent = "Saved locally (link a family to sync).";
@@ -149,6 +151,7 @@ export async function loadWorkouts() {
     console.error("Error loading workouts:", error);
     if (storedWorkouts.length) {
       workoutsCache = storedWorkouts;
+      setWorkouts(storedWorkouts, { reason: "loadWorkouts:offline" });
       renderWorkouts();
       if (workoutsMessage) {
         workoutsMessage.textContent = "Showing saved workouts (offline)";
@@ -156,12 +159,14 @@ export async function loadWorkouts() {
       }
     } else {
       workoutsList.innerHTML = "<li>Could not load workouts.</li>";
+      setWorkouts([], { reason: "loadWorkouts:error" });
     }
   } else {
     const remoteWorkouts = data || [];
     const merged = mergeWorkouts(remoteWorkouts, storedWorkouts);
     persistWorkoutsForFamily(familyId, merged);
     workoutsCache = merged;
+    setWorkouts(merged, { reason: "loadWorkouts" });
     renderWorkouts();
   }
 }
@@ -375,6 +380,8 @@ if (workoutsForm) {
 
     workoutsCache = mergeWorkouts(workoutsCache, [localWorkout]);
     upsertStoredWorkout(localWorkout);
+    upsertWorkout(localWorkout, { reason: "addWorkout" });
+    console.log("[EH WORKOUT] saved + store upsert");
     renderWorkouts();
     workoutsForm.reset();
 
@@ -429,6 +436,7 @@ if (workoutsList) {
         return;
       }
       persistWorkoutsForFamily(currentFamilyId, workoutsCache);
+      setWorkouts(workoutsCache, { reason: "toggleWorkout" });
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
@@ -451,6 +459,8 @@ if (workoutsList) {
 
       workoutsCache = workoutsCache.filter((workout) => workout.id !== workoutId);
       persistWorkoutsForFamily(currentFamilyId, workoutsCache);
+      removeWorkout(workoutId, { reason: "deleteWorkout" });
+      setWorkouts(workoutsCache, { reason: "deleteWorkout" });
       setTimeout(() => renderWorkouts(), 160);
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
