@@ -80,6 +80,7 @@ export const workoutsChartCanvas = document.getElementById("workouts-chart");
 export const macrosEmptyState = document.getElementById("macros-empty");
 export const caloriesEmptyState = document.getElementById("calories-empty");
 export const workoutsEmptyState = document.getElementById("workouts-empty");
+export const streakCount = document.getElementById("streak-count");
 
 // Family
 export const familyStatus = document.getElementById("family-status");

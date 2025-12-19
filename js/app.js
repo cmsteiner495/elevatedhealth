@@ -61,6 +61,7 @@ import {
   macrosEmptyState,
   caloriesEmptyState,
   workoutsEmptyState,
+  streakCount,
 } from "./dom.js";
 import {
   currentUser,
@@ -75,8 +76,12 @@ import {
   toLocalDateString,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
-import { loadMeals, setMealsFamilyState } from "./meals.js";
-import { setWorkoutsFamilyState } from "./workouts.js";
+import { loadMeals, logMealToDiary, setMealsFamilyState } from "./meals.js";
+import {
+  cacheWorkoutsLocally,
+  getStoredWorkouts,
+  setWorkoutsFamilyState,
+} from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
 import { initCoachHandlers, runWeeklyPlanGeneration } from "./coach.js";
@@ -262,6 +267,53 @@ function formatShortLabel(dateValue) {
 
 function normalizeLogDate(dateValue) {
   return toLocalDateString(dateValue);
+}
+
+function computeWorkoutStreakFromList(workouts = []) {
+  const workoutDates = new Set();
+  workouts.forEach((workout) => {
+    const date = normalizeLogDate(workout.workout_date || workout.date);
+    if (date) workoutDates.add(date);
+  });
+
+  let streak = 0;
+  let cursor = getTodayDate();
+  while (workoutDates.has(cursor)) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+async function calculateWorkoutStreak() {
+  if (streakCount) streakCount.textContent = "0";
+  if (!currentFamilyId) return 0;
+
+  try {
+    let workouts = getStoredWorkouts(currentFamilyId);
+    if (!workouts.length) {
+      const { data, error } = await supabase
+        .from("family_workouts")
+        .select("id, workout_date")
+        .eq("family_group_id", currentFamilyId)
+        .order("workout_date", { ascending: false });
+
+      if (!error && data) {
+        workouts = data;
+        cacheWorkoutsLocally(currentFamilyId, data);
+      } else if (error) {
+        console.error("Error loading workouts for streak", error);
+      }
+    }
+
+    const streakValue = computeWorkoutStreakFromList(workouts);
+    if (streakCount) streakCount.textContent = String(streakValue);
+    return streakValue;
+  } catch (err) {
+    console.error("Could not calculate workout streak", err);
+    if (streakCount) streakCount.textContent = "0";
+    return 0;
+  }
 }
 
 async function getDashboardMetrics() {
@@ -1150,35 +1202,14 @@ async function logUpcomingMealToToday(entryEl) {
   const mealType = entryEl.dataset.mealType || "dinner";
   const targetDate = selectedDate || getTodayDate();
 
-  const { error } = await supabase.from("family_meals").insert({
-    family_group_id: currentFamilyId,
-    added_by: currentUser.id,
-    meal_date: targetDate,
-    meal_type: mealType,
-    title,
-    notes,
-  });
-
-  if (error) {
-    console.error("Error logging meal to today", error);
-    showToast("Could not add meal to log");
-    return;
-  }
-
-  const viewingTarget = selectedDate === targetDate;
-  if (!viewingTarget) {
-    setSelectedDate(targetDate, { force: true });
-  } else {
-    document.dispatchEvent(
-      new CustomEvent("diary:refresh", {
-        detail: { date: targetDate, entity: "meal" },
-      })
-    );
-  }
-  window.dispatchEvent(
-    new CustomEvent("eh:dataChanged", { detail: { entity: "meal", date: targetDate } })
+  await logMealToDiary(
+    {
+      title,
+      meal_type: mealType,
+      notes,
+    },
+    { date: targetDate }
   );
-  showToast("Added to log");
 }
 
 function bindMealsLogButtons() {
@@ -1373,14 +1404,19 @@ bindInsightCards();
 
 document.addEventListener("family:changed", () => {
   refreshDashboardInsights();
+  calculateWorkoutStreak();
 });
 
 document.addEventListener("diary:refresh", () => {
   refreshDashboardInsights();
 });
 
-window.addEventListener("eh:dataChanged", () => {
+window.addEventListener("eh:dataChanged", (event) => {
   refreshDashboardInsights();
+  const entity = event?.detail?.entity;
+  if (!entity || entity === "workout") {
+    calculateWorkoutStreak();
+  }
 });
 
 if (dashboardAiShortcut) {
@@ -1892,6 +1928,9 @@ if (logoutButton) {
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    if (streakCount) {
+      streakCount.textContent = "0";
+    }
     teardownDiaryRealtime();
     await refreshDashboardInsights();
     if (coachMessages) {

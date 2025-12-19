@@ -31,7 +31,7 @@ import {
   setSelectedDate,
   toLocalDateString,
 } from "./state.js";
-import { fetchMealsByDate } from "./meals.js";
+import { fetchMealsByDate, logMealToDiary, removeStoredMeal } from "./meals.js";
 import { fetchWorkoutsByDate } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 
@@ -245,25 +245,15 @@ async function logMealFromDetail(meal) {
   const mealType = meal.meal_type || meal.mealType || meal.type || "dinner";
   const notes = meal.notes || meal.description || null;
 
-  const { error } = await supabase.from("family_meals").insert({
-    family_group_id: currentFamilyId,
-    added_by: currentUser?.id || null,
-    meal_date: selectedDate,
-    meal_type: mealType,
-    title,
-    notes,
-  });
-
-  if (error) {
-    console.error("Error logging meal from detail", error);
-    showToast("Could not add meal to log");
-    return;
-  }
-
-  document.dispatchEvent(
-    new CustomEvent("diary:refresh", { detail: { date: selectedDate, entity: "meal" } })
+  await logMealToDiary(
+    {
+      title,
+      meal_type: mealType,
+      notes,
+    },
+    { date: selectedDate }
   );
-  showToast("Added to log");
+
   closeModal();
 }
 
@@ -490,6 +480,7 @@ async function removeMealFromDiary(mealId, entryEl) {
     return;
   }
 
+  removeStoredMeal(currentFamilyId, mealId);
   currentDiaryMeals = currentDiaryMeals.filter((meal) => meal.id !== mealId);
 
   const updateUI = () => {
