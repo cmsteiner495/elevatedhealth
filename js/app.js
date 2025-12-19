@@ -113,6 +113,13 @@ let workoutsChart;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 const THEME_STORAGE_KEY = "eh-theme";
+// Default macro targets; adjust here to tune ring goals.
+const MACRO_GOALS = {
+  protein: 150,
+  carbs: 200,
+  fat: 70,
+};
+const MACRO_ORDER = ["protein", "carbs", "fat"];
 const THEME_TOKEN_MAP = {
   dark: {
     "--bg-app": "#031c2c",
@@ -177,6 +184,35 @@ function getInsightPalette() {
   };
 }
 
+function applyAlpha(color, alpha) {
+  if (!color) return `rgba(0,0,0,${alpha})`;
+  if (color.startsWith("#")) {
+    const hex = color.replace("#", "");
+    const normalized = hex.length === 3
+      ? hex
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex;
+    const int = parseInt(normalized, 16);
+    const r = (int >> 16) & 255;
+    const g = (int >> 8) & 255;
+    const b = int & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  const match = color.match(/rgba?\(([^)]+)\)/);
+  if (match) {
+    const parts = match[1].split(",").map((p) => Number(p.trim())) || [];
+    const [r, g, b] = parts;
+    if ([r, g, b].every((v) => Number.isFinite(v))) {
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+  }
+
+  return color;
+}
+
 function buildDateWindow() {
   const today = getTodayDate();
   const dates = [];
@@ -187,13 +223,27 @@ function buildDateWindow() {
 }
 
 function parseMetricNumber(value) {
-  const num = Number(value ?? 0);
+  if (value == null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "string") {
+    const match = value.match(/-?\d+(?:\.\d+)?/);
+    if (match) {
+      const parsed = Number(match[0]);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
+  const num = Number(value);
   return Number.isFinite(num) ? num : 0;
 }
 
 function toggleInsightState(emptyEl, canvasEl, hasData) {
   if (emptyEl) emptyEl.style.display = hasData ? "none" : "block";
-  if (canvasEl) canvasEl.style.display = hasData ? "block" : "none";
+  if (canvasEl) {
+    canvasEl.style.display = "block";
+    canvasEl.classList.toggle("insight-canvas-empty", !hasData);
+  }
 }
 
 function destroyChart(chartRef) {
@@ -208,6 +258,10 @@ function formatShortLabel(dateValue) {
   const [y, m, d] = parts;
   const date = new Date(y || 0, (m || 1) - 1, d || 1);
   return new Intl.DateTimeFormat("en", { weekday: "short" }).format(date);
+}
+
+function normalizeLogDate(dateValue) {
+  return toLocalDateString(dateValue);
 }
 
 async function getDashboardMetrics() {
@@ -249,7 +303,7 @@ async function getDashboardMetrics() {
     const workoutsByDate = Object.fromEntries(labels.map((date) => [date, 0]));
 
     meals.forEach((meal) => {
-      const date = meal.meal_date;
+      const date = normalizeLogDate(meal.meal_date || meal.date);
       if (!date) return;
 
       const calories = parseMetricNumber(
@@ -273,7 +327,7 @@ async function getDashboardMetrics() {
     });
 
     workouts.forEach((workout) => {
-      const date = workout.workout_date;
+      const date = normalizeLogDate(workout.workout_date || workout.date);
       if (!date) return;
       if (workoutsByDate[date] !== undefined) {
         workoutsByDate[date] += 1;
@@ -300,33 +354,50 @@ async function getDashboardMetrics() {
 function renderMacrosInsight(macros) {
   if (!macrosChartCanvas || typeof Chart === "undefined") return;
   const totals = macros || { protein: 0, carbs: 0, fat: 0 };
-  const values = [totals.protein, totals.carbs, totals.fat].map(parseMetricNumber);
-  const hasData = values.some((v) => v > 0);
+  const numericTotals = MACRO_ORDER.reduce((acc, key) => {
+    acc[key] = parseMetricNumber(totals[key]);
+    return acc;
+  }, {});
+  const hasData = MACRO_ORDER.some((key) => numericTotals[key] > 0);
 
   toggleInsightState(macrosEmptyState, macrosChartCanvas, hasData);
 
-  if (!hasData) {
-    macrosChart = destroyChart(macrosChart);
-    return;
-  }
-
   const palette = getInsightPalette();
+  const macroColors = {
+    protein: palette.accentStrong,
+    carbs: palette.accent,
+    fat: palette.accentBlue,
+  };
+  const trackColor = applyAlpha(palette.grid, hasData ? 0.6 : 0.4);
+  const datasets = MACRO_ORDER.map((key, idx) => {
+    const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
+    const value = Math.max(0, numericTotals[key]);
+    const remaining = Math.max(goal - value, 0);
+    const baseColor = macroColors[key] || palette.accent;
+    const progressColor = hasData ? baseColor : applyAlpha(baseColor, 0.35);
+
+    return {
+      label: `${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+      data: [value, Math.max(remaining, goal * 0.08)],
+      backgroundColor: [progressColor, trackColor],
+      borderWidth: 0,
+      hoverOffset: 4,
+      spacing: 4,
+      weight: 1,
+    };
+  });
+
   macrosChart = destroyChart(macrosChart);
   macrosChart = new Chart(macrosChartCanvas, {
     type: "doughnut",
     data: {
-      labels: ["Protein", "Carbs", "Fat"],
-      datasets: [
-        {
-          data: values,
-          backgroundColor: [palette.accent, palette.accentBlue, palette.accentStrong],
-          borderWidth: 0,
-          hoverOffset: 4,
-        },
-      ],
+      labels: MACRO_ORDER.map(
+        (key) => `${key.charAt(0).toUpperCase()}${key.slice(1)}`
+      ),
+      datasets,
     },
     options: {
-      cutout: "62%",
+      cutout: "38%",
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
@@ -334,7 +405,18 @@ function renderMacrosInsight(macros) {
           position: "bottom",
           labels: {
             color: palette.textMuted,
-            boxWidth: 12,
+            boxWidth: 10,
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const key = MACRO_ORDER[ctx.datasetIndex];
+              const value = numericTotals[key] || 0;
+              const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
+              const pct = Math.round((value / goal) * 100);
+              return `${ctx.dataset.label}: ${value.toFixed(1)}g (${pct}% of ${goal}g)`;
+            },
           },
         },
       },
@@ -350,13 +432,11 @@ function renderCaloriesInsight(labels, calories) {
   const data = Array.isArray(calories) ? calories : [];
   const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
   const hasData = dataset.some((v) => v > 0);
+  const tooltipValues = dataset;
+
+  const visibleData = hasData ? dataset : labels.map(() => 0.2);
 
   toggleInsightState(caloriesEmptyState, caloriesChartCanvas, hasData);
-
-  if (!hasData) {
-    caloriesChart = destroyChart(caloriesChart);
-    return;
-  }
 
   const palette = getInsightPalette();
   const labelSet = labels.map((label) => formatShortLabel(label));
@@ -368,12 +448,16 @@ function renderCaloriesInsight(labels, calories) {
       datasets: [
         {
           label: "Calories",
-          data: dataset,
-          borderColor: palette.accent,
-          backgroundColor: "rgba(0, 163, 163, 0.14)",
+          data: visibleData,
+          borderColor: hasData
+            ? palette.accent
+            : applyAlpha(palette.grid, 0.7),
+          backgroundColor: hasData
+            ? "rgba(0, 163, 163, 0.14)"
+            : applyAlpha(palette.grid, 0.14),
           tension: 0.35,
-          pointRadius: 3,
-          pointHoverRadius: 4,
+          pointRadius: hasData ? 3 : 0,
+          pointHoverRadius: hasData ? 4 : 0,
           fill: true,
         },
       ],
@@ -388,12 +472,18 @@ function renderCaloriesInsight(labels, calories) {
         },
         y: {
           beginAtZero: true,
+          suggestedMax: hasData ? undefined : 1,
           grid: { color: "rgba(255,255,255,0.06)" },
           ticks: { color: palette.textMuted },
         },
       },
       plugins: {
         legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} kcal`,
+          },
+        },
       },
       animation: {
         duration: 260,
@@ -407,13 +497,11 @@ function renderWorkoutsInsight(labels, workouts) {
   const data = Array.isArray(workouts) ? workouts : [];
   const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
   const hasData = dataset.some((v) => v > 0);
+  const tooltipValues = dataset;
+
+  const visibleData = hasData ? dataset : labels.map(() => 0.4);
 
   toggleInsightState(workoutsEmptyState, workoutsChartCanvas, hasData);
-
-  if (!hasData) {
-    workoutsChart = destroyChart(workoutsChart);
-    return;
-  }
 
   const palette = getInsightPalette();
   const labelSet = labels.map((label) => formatShortLabel(label));
@@ -425,9 +513,12 @@ function renderWorkoutsInsight(labels, workouts) {
       datasets: [
         {
           label: "Sessions",
-          data: dataset,
-          backgroundColor: palette.accentStrong,
+          data: visibleData,
+          backgroundColor: hasData
+            ? palette.accentStrong
+            : applyAlpha(palette.grid, 0.65),
           borderRadius: 10,
+          minBarLength: hasData ? undefined : 6,
         },
       ],
     },
@@ -441,12 +532,18 @@ function renderWorkoutsInsight(labels, workouts) {
         },
         y: {
           beginAtZero: true,
+          suggestedMax: hasData ? undefined : 1,
           grid: { color: "rgba(255,255,255,0.06)" },
           ticks: { color: palette.textMuted, precision: 0 },
         },
       },
       plugins: {
         legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} sessions`,
+          },
+        },
       },
       animation: {
         duration: 240,
@@ -782,6 +879,7 @@ function setupDiaryRealtime() {
 
   const handleChange = () => {
     refreshDiaryForSelectedDate();
+    refreshDashboardInsights();
   };
 
   diaryRealtimeChannel = supabase
@@ -1077,6 +1175,9 @@ async function logUpcomingMealToToday(entryEl) {
       })
     );
   }
+  window.dispatchEvent(
+    new CustomEvent("eh:dataChanged", { detail: { entity: "meal", date: targetDate } })
+  );
   showToast("Added to log");
 }
 
@@ -1275,6 +1376,10 @@ document.addEventListener("family:changed", () => {
 });
 
 document.addEventListener("diary:refresh", () => {
+  refreshDashboardInsights();
+});
+
+window.addEventListener("eh:dataChanged", () => {
   refreshDashboardInsights();
 });
 

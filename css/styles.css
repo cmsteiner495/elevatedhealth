@@ -799,19 +799,31 @@ body {
   justify-content: center;
   position: relative;
   padding: var(--space-12);
+  flex-direction: column;
 }
 
 .insight-canvas {
   width: 100%;
   height: 240px;
   display: block;
+  z-index: 1;
 }
 
 .insight-empty {
-  text-align: center;
+  text-align: left;
   width: 100%;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
+  position: absolute;
+  left: var(--space-12);
+  right: var(--space-12);
+  top: var(--space-12);
+  pointer-events: none;
+}
+
+.insight-canvas.insight-canvas-empty {
+  opacity: 0.72;
+  filter: saturate(0.78);
 }
 
 .streak-card .card-header {
