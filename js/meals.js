@@ -107,6 +107,25 @@ export function removeStoredMeal(familyId, mealId) {
   persistMealsForFamily(familyId, filtered);
 }
 
+export async function deleteMealById(mealId, options = {}) {
+  if (!mealId) return { error: new Error("Missing meal id") };
+  if (!currentFamilyId) return { error: new Error("Missing family id") };
+
+  const query = supabase
+    .from("family_meals")
+    .delete()
+    .eq("id", mealId)
+    .eq("family_group_id", currentFamilyId);
+
+  const { error } = await query;
+  if (error) return { error };
+
+  removeStoredMeal(currentFamilyId, mealId);
+  removeMeal(mealId, { reason: options.reason || "deleteMeal" });
+  announceDataChange("meals", options.date || options.meal_date);
+  return { error: null };
+}
+
 function announceDataChange(source, date) {
   const detail = source || date ? { source, date } : { source };
   window.dispatchEvent(new CustomEvent("eh:data-changed", { detail }));
@@ -580,23 +599,27 @@ if (mealsList) {
     if (deleteBtn) {
       e.preventDefault();
       e.stopPropagation();
+      if (deleteBtn.disabled) return;
+      deleteBtn.disabled = true;
+      deleteBtn.setAttribute("aria-busy", "true");
       li.classList.add("list-removing");
-      const { error } = await supabase
-        .from("family_meals")
-        .delete()
-        .eq("id", mealId);
+      const { error } = await deleteMealById(mealId, {
+        date: li.dataset.mealDate,
+        reason: "deleteMeal:planner",
+      });
 
       if (error) {
         console.error("Error deleting meal:", error);
         li.classList.remove("list-removing");
+        deleteBtn.disabled = false;
+        deleteBtn.removeAttribute("aria-busy");
+        showToast("Couldn't delete meal. Try again.");
         return;
       }
 
       const removeNode = () => li.remove();
       li.addEventListener("transitionend", removeNode, { once: true });
       setTimeout(removeNode, 220);
-      removeStoredMeal(currentFamilyId, mealId);
-      removeMeal(mealId, { reason: "deleteMeal" });
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
       );
