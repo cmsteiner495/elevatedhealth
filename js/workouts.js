@@ -18,6 +18,12 @@ import { maybeVibrate, showToast } from "./ui.js";
 
 let workoutsCache = [];
 
+function announceDataChange(entity, date) {
+  window.dispatchEvent(
+    new CustomEvent("eh:dataChanged", { detail: { entity, date } })
+  );
+}
+
 export function setWorkoutsFamilyState() {
   if (!workoutsNoFamily || !workoutsHasFamily) return;
 
@@ -230,6 +236,7 @@ if (workoutsForm) {
         detail: { date: dateValue, entity: "exercise" },
       })
     );
+    announceDataChange("workout", dateValue);
     showToast("Exercise logged");
     maybeVibrate([12]);
   });
@@ -267,6 +274,7 @@ if (workoutsList) {
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
+      announceDataChange("workout");
       return;
     }
 
@@ -288,6 +296,7 @@ if (workoutsList) {
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
+      announceDataChange("workout");
       return;
     }
   });

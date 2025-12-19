@@ -20,6 +20,12 @@ import {
 } from "./state.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
 
+function announceDataChange(entity, date) {
+  window.dispatchEvent(
+    new CustomEvent("eh:dataChanged", { detail: { entity, date } })
+  );
+}
+
 async function logMealToDiary(meal, options = {}) {
   if (!currentUser || !currentFamilyId) {
     showToast("Join a family to log meals.");
@@ -63,6 +69,8 @@ async function logMealToDiary(meal, options = {}) {
       })
     );
   }
+
+  announceDataChange("meal", targetDate);
 
   if (!options.skipReload) {
     await loadMeals();
@@ -358,6 +366,7 @@ if (mealsForm) {
         detail: { date: dateValue, entity: "meal" },
       })
     );
+    announceDataChange("meal", dateValue);
   });
 }
 
