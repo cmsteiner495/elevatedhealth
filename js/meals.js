@@ -20,7 +20,7 @@ import {
 } from "./state.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
 import { readMealsStore, saveMeals } from "./dataAdapter.js";
-import { setMeals, upsertMeal, removeMeal } from "./ehStore.js";
+import { normalizeMeal, setMeals, upsertMeal, removeMeal } from "./ehStore.js";
 
 function readMealStore() {
   const snapshot = readMealsStore();
@@ -39,6 +39,21 @@ function readMealStore() {
 
 function writeMealStore(store) {
   saveMeals(store || {});
+}
+
+function coerceNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function computeMealTotals(meal = {}) {
+  const normalized = normalizeMeal(meal) || {};
+  return {
+    calories: coerceNumber(normalized.calories),
+    protein: coerceNumber(normalized.protein),
+    carbs: coerceNumber(normalized.carbs),
+    fat: coerceNumber(normalized.fat),
+  };
 }
 
 export function getStoredMeals(familyId) {
@@ -109,20 +124,26 @@ export async function logMealToDiary(meal, options = {}) {
   if (!title) return;
 
   const mealType = meal.meal_type || meal.mealType || options.mealType || "dinner";
-  const notes = meal.notes || meal.description || null;
+  const notes = (meal.notes || meal.description || "").trim() || null;
+  const totals = computeMealTotals(meal);
+  const payload = {
+    family_group_id: currentFamilyId,
+    added_by: currentUser.id,
+    meal_date: targetDate,
+    meal_type: mealType,
+    title,
+    notes,
+    calories: totals.calories,
+    protein: totals.protein,
+    carbs: totals.carbs,
+    fat: totals.fat,
+  };
 
   let persistedMeal = null;
   const { data, error } = await supabase
     .from("family_meals")
-    .insert({
-      family_group_id: currentFamilyId,
-      added_by: currentUser.id,
-      meal_date: targetDate,
-      meal_type: mealType,
-      title,
-      notes,
-    })
-    .select()
+    .insert(payload)
+    .select("*")
     .single();
 
   if (error) {
@@ -140,17 +161,18 @@ export async function logMealToDiary(meal, options = {}) {
 
   const localEntry = persistedMeal || {
     id: meal.id || `local-${Date.now()}`,
-    title,
-    meal_type: mealType,
-    meal_date: targetDate,
-    notes,
-    family_group_id: currentFamilyId,
-    added_by: currentUser?.id || null,
+    ...payload,
     created_at: new Date().toISOString(),
   };
+  const savedRow = persistedMeal || localEntry;
   upsertStoredMeal(currentFamilyId, localEntry);
-  upsertMeal(localEntry, { reason: "logMealToDiary" });
-  console.log("[EH MEAL] saved + store upsert");
+  upsertMeal(savedRow, { reason: "logMealToDiary" });
+  console.log("[EH MEAL] saved row totals", {
+    calories: savedRow.calories ?? 0,
+    protein: savedRow.protein ?? 0,
+    carbs: savedRow.carbs ?? 0,
+    fat: savedRow.fat ?? 0,
+  });
 
   const viewingTarget = selectedDate === targetDate;
   if (!viewingTarget && options.syncDate !== false) {
@@ -227,6 +249,11 @@ function openMealDetailsModal(meal) {
           title: meal.title,
           meal_type: meal.meal_type,
           notes: meal.notes,
+          calories: meal.calories,
+          protein: meal.protein,
+          carbs: meal.carbs,
+          fat: meal.fat,
+          nutrition: meal.nutrition || meal.macros,
         },
         { date: selectedDate }
       );
@@ -240,6 +267,11 @@ setDinnerLogHandler(async (meal) => {
       title: meal.title,
       meal_type: "dinner",
       notes: meal.description || meal.notes,
+      calories: meal.calories || meal.nutrition?.calories,
+      protein: meal.protein || meal.nutrition?.protein,
+      carbs: meal.carbs || meal.nutrition?.carbs,
+      fat: meal.fat || meal.nutrition?.fat,
+      nutrition: meal.nutrition || meal.macros,
     },
     { date: selectedDate }
   );
@@ -353,6 +385,10 @@ function renderMeals(items) {
     li.dataset.mealTitle = meal.title;
     li.dataset.mealDate = meal.meal_date;
     li.dataset.mealNotes = meal.notes || "";
+    li.dataset.mealCalories = meal.calories ?? meal.nutrition?.calories ?? "";
+    li.dataset.mealProtein = meal.protein ?? meal.nutrition?.protein ?? "";
+    li.dataset.mealCarbs = meal.carbs ?? meal.nutrition?.carbs ?? "";
+    li.dataset.mealFat = meal.fat ?? meal.nutrition?.fat ?? "";
     li.style.display = "flex";
     li.style.flexDirection = "column";
     li.style.gap = "0.25rem";
@@ -443,21 +479,27 @@ if (mealsForm) {
     const mealType = mealTypeInput.value;
     const title = mealTitleInput.value.trim();
     const notes = mealNotesInput.value.trim();
+    const totals = computeMealTotals({});
 
     if (!dateValue || !mealType || !title) return;
 
     let persistedMeal = null;
+    const payload = {
+      family_group_id: currentFamilyId,
+      added_by: currentUser.id,
+      meal_date: dateValue,
+      meal_type: mealType,
+      title,
+      notes: notes || null,
+      calories: totals.calories,
+      protein: totals.protein,
+      carbs: totals.carbs,
+      fat: totals.fat,
+    };
     const { data, error } = await supabase
       .from("family_meals")
-      .insert({
-        family_group_id: currentFamilyId,
-        added_by: currentUser.id,
-        meal_date: dateValue,
-        meal_type: mealType,
-        title,
-        notes: notes || null,
-      })
-      .select()
+      .insert(payload)
+      .select("*")
       .single();
 
     if (error) {
@@ -472,16 +514,18 @@ if (mealsForm) {
 
     const localEntry = persistedMeal || {
       id: `local-${Date.now()}`,
-      title,
-      meal_type: mealType,
-      meal_date: dateValue,
-      notes: notes || null,
+      ...payload,
       added_by: currentUser?.id || null,
       created_at: new Date().toISOString(),
     };
     upsertStoredMeal(currentFamilyId, localEntry);
     upsertMeal(localEntry, { reason: "addMeal" });
-    console.log("[EH MEAL] saved + store upsert");
+    console.log("[EH MEAL] saved row totals", {
+      calories: localEntry.calories ?? 0,
+      protein: localEntry.protein ?? 0,
+      carbs: localEntry.carbs ?? 0,
+      fat: localEntry.fat ?? 0,
+    });
 
     const guidedDate = mealsForm.dataset.targetDate;
     const guidedMealType = mealsForm.dataset.targetMealType;
@@ -525,6 +569,10 @@ if (mealsList) {
         title: li.dataset.mealTitle,
         meal_type: li.dataset.mealType,
         notes: li.dataset.mealNotes,
+        calories: li.dataset.mealCalories,
+        protein: li.dataset.mealProtein,
+        carbs: li.dataset.mealCarbs,
+        fat: li.dataset.mealFat,
       });
       return;
     }

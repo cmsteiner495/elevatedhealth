@@ -868,6 +868,7 @@ async function renderInsights(reason = "manual") {
   };
   const mealsTodayCount = parseMetricNumber(metrics.mealsTodayCount ?? 0);
   const todayKey = metrics.todayKey || getTodayDate();
+  console.log("[EH DASH] totals", numericTotals);
   console.log("[EH DASH] model", {
     todayKey,
     mealsToday: mealsTodayCount,
@@ -1561,12 +1562,20 @@ async function logUpcomingMealToToday(entryEl) {
   const notes = entryEl.dataset.mealNotes || null;
   const mealType = entryEl.dataset.mealType || "dinner";
   const targetDate = selectedDate || getTodayDate();
+  const calories = entryEl.dataset.mealCalories;
+  const protein = entryEl.dataset.mealProtein;
+  const carbs = entryEl.dataset.mealCarbs;
+  const fat = entryEl.dataset.mealFat;
 
   await logMealToDiary(
     {
       title,
       meal_type: mealType,
       notes,
+      calories,
+      protein,
+      carbs,
+      fat,
     },
     { date: targetDate }
   );

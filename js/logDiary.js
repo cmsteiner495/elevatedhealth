@@ -250,6 +250,11 @@ async function logMealFromDetail(meal) {
       title,
       meal_type: mealType,
       notes,
+      calories: meal.calories || meal.nutrition?.calories,
+      protein: meal.protein || meal.nutrition?.protein,
+      carbs: meal.carbs || meal.nutrition?.carbs,
+      fat: meal.fat || meal.nutrition?.fat,
+      nutrition: meal.nutrition || meal.macros,
     },
     { date: selectedDate }
   );
