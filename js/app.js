@@ -135,6 +135,7 @@ let isResizingMacrosRing = false;
 let insightsRenderLock = false;
 let insightsRenderQueued = false;
 let insightsResizeTimer;
+let debugTotalsContainer = null;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 if (typeof window !== "undefined") {
@@ -150,6 +151,7 @@ if (typeof window !== "undefined") {
 }
 
 const DASHBOARD_CHARTS_INIT_FLAG = "__EH_DASHBOARD_CHARTS_INIT__";
+const CHART_REGISTRY_KEY = "EH_CHARTS";
 
 const THEME_STORAGE_KEY = "eh-theme";
 // Default macro targets; adjust here to tune ring goals.
@@ -293,6 +295,27 @@ function parseMetricNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function getChartRegistry() {
+  if (typeof window === "undefined") return {};
+  window[CHART_REGISTRY_KEY] = window[CHART_REGISTRY_KEY] || {};
+  return window[CHART_REGISTRY_KEY];
+}
+
+function destroyRegisteredChart(key) {
+  const registry = getChartRegistry();
+  const chart = registry[key];
+  if (chart && typeof chart.destroy === "function") {
+    chart.destroy();
+  }
+  delete registry[key];
+  if (key === "calories7") {
+    caloriesChart = null;
+  }
+  if (key === "workouts7") {
+    workoutsChart = null;
+  }
+}
+
 function toggleInsightState(emptyEl, canvasEl, hasData) {
   if (emptyEl) emptyEl.style.display = hasData ? "none" : "block";
   if (canvasEl) {
@@ -346,6 +369,27 @@ function getMacrosHost() {
     insightMacrosCard?.querySelector(".insight-body") ||
     null
   );
+}
+
+function resetMacrosRing() {
+  if (macrosResizeObserver) {
+    macrosResizeObserver.disconnect();
+    macrosResizeObserver = null;
+  }
+  macrosResizeHost = null;
+  macrosRingInitialized = false;
+  macrosRingLayers = {};
+  macrosRingTextValue = null;
+  macrosRingTextLabel = null;
+  macrosLastWidth = 0;
+  macrosHostRef = null;
+  macrosResizePending = false;
+  isResizingMacrosRing = false;
+  if (macrosRingSvg?.parentNode) {
+    macrosRingSvg.parentNode.removeChild(macrosRingSvg);
+  }
+  macrosRingSvg = null;
+  macrosLatestTotals = null;
 }
 
 function initMacrosRing(domRefs = {}) {
@@ -588,6 +632,14 @@ function renderMacrosInsight(macros) {
   updateMacrosRing(macros);
 }
 
+function createMacrosChart(model = {}) {
+  resetMacrosRing();
+  renderMacrosInsight(model.macrosToday);
+  return {
+    destroy: resetMacrosRing,
+  };
+}
+
 function ensureMacrosLegend() {
   if (macrosLegendEl) return macrosLegendEl;
   const container = insightMacrosCard?.querySelector(".insight-body");
@@ -624,8 +676,8 @@ function renderMacrosLegend(colors, totals) {
   });
 }
 
-function renderCaloriesInsight(labels, calories) {
-  if (!caloriesChartCanvas || typeof Chart === "undefined") return;
+function renderCaloriesInsight(labels, calories, existingChart) {
+  if (!caloriesChartCanvas || typeof Chart === "undefined") return null;
   const data = Array.isArray(calories) ? calories : [];
   const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
   const hasData = dataset.some((v) => v > 0);
@@ -684,16 +736,18 @@ function renderCaloriesInsight(labels, calories) {
     },
   };
 
-  resetChartInstance(caloriesChart, caloriesChartCanvas);
-  caloriesChart = new Chart(caloriesChartCanvas, {
+  resetChartInstance(existingChart || caloriesChart, caloriesChartCanvas);
+  const nextChart = new Chart(caloriesChartCanvas, {
     type: "line",
     data: chartData,
     options,
   });
+  caloriesChart = nextChart;
+  return nextChart;
 }
 
-function renderWorkoutsInsight(labels, workouts) {
-  if (!workoutsChartCanvas || typeof Chart === "undefined") return;
+function renderWorkoutsInsight(labels, workouts, existingChart) {
+  if (!workoutsChartCanvas || typeof Chart === "undefined") return null;
   const data = Array.isArray(workouts) ? workouts : [];
   const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
   const hasData = dataset.some((v) => v > 0);
@@ -748,42 +802,90 @@ function renderWorkoutsInsight(labels, workouts) {
     },
   };
 
-  resetChartInstance(workoutsChart, workoutsChartCanvas);
-  workoutsChart = new Chart(workoutsChartCanvas, {
+  resetChartInstance(existingChart || workoutsChart, workoutsChartCanvas);
+  const nextChart = new Chart(workoutsChartCanvas, {
     type: "bar",
     data: chartData,
     options,
   });
+  workoutsChart = nextChart;
+  return nextChart;
+}
+
+function createCalories7Chart(model = {}) {
+  const labels = model.labels || buildDateWindow();
+  return renderCaloriesInsight(labels, model.calories7Days, null);
+}
+
+function createWorkouts7Chart(model = {}) {
+  const labels = model.labels || buildDateWindow();
+  return renderWorkoutsInsight(labels, model.workouts7Days, null);
+}
+
+function ensureDebugTotalsContainer() {
+  const host = getMacrosHost() || insightMacrosCard?.querySelector(".insight-body");
+  if (debugTotalsContainer && debugTotalsContainer.isConnected) {
+    if (host && debugTotalsContainer.parentElement !== host) {
+      host.appendChild(debugTotalsContainer);
+    } else if (host && host.lastElementChild !== debugTotalsContainer) {
+      host.appendChild(debugTotalsContainer);
+    }
+    return debugTotalsContainer;
+  }
+  if (!host) return null;
+  const container = document.createElement("div");
+  container.id = "eh-debug-totals";
+  container.className = "eh-debug-totals";
+  host.appendChild(container);
+  debugTotalsContainer = container;
+  return container;
+}
+
+function updateDebugTotals(totals = {}, mealsTodayCount = 0) {
+  const container = ensureDebugTotalsContainer();
+  if (!container) return;
+  container.innerHTML = `
+    <div>Meals Today: ${mealsTodayCount}</div>
+    <div>Calories Today: ${totals.calories ?? 0}</div>
+    <div>Protein: ${totals.protein ?? 0}g · Carbs: ${totals.carbs ?? 0}g · Fat: ${totals.fat ?? 0}g</div>
+  `;
 }
 
 async function renderInsights(reason = "manual") {
   if (!insightMacrosCard) return;
   const metrics = latestDashboardModel || (await getDashboardMetrics());
   const labels = metrics.labels || buildDateWindow();
-  macrosLatestTotals = metrics.macrosToday;
   const caloriesToday =
     labels.length && Array.isArray(metrics.calories7Days)
       ? metrics.calories7Days[labels.length - 1] || 0
       : 0;
   const totals = metrics.macrosToday || {};
+  const numericTotals = {
+    calories: parseMetricNumber(caloriesToday),
+    protein: parseMetricNumber(totals.protein),
+    carbs: parseMetricNumber(totals.carbs),
+    fat: parseMetricNumber(totals.fat),
+  };
+  const mealsTodayCount = parseMetricNumber(metrics.mealsTodayCount ?? 0);
   const todayKey = metrics.todayKey || getTodayDate();
-  console.log("[EH DASH] meals snapshot", {
+  console.log("[EH DASH] model", {
     todayKey,
-    mealsToday: metrics.mealsTodayCount ?? 0,
-    firstMeal: metrics.firstMeal || null,
-    totals: {
-      calories: caloriesToday,
-      protein: totals.protein || 0,
-      carbs: totals.carbs || 0,
-      fat: totals.fat || 0,
-    },
+    mealsToday: mealsTodayCount,
+    totals: numericTotals,
   });
-  updateMacrosRing(metrics.macrosToday);
+
+  destroyRegisteredChart("macros");
+  destroyRegisteredChart("calories7");
+  destroyRegisteredChart("workouts7");
+
+  const registry = getChartRegistry();
+  registry.macros = createMacrosChart(metrics);
   if (reason === "resize") {
     resizeMacrosRing();
   }
-  renderCaloriesInsight(labels, metrics.calories7Days);
-  renderWorkoutsInsight(labels, metrics.workouts7Days);
+  registry.calories7 = createCalories7Chart(metrics);
+  registry.workouts7 = createWorkouts7Chart(metrics);
+  updateDebugTotals(numericTotals, mealsTodayCount);
 }
 
 async function runSafeInsightsRender(reason = "manual") {
