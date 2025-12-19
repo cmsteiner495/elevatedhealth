@@ -114,6 +114,7 @@ let mealsGuidedMode = false;
 let isCalendarOpen = false;
 let isQuickSheetOpen = false;
 const MACROS_CANVAS_HEIGHT = 220;
+const MACROS_ANIMATION_MS = 240;
 
 let macrosChart;
 let caloriesChart;
@@ -122,9 +123,12 @@ let macrosLegendEl;
 let macrosResizeObserver;
 let macrosResizeHost;
 let macrosLastWidth = 0;
-let macrosRenderLock = false;
 let macrosRenderQueued = null;
 let macrosLatestTotals = null;
+let macrosHostPrepared = false;
+let macrosHostRef = null;
+let macrosResizePending = false;
+let isRenderingMacros = false;
 let insightsRenderLock = false;
 let insightsRenderQueued = false;
 let insightsResizeTimer;
@@ -335,6 +339,7 @@ function ensureMacrosResizeObserver(host) {
     const entry = entries?.[0];
     const w = Math.round(entry?.contentRect?.width || 0);
     if (!w || Math.abs(w - macrosLastWidth) < 1) return;
+    // ResizeObserver should only adjust chart sizing to avoid render loops.
     scheduleMacrosRender("resize", macrosLatestTotals, {
       width: w,
       skipWidthCheck: true,
@@ -356,8 +361,11 @@ function getMacrosHost() {
 
 function prepareMacrosHost(host) {
   if (!host) return;
+  if (macrosHostPrepared && macrosHostRef === host) return;
   host.innerHTML = "";
   macrosLegendEl = null;
+  macrosHostPrepared = true;
+  macrosHostRef = host;
   if (macrosEmptyState) host.appendChild(macrosEmptyState);
   if (macrosChartCanvas) host.appendChild(macrosChartCanvas);
 }
@@ -381,30 +389,175 @@ function sizeMacrosCanvas(host) {
   }
 }
 
+function buildMacrosChartState(macros) {
+  const totals = macros || { protein: 0, carbs: 0, fat: 0 };
+  const numericTotals = MACRO_ORDER.reduce((acc, key) => {
+    acc[key] = parseMetricNumber(totals[key]);
+    return acc;
+  }, {});
+  const hasData = MACRO_ORDER.some((key) => numericTotals[key] > 0);
+  const palette = getInsightPalette();
+  const macroColors = {
+    protein: palette.accentStrong,
+    carbs: "#00c2c2",
+    fat: "#5c8dff",
+  };
+  const trackColor = applyAlpha(palette.grid, hasData ? 0.6 : 0.4);
+  const datasets = MACRO_ORDER.map((key) => {
+    const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
+    const value = Math.max(0, numericTotals[key]);
+    const remaining = Math.max(goal - value, 0);
+    const baseColor = macroColors[key] || palette.accent;
+    const progressColor = hasData ? baseColor : applyAlpha(baseColor, 0.35);
+
+    return {
+      label: `${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+      data: [value, Math.max(remaining, goal * 0.08)],
+      backgroundColor: [progressColor, trackColor],
+      borderWidth: 0,
+      hoverOffset: 4,
+      spacing: 4,
+      weight: 1,
+    };
+  });
+
+  const chartData = {
+    labels: MACRO_ORDER.map(
+      (key) => `${key.charAt(0).toUpperCase()}${key.slice(1)}`
+    ),
+    datasets,
+  };
+
+  return { chartData, macroColors, numericTotals, hasData };
+}
+
+function initMacrosChart(macros) {
+  if (!macrosChartCanvas || typeof Chart === "undefined" || macrosChart) return;
+  const host = getMacrosHost();
+  if (!host) return;
+  prepareMacrosHost(host);
+  sizeMacrosCanvas(host);
+
+  const { chartData } = buildMacrosChartState(macros);
+  const options = {
+    cutout: "38%",
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const key = MACRO_ORDER[ctx.datasetIndex];
+            const value = parseMetricNumber(macrosLatestTotals?.[key]);
+            const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
+            const pct = Math.round((value / goal) * 100);
+            return `${ctx.dataset.label}: ${value.toFixed(1)}g (${pct}% of ${goal}g)`;
+          },
+        },
+      },
+    },
+    animation: {
+      duration: MACROS_ANIMATION_MS,
+    },
+  };
+
+  macrosChart = new Chart(macrosChartCanvas, {
+    type: "doughnut",
+    data: chartData,
+    options,
+  });
+}
+
+function updateMacrosLegend(colors, totals) {
+  renderMacrosLegend(colors, totals);
+}
+
+function updateMacrosData(macros, options = {}) {
+  if (!macrosChartCanvas || typeof Chart === "undefined") return;
+  if (macros) {
+    macrosLatestTotals = macros;
+  }
+  if (!macrosChart) {
+    initMacrosChart(macrosLatestTotals);
+  }
+  if (!macrosChart) return;
+
+  const { chartData, macroColors, numericTotals, hasData } =
+    buildMacrosChartState(macrosLatestTotals);
+
+  toggleInsightState(macrosEmptyState, macrosChartCanvas, hasData);
+
+  macrosChart.data = chartData;
+  if (macrosChart.options?.animation) {
+    macrosChart.options.animation.duration =
+      options.durationOverride ??
+      (options.animate === false ? 0 : MACROS_ANIMATION_MS);
+  }
+
+  updateMacrosLegend(macroColors, numericTotals);
+  macrosChart.update(options.animate === false ? "none" : undefined);
+}
+
+function resizeMacrosChart() {
+  const host = macrosHostRef || getMacrosHost();
+  if (!host || !macrosChartCanvas || !macrosChart) return;
+  const nextWidth = measureMacrosWidth(host);
+  if (!nextWidth || Math.abs(nextWidth - macrosLastWidth) < 1) return;
+  if (isRenderingMacros) {
+    macrosRenderQueued = { reason: "resize" };
+    return;
+  }
+
+  isRenderingMacros = true;
+  window.__EH_MACROS_RENDERING__ = true;
+  try {
+    const prevDuration = macrosChart.options?.animation?.duration;
+    if (macrosChart.options?.animation) {
+      // Disable animation while resizing to prevent recursive render triggers.
+      macrosChart.options.animation.duration = 0;
+    }
+    sizeMacrosCanvas(host);
+    macrosChart.resize();
+    macrosChart.update("none");
+    if (macrosChart.options?.animation) {
+      macrosChart.options.animation.duration = prevDuration;
+    }
+  } finally {
+    isRenderingMacros = false;
+    window.__EH_MACROS_RENDERING__ = false;
+    if (macrosRenderQueued) {
+      const queued = macrosRenderQueued;
+      macrosRenderQueued = null;
+      scheduleMacrosRender(queued.reason || "queued", macrosLatestTotals);
+    }
+  }
+}
+
 function safeRenderMacros(reason = "manual", macros) {
   const host = getMacrosHost();
   if (!macrosChartCanvas || !host) return;
   if (macros) {
     macrosLatestTotals = macros;
   }
-  if (macrosRenderLock) {
+  if (isRenderingMacros) {
     macrosRenderQueued = { reason, macros };
     return;
   }
 
-  macrosRenderLock = true;
+  isRenderingMacros = true;
   window.__EH_MACROS_RENDERING__ = true;
   try {
     cancelMacrosAsyncLoops();
-    ensureMacrosResizeObserver(host);
     prepareMacrosHost(host);
+    ensureMacrosResizeObserver(host);
     sizeMacrosCanvas(host);
-    resetChartInstance(macrosChart, macrosChartCanvas);
-    macrosChart = null;
-    console.log("[macros] render", reason, "children:", host.childElementCount);
-    renderMacrosInsight(macros);
+    initMacrosChart(macrosLatestTotals);
+    updateMacrosData(macrosLatestTotals, {
+      animate: reason !== "resize",
+    });
   } finally {
-    macrosRenderLock = false;
+    isRenderingMacros = false;
     window.__EH_MACROS_RENDERING__ = false;
     if (macrosRenderQueued) {
       const queued = macrosRenderQueued;
@@ -422,7 +575,7 @@ function scheduleMacrosRender(reason = "manual", macros, options = {}) {
   if (macros) {
     macrosLatestTotals = macros;
   }
-  const host = getMacrosHost();
+  const host = macrosHostRef || getMacrosHost();
   if (reason === "resize") {
     const nextWidth = options.width || measureMacrosWidth(host);
     if (!nextWidth) return;
@@ -430,13 +583,21 @@ function scheduleMacrosRender(reason = "manual", macros, options = {}) {
       return;
     }
     macrosLastWidth = nextWidth;
+    if (macrosResizePending) return;
+    macrosResizePending = true;
+    window.__EH_MACROS_RAF_ID__ = window.requestAnimationFrame(() => {
+      window.__EH_MACROS_RAF_ID__ = null;
+      macrosResizePending = false;
+      resizeMacrosChart();
+    });
+    return;
   }
+
   cancelMacrosAsyncLoops();
-  const delay = reason === "resize" ? 120 : 0;
   window.__EH_MACROS_TIMER_ID__ = window.setTimeout(() => {
     window.__EH_MACROS_TIMER_ID__ = null;
     safeRenderMacros(reason, macrosLatestTotals || macros);
-  }, delay);
+  }, 0);
 }
 
 function formatShortLabel(dateValue) {
@@ -615,79 +776,7 @@ async function getDashboardMetrics() {
 }
 
 function renderMacrosInsight(macros) {
-  if (!macrosChartCanvas || typeof Chart === "undefined") return;
-  const totals = macros || { protein: 0, carbs: 0, fat: 0 };
-  const numericTotals = MACRO_ORDER.reduce((acc, key) => {
-    acc[key] = parseMetricNumber(totals[key]);
-    return acc;
-  }, {});
-  const hasData = MACRO_ORDER.some((key) => numericTotals[key] > 0);
-
-  toggleInsightState(macrosEmptyState, macrosChartCanvas, hasData);
-
-  const palette = getInsightPalette();
-  const macroColors = {
-    protein: palette.accentStrong,
-    carbs: "#00c2c2",
-    fat: "#5c8dff",
-  };
-  const trackColor = applyAlpha(palette.grid, hasData ? 0.6 : 0.4);
-  const datasets = MACRO_ORDER.map((key, idx) => {
-    const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
-    const value = Math.max(0, numericTotals[key]);
-    const remaining = Math.max(goal - value, 0);
-    const baseColor = macroColors[key] || palette.accent;
-    const progressColor = hasData ? baseColor : applyAlpha(baseColor, 0.35);
-
-    return {
-      label: `${key.charAt(0).toUpperCase()}${key.slice(1)}`,
-      data: [value, Math.max(remaining, goal * 0.08)],
-      backgroundColor: [progressColor, trackColor],
-      borderWidth: 0,
-      hoverOffset: 4,
-      spacing: 4,
-      weight: 1,
-    };
-  });
-
-  const chartData = {
-    labels: MACRO_ORDER.map(
-      (key) => `${key.charAt(0).toUpperCase()}${key.slice(1)}`
-    ),
-    datasets,
-  };
-
-  const options = {
-    cutout: "38%",
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (ctx) => {
-            const key = MACRO_ORDER[ctx.datasetIndex];
-            const value = numericTotals[key] || 0;
-            const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
-            const pct = Math.round((value / goal) * 100);
-            return `${ctx.dataset.label}: ${value.toFixed(1)}g (${pct}% of ${goal}g)`;
-          },
-        },
-      },
-    },
-    animation: {
-      duration: 240,
-    },
-  };
-
-  resetChartInstance(macrosChart, macrosChartCanvas);
-  macrosChart = new Chart(macrosChartCanvas, {
-    type: "doughnut",
-    data: chartData,
-    options,
-  });
-
-  renderMacrosLegend(macroColors, numericTotals);
+  updateMacrosData(macros);
 }
 
 function ensureMacrosLegend() {
