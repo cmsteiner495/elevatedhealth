@@ -94,6 +94,8 @@ import {
   showToast,
   maybeVibrate,
 } from "./ui.js";
+import { subscribe, getState as getStoreState, setMeals, setWorkouts } from "./ehStore.js";
+import { computeDashboardModel } from "./selectors.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -127,6 +129,8 @@ let macrosRingSvg = null;
 let macrosRingLayers = {};
 let macrosRingTextValue = null;
 let macrosRingTextLabel = null;
+let dashboardUnsubscribe = null;
+let latestDashboardModel = null;
 let isResizingMacrosRing = false;
 let insightsRenderLock = false;
 let insightsRenderQueued = false;
@@ -575,118 +579,9 @@ async function calculateWorkoutStreak() {
 }
 
 async function getDashboardMetrics() {
-  const labels = buildDateWindow();
-  const today = getTodayDate();
-  const startDate = labels[0];
-  const endDate = labels[labels.length - 1];
-
-  const filterByFamily = (items = []) =>
-    currentFamilyId
-      ? items.filter(
-          (item) =>
-            !item.family_group_id || item.family_group_id === currentFamilyId
-        )
-      : items;
-
-  const localMeals = filterByFamily(getMeals());
-  const localWorkouts = filterByFamily(getWorkouts());
-
-  let remoteMeals = [];
-  let remoteWorkouts = [];
-
-  if (currentFamilyId) {
-    try {
-      const [mealsResult, workoutsResult] = await Promise.all([
-        supabase
-          .from("family_meals")
-          .select("*")
-          .eq("family_group_id", currentFamilyId)
-          .gte("meal_date", startDate)
-          .lte("meal_date", endDate),
-        supabase
-          .from("family_workouts")
-          .select("*")
-          .eq("family_group_id", currentFamilyId)
-          .gte("workout_date", startDate)
-          .lte("workout_date", endDate),
-      ]);
-
-      if (!mealsResult.error && mealsResult.data) {
-        remoteMeals = mealsResult.data;
-      } else if (mealsResult.error) {
-        console.error("Error loading meals for insights", mealsResult.error);
-      }
-
-      if (!workoutsResult.error && workoutsResult.data) {
-        remoteWorkouts = workoutsResult.data;
-      } else if (workoutsResult.error) {
-        console.error("Error loading workouts for insights", workoutsResult.error);
-      }
-    } catch (err) {
-      console.error("Error building dashboard metrics", err);
-    }
-  }
-
-  const meals = mergeEntries(
-    filterByFamily(localMeals),
-    filterByFamily(remoteMeals),
-    (meal) =>
-      meal.id ||
-      `${normalizeLogDate(meal.meal_date || meal.date)}:${
-        meal.title || ""
-      }:${meal.meal_type || meal.mealType || ""}`
-  );
-
-  const workouts = mergeEntries(
-    filterByFamily(localWorkouts),
-    filterByFamily(remoteWorkouts),
-    (workout) =>
-      workout.id ||
-      `${normalizeLogDate(workout.workout_date || workout.date)}:${
-        workout.title || ""
-      }:${workout.workout_type || workout.type || ""}`
-  );
-
-  const macrosToday = { protein: 0, carbs: 0, fat: 0 };
-  const caloriesByDate = Object.fromEntries(labels.map((date) => [date, 0]));
-  const workoutsByDate = Object.fromEntries(labels.map((date) => [date, 0]));
-
-  meals.forEach((meal) => {
-    const date = normalizeLogDate(meal.meal_date || meal.date);
-    if (!date) return;
-
-    if (caloriesByDate[date] !== undefined) {
-      const calories = parseMetricNumber(
-        meal.calories ?? meal.nutrition?.calories
-      );
-      caloriesByDate[date] += calories;
-    }
-
-    if (date === today) {
-      macrosToday.protein += parseMetricNumber(
-        meal.protein ?? meal.nutrition?.protein
-      );
-      macrosToday.carbs += parseMetricNumber(
-        meal.carbs ?? meal.nutrition?.carbs
-      );
-      macrosToday.fat += parseMetricNumber(meal.fat ?? meal.nutrition?.fat);
-    }
-  });
-
-  workouts.forEach((workout) => {
-    const date = normalizeLogDate(workout.workout_date || workout.date);
-    if (!date) return;
-    if (workoutsByDate[date] !== undefined) {
-      workoutsByDate[date] += 1;
-    }
-  });
-
-  return {
-    labels,
-    macrosToday,
-    calories7Days: labels.map((date) => caloriesByDate[date] || 0),
-    workouts7Days: labels.map((date) => workoutsByDate[date] || 0),
-  };
+  const metrics = computeDashboardModel(getStoreState());
+  latestDashboardModel = metrics;
+  return metrics;
 }
 
 function renderMacrosInsight(macros) {
@@ -863,10 +758,19 @@ function renderWorkoutsInsight(labels, workouts) {
 
 async function renderInsights(reason = "manual") {
   if (!insightMacrosCard) return;
-  const metrics = await getDashboardMetrics();
+  const metrics = latestDashboardModel || (await getDashboardMetrics());
   const labels = metrics.labels || buildDateWindow();
   macrosLatestTotals = metrics.macrosToday;
-
+  const caloriesToday =
+    labels.length && Array.isArray(metrics.calories7Days)
+      ? metrics.calories7Days[labels.length - 1] || 0
+      : 0;
+  const totals = metrics.macrosToday || {};
+  console.log(
+    `[EH DASH] render totals: cal=${caloriesToday} protein=${totals.protein || 0} carbs=${
+      totals.carbs || 0
+    } fat=${totals.fat || 0}`
+  );
   updateMacrosRing(metrics.macrosToday);
   if (reason === "resize") {
     resizeMacrosRing();
@@ -914,6 +818,13 @@ function initDashboardInsights() {
   window[DASHBOARD_CHARTS_INIT_FLAG] = true;
 
   bindInsightCards();
+
+  if (!dashboardUnsubscribe) {
+    dashboardUnsubscribe = subscribe((nextState) => {
+      latestDashboardModel = computeDashboardModel(nextState);
+      renderInsights("store-update");
+    });
+  }
 
   const handleDataChanged = (event) => {
     scheduleInsightsRender("data-change");
@@ -2251,6 +2162,8 @@ if (logoutButton) {
     await supabase.auth.signOut();
     setCurrentUser(null);
     setCurrentFamilyId(null);
+    setMeals([], { reason: "logout" });
+    setWorkouts([], { reason: "logout" });
     setGroceryFamilyState();
     setMealsFamilyState();
     setWorkoutsFamilyState();
