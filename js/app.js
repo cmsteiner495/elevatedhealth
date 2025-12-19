@@ -473,14 +473,11 @@ function updateMacrosRing(macros) {
     numericTotals.protein + numericTotals.carbs + numericTotals.fat
   );
   if (macrosRingTextValue) {
-    macrosRingTextValue.textContent = hasData ? `${totalValue}g` : "No data";
-    macrosRingTextValue.setAttribute(
-      "fill",
-      hasData ? "var(--text-primary)" : palette.textMuted
-    );
+    macrosRingTextValue.textContent = hasData ? `${totalValue}g` : "";
+    macrosRingTextValue.setAttribute("fill", hasData ? "var(--text-primary)" : palette.textMuted);
   }
   if (macrosRingTextLabel) {
-    macrosRingTextLabel.textContent = hasData ? "Macros Today" : "Start logging to see macros";
+    macrosRingTextLabel.textContent = hasData ? "Macros Today" : "";
     macrosRingTextLabel.setAttribute("fill", palette.textMuted);
   }
 

@@ -758,7 +758,8 @@ body {
   display: grid;
   gap: var(--space-12);
   grid-template-columns: 1fr;
-  align-items: start;
+  align-items: stretch;
+  grid-auto-rows: minmax(260px, auto);
 }
 
 @media (min-width: 900px) {
@@ -777,6 +778,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 260px;
+  height: 100%;
   transition: transform var(--transition-fast),
     box-shadow var(--transition-fast),
     border-color var(--transition-fast);
@@ -803,6 +805,7 @@ body {
   padding: var(--space-12);
   flex-direction: column;
   overflow: hidden;
+  width: 100%;
 }
 
 .insight-canvas {
@@ -810,6 +813,7 @@ body {
   height: 220px;
   display: block;
   z-index: 1;
+  flex: 1;
 }
 
 .macros-legend {
@@ -836,18 +840,6 @@ body {
   border-radius: 999px;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.16);
   flex-shrink: 0;
-}
-
-.insight-empty {
-  text-align: left;
-  width: 100%;
-  color: var(--text-muted);
-  font-size: var(--font-size-sm);
-  position: absolute;
-  left: var(--space-12);
-  right: var(--space-12);
-  top: var(--space-12);
-  pointer-events: none;
 }
 
 .insight-canvas.insight-canvas-empty {
