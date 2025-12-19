@@ -847,6 +847,17 @@ body {
   filter: saturate(0.78);
 }
 
+.eh-debug-totals {
+  width: 100%;
+  margin-top: var(--space-8);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  opacity: 0.82;
+  text-align: center;
+  pointer-events: none;
+}
+
 .streak-card .card-header {
   align-items: center;
 }
