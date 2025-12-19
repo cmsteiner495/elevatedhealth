@@ -1,5 +1,4 @@
 // js/logDiary.js
-import { supabase } from "./supabaseClient.js";
 import {
   diaryPrevDayBtn,
   diaryNextDayBtn,
@@ -31,7 +30,7 @@ import {
   setSelectedDate,
   toLocalDateString,
 } from "./state.js";
-import { fetchMealsByDate, logMealToDiary, removeStoredMeal } from "./meals.js";
+import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
 import { fetchWorkoutsByDate } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 
@@ -468,25 +467,34 @@ function handleAddButtons() {
 // Remove a meal from the log and refresh UI without a full reload.
 async function removeMealFromDiary(mealId, entryEl) {
   if (!mealId) return;
+  const removeBtn = entryEl?.querySelector?.(".diary-entry-remove");
+  if (removeBtn) {
+    removeBtn.disabled = true;
+    removeBtn.setAttribute("aria-busy", "true");
+  }
   if (entryEl) {
     entryEl.classList.add("diary-entry-removing");
   }
 
-  const { error } = await supabase
-    .from("family_meals")
-    .delete()
-    .eq("id", mealId);
+  const { error } = await deleteMealById(mealId, {
+    date: entryEl?.dataset?.mealDate || selectedDate,
+    reason: "deleteMeal:diary",
+  });
 
   if (error) {
     console.error("Error removing meal from diary:", error);
     if (entryEl) {
       entryEl.classList.remove("diary-entry-removing");
     }
+    if (removeBtn) {
+      removeBtn.disabled = false;
+      removeBtn.removeAttribute("aria-busy");
+    }
+    showToast("Couldn't delete meal. Try again.");
     return;
   }
 
-  const removedMeal = currentDiaryMeals.find((meal) => meal.id === mealId);
-  removeStoredMeal(currentFamilyId, mealId);
+  const removedMeal = currentDiaryMeals.find((meal) => String(meal.id) === String(mealId));
   currentDiaryMeals = currentDiaryMeals.filter((meal) => meal.id !== mealId);
 
   const updateUI = () => {
