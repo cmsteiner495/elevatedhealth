@@ -13,43 +13,47 @@ import {
   workoutsMessage,
   workoutsList,
 } from "./dom.js";
-import { currentUser, currentFamilyId } from "./state.js";
+import { currentUser, currentFamilyId, toLocalDateString } from "./state.js";
 import { maybeVibrate, showToast } from "./ui.js";
+import { readWorkoutsStore, saveWorkouts } from "./dataAdapter.js";
 
-const WORKOUT_STORAGE_KEY = "eh:workouts";
 let workoutsCache = [];
 
 function readWorkoutStore() {
-  if (typeof localStorage === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(WORKOUT_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (err) {
-    console.warn("Could not read workouts from storage", err);
-    return {};
+  const snapshot = readWorkoutsStore();
+  if (
+    snapshot.shape === "map" &&
+    snapshot.parsed &&
+    typeof snapshot.parsed === "object" &&
+    !Array.isArray(snapshot.parsed)
+  ) {
+    return { ...snapshot.parsed };
   }
+
+  const list = Array.isArray(snapshot.parsed) ? snapshot.parsed : [];
+  return { unscoped: list };
 }
 
 function writeWorkoutStore(store) {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(WORKOUT_STORAGE_KEY, JSON.stringify(store));
-  } catch (err) {
-    console.warn("Could not persist workouts locally", err);
-  }
+  saveWorkouts(store || {});
 }
 
 export function getStoredWorkouts(familyId) {
-  if (!familyId) return [];
+  const targetKey = familyId || "unscoped";
   const store = readWorkoutStore();
-  const list = store[familyId] || [];
-  return Array.isArray(list) ? list : [];
+  const list = store[targetKey] || store.unscoped || [];
+  const normalized = Array.isArray(list)
+    ? list
+    : list && typeof list === "object"
+    ? Object.values(list)
+    : [];
+  return normalized.filter(Boolean);
 }
 
 function persistWorkoutsForFamily(familyId, workouts = []) {
-  if (!familyId) return;
+  const targetKey = familyId || "unscoped";
   const store = readWorkoutStore();
-  store[familyId] = Array.isArray(workouts) ? workouts : [];
+  store[targetKey] = Array.isArray(workouts) ? workouts : [];
   writeWorkoutStore(store);
 }
 
@@ -71,27 +75,27 @@ function mergeWorkouts(primary = [], secondary = []) {
 }
 
 function upsertStoredWorkout(workout) {
-  if (!currentFamilyId || !workout) return;
+  if (!workout) return;
   const merged = mergeWorkouts(getStoredWorkouts(currentFamilyId), [workout]);
   persistWorkoutsForFamily(currentFamilyId, merged);
 }
 
 function removeStoredWorkout(workoutId) {
-  if (!currentFamilyId || !workoutId) return;
+  if (!workoutId) return;
   const existing = getStoredWorkouts(currentFamilyId);
   const filtered = existing.filter((item) => String(item.id) !== String(workoutId));
   persistWorkoutsForFamily(currentFamilyId, filtered);
 }
 
 export function cacheWorkoutsLocally(familyId, workouts = []) {
-  if (!familyId) return;
-  persistWorkoutsForFamily(familyId, workouts);
+  const targetKey = familyId || "unscoped";
+  persistWorkoutsForFamily(targetKey, workouts);
 }
 
 function announceDataChange(entity, date) {
-  window.dispatchEvent(
-    new CustomEvent("eh:dataChanged", { detail: { entity, date } })
-  );
+  const detail = entity || date ? { source: entity, date } : { source: entity };
+  window.dispatchEvent(new CustomEvent("eh:data-changed", { detail }));
+  window.dispatchEvent(new CustomEvent("eh:dataChanged", { detail }));
 }
 
 export function setWorkoutsFamilyState() {
@@ -113,7 +117,9 @@ export function setWorkoutsFamilyState() {
 }
 
 export async function loadWorkouts() {
-  if (!currentFamilyId || !workoutsList) return;
+  if (!workoutsList) return;
+
+  const familyId = currentFamilyId;
 
   if (workoutsMessage) {
     workoutsMessage.textContent = "";
@@ -121,11 +127,21 @@ export async function loadWorkouts() {
   }
   workoutsList.innerHTML = "<li>Loading workouts...</li>";
 
-  const storedWorkouts = getStoredWorkouts(currentFamilyId);
+  const storedWorkouts = getStoredWorkouts(familyId);
+  if (!familyId) {
+    workoutsCache = storedWorkouts;
+    renderWorkouts();
+    if (workoutsMessage && storedWorkouts.length) {
+      workoutsMessage.textContent = "Saved locally (link a family to sync).";
+      workoutsMessage.style.color = "var(--text-muted)";
+    }
+    return;
+  }
+
   const { data, error } = await supabase
     .from("family_workouts")
     .select("*")
-    .eq("family_group_id", currentFamilyId)
+    .eq("family_group_id", familyId)
     .order("workout_date", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -144,24 +160,27 @@ export async function loadWorkouts() {
   } else {
     const remoteWorkouts = data || [];
     const merged = mergeWorkouts(remoteWorkouts, storedWorkouts);
-    persistWorkoutsForFamily(currentFamilyId, merged);
+    persistWorkoutsForFamily(familyId, merged);
     workoutsCache = merged;
     renderWorkouts();
   }
 }
 
 export async function fetchWorkoutsByDate(dateValue) {
-  if (!currentFamilyId || !dateValue) return [];
+  if (!dateValue) return [];
 
-  const storedWorkouts = getStoredWorkouts(currentFamilyId);
+  const familyId = currentFamilyId;
+  const storedWorkouts = getStoredWorkouts(familyId);
   const storedForDate = storedWorkouts.filter(
     (workout) => (workout.workout_date || "") === dateValue
   );
 
+  if (!familyId) return storedForDate;
+
   const { data, error } = await supabase
     .from("family_workouts")
     .select("*")
-    .eq("family_group_id", currentFamilyId)
+    .eq("family_group_id", familyId)
     .eq("workout_date", dateValue)
     .order("workout_date", { ascending: true })
     .order("created_at", { ascending: true });
@@ -172,7 +191,7 @@ export async function fetchWorkoutsByDate(dateValue) {
   }
 
   const merged = mergeWorkouts(data || [], storedWorkouts);
-  persistWorkoutsForFamily(currentFamilyId, merged);
+  persistWorkoutsForFamily(familyId, merged);
   return merged.filter((workout) => (workout.workout_date || "") === dateValue);
 }
 
@@ -280,54 +299,102 @@ if (workoutsForm) {
       workoutsMessage.style.color = "";
     }
 
-    if (!currentUser || !currentFamilyId) {
+    const normalizeDateValue = (value) => {
+      if (!value) return "";
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return toLocalDateString(parsed);
+      }
+      return value;
+    };
+
+    const dateValue = normalizeDateValue(
+      workoutDateInput.value || new Date().toISOString()
+    );
+    const title = workoutTitleInput.value.trim();
+    const workoutType = workoutTypeInput.value;
+    const difficulty = workoutDifficultyInput.value || null;
+    const durationRaw = workoutDurationInput.value;
+    const parsedDuration = durationRaw ? parseInt(durationRaw, 10) : null;
+    const durationMin = Number.isFinite(parsedDuration) ? parsedDuration : null;
+    const notes = workoutNotesInput.value.trim();
+
+    if (!dateValue || !title || !workoutType) {
       if (workoutsMessage) {
-        workoutsMessage.textContent =
-          "You need a family group to add workouts.";
+        workoutsMessage.textContent = "Please add a title, type, and date.";
         workoutsMessage.style.color = "red";
       }
       return;
     }
 
-    const dateValue = workoutDateInput.value;
-    const title = workoutTitleInput.value.trim();
-    const workoutType = workoutTypeInput.value;
-    const difficulty = workoutDifficultyInput.value || null;
-    const durationRaw = workoutDurationInput.value;
-    const durationMin = durationRaw ? Number(durationRaw) : null;
-    const notes = workoutNotesInput.value.trim();
-
-    if (!dateValue || !title || !workoutType) return;
-
-    const { error } = await supabase.from("family_workouts").insert({
-      family_group_id: currentFamilyId,
-      added_by: currentUser.id,
+    const payload = {
+      family_group_id: currentFamilyId || null,
+      added_by: currentUser?.id || null,
+      user_id: currentUser?.id || null,
       workout_date: dateValue,
       title,
       workout_type: workoutType,
       difficulty,
       duration_min: durationMin,
       notes: notes || null,
-    });
+    };
 
-    if (error) {
-      console.error("Error adding workout:", error);
-      if (workoutsMessage) {
-        workoutsMessage.textContent = "Error adding workout.";
-        workoutsMessage.style.color = "red";
+    let persistedWorkout = null;
+
+    if (currentFamilyId && currentUser) {
+      const { data, error } = await supabase
+        .from("family_workouts")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error adding workout:", error);
+        if (error?.message) console.error("Workout API message:", error.message);
+        if (error?.details)
+          console.error("Workout API details:", error.details);
+        if (error?.hint) console.error("Workout API hint:", error.hint);
+        if (error?.status) console.error("Workout API status:", error.status);
+
+        if (workoutsMessage) {
+          workoutsMessage.textContent = "Saved locally (sync coming soon).";
+          workoutsMessage.style.color = "var(--text-muted)";
+        }
+      } else {
+        persistedWorkout = data;
       }
-      return;
     }
 
+    const localWorkout =
+      persistedWorkout ||
+      {
+        ...payload,
+        id: `local-${Date.now()}`,
+        created_at: new Date().toISOString(),
+      };
+
+    workoutsCache = mergeWorkouts(workoutsCache, [localWorkout]);
+    upsertStoredWorkout(localWorkout);
+    renderWorkouts();
     workoutsForm.reset();
-    await loadWorkouts();
+
+    if (persistedWorkout) {
+      await loadWorkouts();
+      showToast("Exercise logged");
+    } else {
+      showToast("Saved locally (sync coming soon)");
+      if (workoutsMessage) {
+        workoutsMessage.textContent = "Saved locally (sync coming soon).";
+        workoutsMessage.style.color = "var(--text-muted)";
+      }
+    }
+
     document.dispatchEvent(
       new CustomEvent("diary:refresh", {
         detail: { date: dateValue, entity: "exercise" },
       })
     );
-    announceDataChange("workout", dateValue);
-    showToast("Exercise logged");
+    announceDataChange("workouts", dateValue);
     maybeVibrate([12]);
   });
 }
@@ -365,7 +432,7 @@ if (workoutsList) {
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
-      announceDataChange("workout");
+      announceDataChange("workouts");
       return;
     }
 
@@ -388,7 +455,7 @@ if (workoutsList) {
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
-      announceDataChange("workout");
+      announceDataChange("workouts");
       return;
     }
   });

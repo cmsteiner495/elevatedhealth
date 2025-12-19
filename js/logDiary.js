@@ -480,6 +480,7 @@ async function removeMealFromDiary(mealId, entryEl) {
     return;
   }
 
+  const removedMeal = currentDiaryMeals.find((meal) => meal.id === mealId);
   removeStoredMeal(currentFamilyId, mealId);
   currentDiaryMeals = currentDiaryMeals.filter((meal) => meal.id !== mealId);
 
@@ -503,6 +504,14 @@ async function removeMealFromDiary(mealId, entryEl) {
   } else {
     updateUI();
   }
+
+  const dateDetail = removedMeal?.meal_date || selectedDate;
+  window.dispatchEvent(
+    new CustomEvent("eh:data-changed", { detail: { source: "meals", date: dateDetail } })
+  );
+  window.dispatchEvent(
+    new CustomEvent("eh:dataChanged", { detail: { source: "meals", date: dateDetail } })
+  );
 }
 
 function attachDiaryListHandlers() {
