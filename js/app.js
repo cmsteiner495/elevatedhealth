@@ -1,5 +1,6 @@
 // js/app.js
 import { supabase } from "./supabaseClient.js";
+import { getMeals, getWorkouts } from "./dataAdapter.js";
 import {
   authSection,
   appSection,
@@ -115,6 +116,7 @@ let isQuickSheetOpen = false;
 let macrosChart;
 let caloriesChart;
 let workoutsChart;
+let macrosLegendEl;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 const THEME_STORAGE_KEY = "eh-theme";
@@ -218,6 +220,22 @@ function applyAlpha(color, alpha) {
   return color;
 }
 
+function mergeEntries(primary = [], secondary = [], keyBuilder) {
+  const map = new Map();
+  const buildKey = keyBuilder || ((item) => item?.id);
+  const add = (item, priority = false) => {
+    if (!item) return;
+    const key = buildKey(item) || `k-${map.size}`;
+    const existing = map.get(key) || {};
+    map.set(key, priority ? { ...existing, ...item } : { ...item, ...existing });
+  };
+
+  primary.forEach((item) => add(item, false));
+  secondary.forEach((item) => add(item, true));
+
+  return Array.from(map.values());
+}
+
 function buildDateWindow() {
   const today = getTodayDate();
   const dates = [];
@@ -249,11 +267,6 @@ function toggleInsightState(emptyEl, canvasEl, hasData) {
     canvasEl.style.display = "block";
     canvasEl.classList.toggle("insight-canvas-empty", !hasData);
   }
-}
-
-function destroyChart(chartRef) {
-  if (chartRef) chartRef.destroy();
-  return null;
 }
 
 function formatShortLabel(dateValue) {
@@ -318,89 +331,117 @@ async function calculateWorkoutStreak() {
 
 async function getDashboardMetrics() {
   const labels = buildDateWindow();
+  const today = getTodayDate();
+  const startDate = labels[0];
+  const endDate = labels[labels.length - 1];
 
-  if (!currentFamilyId) {
-    return {
-      labels,
-      macrosToday: { protein: 0, carbs: 0, fat: 0 },
-      calories7Days: labels.map(() => 0),
-      workouts7Days: labels.map(() => 0),
-    };
+  const filterByFamily = (items = []) =>
+    currentFamilyId
+      ? items.filter(
+          (item) =>
+            !item.family_group_id || item.family_group_id === currentFamilyId
+        )
+      : items;
+
+  const localMeals = filterByFamily(getMeals());
+  const localWorkouts = filterByFamily(getWorkouts());
+
+  let remoteMeals = [];
+  let remoteWorkouts = [];
+
+  if (currentFamilyId) {
+    try {
+      const [mealsResult, workoutsResult] = await Promise.all([
+        supabase
+          .from("family_meals")
+          .select("*")
+          .eq("family_group_id", currentFamilyId)
+          .gte("meal_date", startDate)
+          .lte("meal_date", endDate),
+        supabase
+          .from("family_workouts")
+          .select("*")
+          .eq("family_group_id", currentFamilyId)
+          .gte("workout_date", startDate)
+          .lte("workout_date", endDate),
+      ]);
+
+      if (!mealsResult.error && mealsResult.data) {
+        remoteMeals = mealsResult.data;
+      } else if (mealsResult.error) {
+        console.error("Error loading meals for insights", mealsResult.error);
+      }
+
+      if (!workoutsResult.error && workoutsResult.data) {
+        remoteWorkouts = workoutsResult.data;
+      } else if (workoutsResult.error) {
+        console.error("Error loading workouts for insights", workoutsResult.error);
+      }
+    } catch (err) {
+      console.error("Error building dashboard metrics", err);
+    }
   }
 
-  try {
-    const startDate = labels[0];
-    const endDate = labels[labels.length - 1];
+  const meals = mergeEntries(
+    filterByFamily(localMeals),
+    filterByFamily(remoteMeals),
+    (meal) =>
+      meal.id ||
+      `${normalizeLogDate(meal.meal_date || meal.date)}:${
+        meal.title || ""
+      }:${meal.meal_type || meal.mealType || ""}`
+  );
 
-    const [mealsResult, workoutsResult] = await Promise.all([
-      supabase
-        .from("family_meals")
-        .select("*")
-        .eq("family_group_id", currentFamilyId)
-        .gte("meal_date", startDate)
-        .lte("meal_date", endDate),
-      supabase
-        .from("family_workouts")
-        .select("*")
-        .eq("family_group_id", currentFamilyId)
-        .gte("workout_date", startDate)
-        .lte("workout_date", endDate),
-    ]);
+  const workouts = mergeEntries(
+    filterByFamily(localWorkouts),
+    filterByFamily(remoteWorkouts),
+    (workout) =>
+      workout.id ||
+      `${normalizeLogDate(workout.workout_date || workout.date)}:${
+        workout.title || ""
+      }:${workout.workout_type || workout.type || ""}`
+  );
 
-    const meals = mealsResult.data || [];
-    const workouts = workoutsResult.data || [];
+  const macrosToday = { protein: 0, carbs: 0, fat: 0 };
+  const caloriesByDate = Object.fromEntries(labels.map((date) => [date, 0]));
+  const workoutsByDate = Object.fromEntries(labels.map((date) => [date, 0]));
 
-    const macrosToday = { protein: 0, carbs: 0, fat: 0 };
-    const caloriesByDate = Object.fromEntries(labels.map((date) => [date, 0]));
-    const workoutsByDate = Object.fromEntries(labels.map((date) => [date, 0]));
+  meals.forEach((meal) => {
+    const date = normalizeLogDate(meal.meal_date || meal.date);
+    if (!date) return;
 
-    meals.forEach((meal) => {
-      const date = normalizeLogDate(meal.meal_date || meal.date);
-      if (!date) return;
-
+    if (caloriesByDate[date] !== undefined) {
       const calories = parseMetricNumber(
         meal.calories ?? meal.nutrition?.calories
       );
-      if (caloriesByDate[date] !== undefined) {
-        caloriesByDate[date] += calories;
-      }
+      caloriesByDate[date] += calories;
+    }
 
-      if (date === labels[labels.length - 1]) {
-        macrosToday.protein += parseMetricNumber(
-          meal.protein ?? meal.nutrition?.protein
-        );
-        macrosToday.carbs += parseMetricNumber(
-          meal.carbs ?? meal.nutrition?.carbs
-        );
-        macrosToday.fat += parseMetricNumber(
-          meal.fat ?? meal.nutrition?.fat
-        );
-      }
-    });
+    if (date === today) {
+      macrosToday.protein += parseMetricNumber(
+        meal.protein ?? meal.nutrition?.protein
+      );
+      macrosToday.carbs += parseMetricNumber(
+        meal.carbs ?? meal.nutrition?.carbs
+      );
+      macrosToday.fat += parseMetricNumber(meal.fat ?? meal.nutrition?.fat);
+    }
+  });
 
-    workouts.forEach((workout) => {
-      const date = normalizeLogDate(workout.workout_date || workout.date);
-      if (!date) return;
-      if (workoutsByDate[date] !== undefined) {
-        workoutsByDate[date] += 1;
-      }
-    });
+  workouts.forEach((workout) => {
+    const date = normalizeLogDate(workout.workout_date || workout.date);
+    if (!date) return;
+    if (workoutsByDate[date] !== undefined) {
+      workoutsByDate[date] += 1;
+    }
+  });
 
-    return {
-      labels,
-      macrosToday,
-      calories7Days: labels.map((date) => caloriesByDate[date] || 0),
-      workouts7Days: labels.map((date) => workoutsByDate[date] || 0),
-    };
-  } catch (err) {
-    console.error("Error building dashboard metrics", err);
-    return {
-      labels,
-      macrosToday: { protein: 0, carbs: 0, fat: 0 },
-      calories7Days: labels.map(() => 0),
-      workouts7Days: labels.map(() => 0),
-    };
-  }
+  return {
+    labels,
+    macrosToday,
+    calories7Days: labels.map((date) => caloriesByDate[date] || 0),
+    workouts7Days: labels.map((date) => workoutsByDate[date] || 0),
+  };
 }
 
 function renderMacrosInsight(macros) {
@@ -417,8 +458,8 @@ function renderMacrosInsight(macros) {
   const palette = getInsightPalette();
   const macroColors = {
     protein: palette.accentStrong,
-    carbs: palette.accent,
-    fat: palette.accentBlue,
+    carbs: "#00c2c2",
+    fat: "#5c8dff",
   };
   const trackColor = applyAlpha(palette.grid, hasData ? 0.6 : 0.4);
   const datasets = MACRO_ORDER.map((key, idx) => {
@@ -439,43 +480,85 @@ function renderMacrosInsight(macros) {
     };
   });
 
-  macrosChart = destroyChart(macrosChart);
-  macrosChart = new Chart(macrosChartCanvas, {
-    type: "doughnut",
-    data: {
-      labels: MACRO_ORDER.map(
-        (key) => `${key.charAt(0).toUpperCase()}${key.slice(1)}`
-      ),
-      datasets,
-    },
-    options: {
-      cutout: "38%",
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: "bottom",
-          labels: {
-            color: palette.textMuted,
-            boxWidth: 10,
-          },
-        },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const key = MACRO_ORDER[ctx.datasetIndex];
-              const value = numericTotals[key] || 0;
-              const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
-              const pct = Math.round((value / goal) * 100);
-              return `${ctx.dataset.label}: ${value.toFixed(1)}g (${pct}% of ${goal}g)`;
-            },
+  const chartData = {
+    labels: MACRO_ORDER.map(
+      (key) => `${key.charAt(0).toUpperCase()}${key.slice(1)}`
+    ),
+    datasets,
+  };
+
+  const options = {
+    cutout: "38%",
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const key = MACRO_ORDER[ctx.datasetIndex];
+            const value = numericTotals[key] || 0;
+            const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
+            const pct = Math.round((value / goal) * 100);
+            return `${ctx.dataset.label}: ${value.toFixed(1)}g (${pct}% of ${goal}g)`;
           },
         },
       },
-      animation: {
-        duration: 280,
-      },
     },
+    animation: {
+      duration: 240,
+    },
+  };
+
+  if (!macrosChart) {
+    macrosChart = new Chart(macrosChartCanvas, {
+      type: "doughnut",
+      data: chartData,
+      options,
+    });
+  } else {
+    macrosChart.data.labels = chartData.labels;
+    macrosChart.data.datasets = chartData.datasets;
+    macrosChart.options = options;
+    macrosChart.update();
+  }
+
+  renderMacrosLegend(macroColors, numericTotals);
+}
+
+function ensureMacrosLegend() {
+  if (macrosLegendEl) return macrosLegendEl;
+  const container = insightMacrosCard?.querySelector(".insight-body");
+  if (!container) return null;
+  macrosLegendEl = document.createElement("div");
+  macrosLegendEl.className = "macros-legend";
+  container.appendChild(macrosLegendEl);
+  return macrosLegendEl;
+}
+
+function renderMacrosLegend(colors, totals) {
+  const legend = ensureMacrosLegend();
+  if (!legend) return;
+  legend.innerHTML = "";
+
+  MACRO_ORDER.forEach((key) => {
+    const item = document.createElement("div");
+    item.className = "macros-legend-item";
+
+    const dot = document.createElement("span");
+    dot.className = "macros-legend-dot";
+    dot.style.backgroundColor = colors[key] || "var(--accent)";
+
+    const label = document.createElement("span");
+    const value = parseMetricNumber(totals[key]);
+    const valueLabel = Number.isFinite(value) && value > 0 ? ` · ${value}g` : "";
+    label.textContent = `${
+      key.charAt(0).toUpperCase() + key.slice(1)
+    }${valueLabel}`;
+
+    item.appendChild(dot);
+    item.appendChild(label);
+    legend.appendChild(item);
   });
 }
 
@@ -486,62 +569,71 @@ function renderCaloriesInsight(labels, calories) {
   const hasData = dataset.some((v) => v > 0);
   const tooltipValues = dataset;
 
-  const visibleData = hasData ? dataset : labels.map(() => 0.2);
+  const visibleData = hasData ? dataset : labels.map(() => 0);
 
   toggleInsightState(caloriesEmptyState, caloriesChartCanvas, hasData);
 
   const palette = getInsightPalette();
   const labelSet = labels.map((label) => formatShortLabel(label));
-  caloriesChart = destroyChart(caloriesChart);
-  caloriesChart = new Chart(caloriesChartCanvas, {
-    type: "line",
-    data: {
-      labels: labelSet,
-      datasets: [
-        {
-          label: "Calories",
-          data: visibleData,
-          borderColor: hasData
-            ? palette.accent
-            : applyAlpha(palette.grid, 0.7),
-          backgroundColor: hasData
-            ? "rgba(0, 163, 163, 0.14)"
-            : applyAlpha(palette.grid, 0.14),
-          tension: 0.35,
-          pointRadius: hasData ? 3 : 0,
-          pointHoverRadius: hasData ? 4 : 0,
-          fill: true,
-        },
-      ],
-    },
-    options: {
-      maintainAspectRatio: false,
-      responsive: true,
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: palette.textMuted },
-        },
-        y: {
-          beginAtZero: true,
-          suggestedMax: hasData ? undefined : 1,
-          grid: { color: "rgba(255,255,255,0.06)" },
-          ticks: { color: palette.textMuted },
-        },
+
+  const chartData = {
+    labels: labelSet,
+    datasets: [
+      {
+        label: "Calories",
+        data: visibleData,
+        borderColor: hasData ? palette.accent : applyAlpha(palette.grid, 0.7),
+        backgroundColor: hasData
+          ? "rgba(0, 163, 163, 0.14)"
+          : applyAlpha(palette.grid, 0.14),
+        tension: 0.35,
+        pointRadius: hasData ? 3 : 2,
+        pointHoverRadius: hasData ? 4 : 2,
+        fill: true,
       },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} kcal`,
-          },
-        },
+    ],
+  };
+
+  const options = {
+    maintainAspectRatio: false,
+    responsive: true,
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: palette.textMuted },
       },
-      animation: {
-        duration: 260,
+      y: {
+        beginAtZero: true,
+        suggestedMax: hasData ? undefined : 1,
+        grid: { color: "rgba(255,255,255,0.06)" },
+        ticks: { color: palette.textMuted },
       },
     },
-  });
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} kcal`,
+        },
+      },
+    },
+    animation: {
+      duration: 220,
+    },
+  };
+
+  if (!caloriesChart) {
+    caloriesChart = new Chart(caloriesChartCanvas, {
+      type: "line",
+      data: chartData,
+      options,
+    });
+  } else {
+    caloriesChart.data.labels = chartData.labels;
+    caloriesChart.data.datasets = chartData.datasets;
+    caloriesChart.options = options;
+    caloriesChart.update();
+  }
 }
 
 function renderWorkoutsInsight(labels, workouts) {
@@ -551,60 +643,70 @@ function renderWorkoutsInsight(labels, workouts) {
   const hasData = dataset.some((v) => v > 0);
   const tooltipValues = dataset;
 
-  const visibleData = hasData ? dataset : labels.map(() => 0.4);
+  const visibleData = hasData ? dataset : labels.map(() => 0);
 
   toggleInsightState(workoutsEmptyState, workoutsChartCanvas, hasData);
 
   const palette = getInsightPalette();
   const labelSet = labels.map((label) => formatShortLabel(label));
-  workoutsChart = destroyChart(workoutsChart);
-  workoutsChart = new Chart(workoutsChartCanvas, {
-    type: "bar",
-    data: {
-      labels: labelSet,
-      datasets: [
-        {
-          label: "Sessions",
-          data: visibleData,
-          backgroundColor: hasData
-            ? palette.accentStrong
-            : applyAlpha(palette.grid, 0.65),
-          borderRadius: 10,
-          minBarLength: hasData ? undefined : 6,
-        },
-      ],
-    },
-    options: {
-      maintainAspectRatio: false,
-      responsive: true,
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: palette.textMuted },
-        },
-        y: {
-          beginAtZero: true,
-          suggestedMax: hasData ? undefined : 1,
-          grid: { color: "rgba(255,255,255,0.06)" },
-          ticks: { color: palette.textMuted, precision: 0 },
-        },
+
+  const chartData = {
+    labels: labelSet,
+    datasets: [
+      {
+        label: "Sessions",
+        data: visibleData,
+        backgroundColor: hasData
+          ? palette.accentStrong
+          : applyAlpha(palette.grid, 0.65),
+        borderRadius: 10,
       },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} sessions`,
-          },
-        },
+    ],
+  };
+
+  const options = {
+    maintainAspectRatio: false,
+    responsive: true,
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: palette.textMuted },
       },
-      animation: {
-        duration: 240,
+      y: {
+        beginAtZero: true,
+        suggestedMax: hasData ? undefined : 1,
+        grid: { color: "rgba(255,255,255,0.06)" },
+        ticks: { color: palette.textMuted, precision: 0 },
       },
     },
-  });
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} sessions`,
+        },
+      },
+    },
+    animation: {
+      duration: 200,
+    },
+  };
+
+  if (!workoutsChart) {
+    workoutsChart = new Chart(workoutsChartCanvas, {
+      type: "bar",
+      data: chartData,
+      options,
+    });
+  } else {
+    workoutsChart.data.labels = chartData.labels;
+    workoutsChart.data.datasets = chartData.datasets;
+    workoutsChart.options = options;
+    workoutsChart.update();
+  }
 }
 
-async function refreshDashboardInsights() {
+async function renderInsights() {
   if (!insightMacrosCard) return;
   const metrics = await getDashboardMetrics();
   const labels = metrics.labels || buildDateWindow();
@@ -613,6 +715,8 @@ async function refreshDashboardInsights() {
   renderCaloriesInsight(labels, metrics.calories7Days);
   renderWorkoutsInsight(labels, metrics.workouts7Days);
 }
+
+const refreshDashboardInsights = renderInsights;
 
 function createInitialState() {
   return {
@@ -1403,21 +1507,38 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
 bindInsightCards();
 
 document.addEventListener("family:changed", () => {
-  refreshDashboardInsights();
+  renderInsights();
   calculateWorkoutStreak();
 });
 
 document.addEventListener("diary:refresh", () => {
-  refreshDashboardInsights();
+  renderInsights();
 });
 
-window.addEventListener("eh:dataChanged", (event) => {
-  refreshDashboardInsights();
-  const entity = event?.detail?.entity;
-  if (!entity || entity === "workout") {
+const handleDataChanged = (event) => {
+  renderInsights();
+  const source = event?.detail?.source || event?.detail?.entity;
+  if (!source || source === "workouts" || source === "workout" || source === "all") {
     calculateWorkoutStreak();
   }
+};
+
+window.addEventListener("eh:data-changed", handleDataChanged);
+window.addEventListener("eh:dataChanged", handleDataChanged);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    renderInsights();
+  }
 });
+document.addEventListener("DOMContentLoaded", () => {
+  renderInsights();
+});
+
+window.EH_DEBUG = {
+  getMeals,
+  getWorkouts,
+  renderInsights,
+};
 
 if (dashboardAiShortcut) {
   dashboardAiShortcut.addEventListener("click", async () => {

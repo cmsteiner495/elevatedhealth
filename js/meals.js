@@ -19,34 +19,37 @@ import {
   setSelectedDate,
 } from "./state.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
-
-const MEALS_STORAGE_KEY = "eh:meals";
+import { readMealsStore, saveMeals } from "./dataAdapter.js";
 
 function readMealStore() {
-  if (typeof localStorage === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(MEALS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (err) {
-    console.warn("Could not read meals from storage", err);
-    return {};
+  const snapshot = readMealsStore();
+  if (
+    snapshot.shape === "map" &&
+    snapshot.parsed &&
+    typeof snapshot.parsed === "object" &&
+    !Array.isArray(snapshot.parsed)
+  ) {
+    return { ...snapshot.parsed };
   }
+
+  const list = Array.isArray(snapshot.parsed) ? snapshot.parsed : [];
+  return { unscoped: list };
 }
 
 function writeMealStore(store) {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(MEALS_STORAGE_KEY, JSON.stringify(store));
-  } catch (err) {
-    console.warn("Could not persist meals locally", err);
-  }
+  saveMeals(store || {});
 }
 
 export function getStoredMeals(familyId) {
   if (!familyId) return [];
   const store = readMealStore();
-  const list = store[familyId] || [];
-  return Array.isArray(list) ? list : [];
+  const list = store[familyId] || store.unscoped || [];
+  const normalized = Array.isArray(list)
+    ? list
+    : list && typeof list === "object"
+    ? Object.values(list)
+    : [];
+  return normalized.filter(Boolean);
 }
 
 function persistMealsForFamily(familyId, meals = []) {
@@ -88,9 +91,10 @@ export function removeStoredMeal(familyId, mealId) {
   persistMealsForFamily(familyId, filtered);
 }
 
-function announceDataChange(entity, date) {
-  const init = entity || date ? { detail: { entity, date } } : {};
-  window.dispatchEvent(new CustomEvent("eh:dataChanged", init));
+function announceDataChange(source, date) {
+  const detail = source || date ? { source, date } : { source };
+  window.dispatchEvent(new CustomEvent("eh:data-changed", { detail }));
+  window.dispatchEvent(new CustomEvent("eh:dataChanged", { detail }));
 }
 
 export async function logMealToDiary(meal, options = {}) {
@@ -139,6 +143,7 @@ export async function logMealToDiary(meal, options = {}) {
     meal_type: mealType,
     meal_date: targetDate,
     notes,
+    family_group_id: currentFamilyId,
     added_by: currentUser?.id || null,
     created_at: new Date().toISOString(),
   };
@@ -155,7 +160,7 @@ export async function logMealToDiary(meal, options = {}) {
     );
   }
 
-  announceDataChange("meal", targetDate);
+  announceDataChange("meals", targetDate);
 
   if (!options.skipReload) {
     await loadMeals();
@@ -489,7 +494,7 @@ if (mealsForm) {
         detail: { date: dateValue, entity: "meal" },
       })
     );
-    announceDataChange("meal", dateValue);
+    announceDataChange("meals", dateValue);
   });
 }
 
