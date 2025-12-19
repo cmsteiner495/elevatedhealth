@@ -20,13 +20,80 @@ import {
 } from "./state.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
 
-function announceDataChange(entity, date) {
-  window.dispatchEvent(
-    new CustomEvent("eh:dataChanged", { detail: { entity, date } })
+const MEALS_STORAGE_KEY = "eh:meals";
+
+function readMealStore() {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(MEALS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (err) {
+    console.warn("Could not read meals from storage", err);
+    return {};
+  }
+}
+
+function writeMealStore(store) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(MEALS_STORAGE_KEY, JSON.stringify(store));
+  } catch (err) {
+    console.warn("Could not persist meals locally", err);
+  }
+}
+
+export function getStoredMeals(familyId) {
+  if (!familyId) return [];
+  const store = readMealStore();
+  const list = store[familyId] || [];
+  return Array.isArray(list) ? list : [];
+}
+
+function persistMealsForFamily(familyId, meals = []) {
+  if (!familyId) return;
+  const store = readMealStore();
+  store[familyId] = Array.isArray(meals) ? meals : [];
+  writeMealStore(store);
+}
+
+function mergeMeals(primary = [], secondary = []) {
+  const map = new Map();
+  const add = (meal) => {
+    if (!meal) return;
+    const key = meal.id
+      ? `id:${meal.id}`
+      : `${meal.meal_date || ""}:${meal.title || ""}:${meal.meal_type || ""}`;
+    const existing = map.get(key) || {};
+    map.set(key, { ...existing, ...meal });
+  };
+
+  primary.forEach(add);
+  secondary.forEach(add);
+
+  return Array.from(map.values()).sort((a, b) =>
+    (a.meal_date || "").localeCompare(b.meal_date || "")
   );
 }
 
-async function logMealToDiary(meal, options = {}) {
+function upsertStoredMeal(familyId, meal) {
+  if (!familyId || !meal) return;
+  const merged = mergeMeals(getStoredMeals(familyId), [meal]);
+  persistMealsForFamily(familyId, merged);
+}
+
+export function removeStoredMeal(familyId, mealId) {
+  if (!familyId || !mealId) return;
+  const existing = getStoredMeals(familyId);
+  const filtered = existing.filter((meal) => String(meal.id) !== String(mealId));
+  persistMealsForFamily(familyId, filtered);
+}
+
+function announceDataChange(entity, date) {
+  const init = entity || date ? { detail: { entity, date } } : {};
+  window.dispatchEvent(new CustomEvent("eh:dataChanged", init));
+}
+
+export async function logMealToDiary(meal, options = {}) {
   if (!currentUser || !currentFamilyId) {
     showToast("Join a family to log meals.");
     return;
@@ -39,25 +106,43 @@ async function logMealToDiary(meal, options = {}) {
   const mealType = meal.meal_type || meal.mealType || options.mealType || "dinner";
   const notes = meal.notes || meal.description || null;
 
-  const { error } = await supabase.from("family_meals").insert({
-    family_group_id: currentFamilyId,
-    added_by: currentUser.id,
-    meal_date: targetDate,
-    meal_type: mealType,
-    title,
-    notes,
-  });
+  let persistedMeal = null;
+  const { data, error } = await supabase
+    .from("family_meals")
+    .insert({
+      family_group_id: currentFamilyId,
+      added_by: currentUser.id,
+      meal_date: targetDate,
+      meal_type: mealType,
+      title,
+      notes,
+    })
+    .select()
+    .single();
 
   if (error) {
     console.error("Error logging meal:", error);
-    showToast("Could not add meal to log");
-    return;
+    if (!options.silent) {
+      showToast("Saved locally; sync when online");
+    }
+  } else {
+    persistedMeal = data;
+    if (!options.silent) {
+      showToast("Added to log");
+      maybeVibrate([16]);
+    }
   }
 
-  if (!options.silent) {
-    showToast("Added to log");
-    maybeVibrate([16]);
-  }
+  const localEntry = persistedMeal || {
+    id: meal.id || `local-${Date.now()}`,
+    title,
+    meal_type: mealType,
+    meal_date: targetDate,
+    notes,
+    added_by: currentUser?.id || null,
+    created_at: new Date().toISOString(),
+  };
+  upsertStoredMeal(currentFamilyId, localEntry);
 
   const viewingTarget = selectedDate === targetDate;
   if (!viewingTarget && options.syncDate !== false) {
@@ -178,6 +263,7 @@ export async function loadMeals() {
   }
   mealsList.innerHTML = "<li>Loading meals...</li>";
 
+  const storedMeals = getStoredMeals(currentFamilyId);
   const { data, error } = await supabase
     .from("family_meals")
     .select("*")
@@ -188,14 +274,31 @@ export async function loadMeals() {
 
   if (error) {
     console.error("Error loading meals:", error);
-    mealsList.innerHTML = "<li>Could not load meals.</li>";
+    if (storedMeals.length) {
+      mealsList.innerHTML = "";
+      renderMeals(storedMeals);
+      if (mealsMessage) {
+        mealsMessage.textContent = "Showing saved meals (offline)";
+        mealsMessage.style.color = "var(--text-muted)";
+      }
+    } else {
+      mealsList.innerHTML = "<li>Could not load meals.</li>";
+    }
   } else {
-    renderMeals(data || []);
+    const remoteMeals = data || [];
+    const merged = mergeMeals(remoteMeals, storedMeals);
+    persistMealsForFamily(currentFamilyId, merged);
+    renderMeals(merged);
   }
 }
 
 export async function fetchMealsByDate(dateValue) {
   if (!currentFamilyId || !dateValue) return [];
+
+  const storedMeals = getStoredMeals(currentFamilyId);
+  const storedForDate = storedMeals.filter(
+    (meal) => (meal.meal_date || "") === dateValue
+  );
 
   const { data, error } = await supabase
     .from("family_meals")
@@ -207,10 +310,12 @@ export async function fetchMealsByDate(dateValue) {
 
   if (error) {
     console.error("Error loading meals for date:", error);
-    return [];
+    return storedForDate;
   }
 
-  return data || [];
+  const merged = mergeMeals(data || [], storedMeals);
+  persistMealsForFamily(currentFamilyId, merged);
+  return merged.filter((meal) => (meal.meal_date || "") === dateValue);
 }
 
 async function logMealToToday(meal) {
@@ -259,9 +364,10 @@ function renderMeals(items) {
     meta.style.fontSize = "0.8rem";
     meta.style.opacity = "0.8";
 
-    const dateStr = meal.meal_date;
+    const dateStr = meal.meal_date || "";
+    const mealTypeValue = meal.meal_type || "meal";
     const typeLabel =
-      meal.meal_type.charAt(0).toUpperCase() + meal.meal_type.slice(1);
+      mealTypeValue.charAt(0).toUpperCase() + mealTypeValue.slice(1);
     meta.textContent = `${typeLabel} • ${dateStr}`;
 
     left.appendChild(title);
@@ -329,14 +435,19 @@ if (mealsForm) {
 
     if (!dateValue || !mealType || !title) return;
 
-    const { error } = await supabase.from("family_meals").insert({
-      family_group_id: currentFamilyId,
-      added_by: currentUser.id,
-      meal_date: dateValue,
-      meal_type: mealType,
-      title,
-      notes: notes || null,
-    });
+    let persistedMeal = null;
+    const { data, error } = await supabase
+      .from("family_meals")
+      .insert({
+        family_group_id: currentFamilyId,
+        added_by: currentUser.id,
+        meal_date: dateValue,
+        meal_type: mealType,
+        title,
+        notes: notes || null,
+      })
+      .select()
+      .single();
 
     if (error) {
       console.error("Error adding meal:", error);
@@ -344,8 +455,20 @@ if (mealsForm) {
         mealsMessage.textContent = "Error adding meal.";
         mealsMessage.style.color = "red";
       }
-      return;
+    } else {
+      persistedMeal = data;
     }
+
+    const localEntry = persistedMeal || {
+      id: `local-${Date.now()}`,
+      title,
+      meal_type: mealType,
+      meal_date: dateValue,
+      notes: notes || null,
+      added_by: currentUser?.id || null,
+      created_at: new Date().toISOString(),
+    };
+    upsertStoredMeal(currentFamilyId, localEntry);
 
     const guidedDate = mealsForm.dataset.targetDate;
     const guidedMealType = mealsForm.dataset.targetMealType;
@@ -411,6 +534,7 @@ if (mealsList) {
       const removeNode = () => li.remove();
       li.addEventListener("transitionend", removeNode, { once: true });
       setTimeout(removeNode, 220);
+      removeStoredMeal(currentFamilyId, mealId);
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
       );

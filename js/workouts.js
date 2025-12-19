@@ -16,7 +16,77 @@ import {
 import { currentUser, currentFamilyId } from "./state.js";
 import { maybeVibrate, showToast } from "./ui.js";
 
+const WORKOUT_STORAGE_KEY = "eh:workouts";
 let workoutsCache = [];
+
+function readWorkoutStore() {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(WORKOUT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (err) {
+    console.warn("Could not read workouts from storage", err);
+    return {};
+  }
+}
+
+function writeWorkoutStore(store) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(WORKOUT_STORAGE_KEY, JSON.stringify(store));
+  } catch (err) {
+    console.warn("Could not persist workouts locally", err);
+  }
+}
+
+export function getStoredWorkouts(familyId) {
+  if (!familyId) return [];
+  const store = readWorkoutStore();
+  const list = store[familyId] || [];
+  return Array.isArray(list) ? list : [];
+}
+
+function persistWorkoutsForFamily(familyId, workouts = []) {
+  if (!familyId) return;
+  const store = readWorkoutStore();
+  store[familyId] = Array.isArray(workouts) ? workouts : [];
+  writeWorkoutStore(store);
+}
+
+function mergeWorkouts(primary = [], secondary = []) {
+  const map = new Map();
+  const add = (workout) => {
+    if (!workout) return;
+    const key = workout.id
+      ? `id:${workout.id}`
+      : `${workout.workout_date || ""}:${workout.title || ""}`;
+    const existing = map.get(key) || {};
+    map.set(key, { ...existing, ...workout });
+  };
+  primary.forEach(add);
+  secondary.forEach(add);
+  return Array.from(map.values()).sort((a, b) =>
+    (a.workout_date || "").localeCompare(b.workout_date || "")
+  );
+}
+
+function upsertStoredWorkout(workout) {
+  if (!currentFamilyId || !workout) return;
+  const merged = mergeWorkouts(getStoredWorkouts(currentFamilyId), [workout]);
+  persistWorkoutsForFamily(currentFamilyId, merged);
+}
+
+function removeStoredWorkout(workoutId) {
+  if (!currentFamilyId || !workoutId) return;
+  const existing = getStoredWorkouts(currentFamilyId);
+  const filtered = existing.filter((item) => String(item.id) !== String(workoutId));
+  persistWorkoutsForFamily(currentFamilyId, filtered);
+}
+
+export function cacheWorkoutsLocally(familyId, workouts = []) {
+  if (!familyId) return;
+  persistWorkoutsForFamily(familyId, workouts);
+}
 
 function announceDataChange(entity, date) {
   window.dispatchEvent(
@@ -51,6 +121,7 @@ export async function loadWorkouts() {
   }
   workoutsList.innerHTML = "<li>Loading workouts...</li>";
 
+  const storedWorkouts = getStoredWorkouts(currentFamilyId);
   const { data, error } = await supabase
     .from("family_workouts")
     .select("*")
@@ -60,15 +131,32 @@ export async function loadWorkouts() {
 
   if (error) {
     console.error("Error loading workouts:", error);
-    workoutsList.innerHTML = "<li>Could not load workouts.</li>";
+    if (storedWorkouts.length) {
+      workoutsCache = storedWorkouts;
+      renderWorkouts();
+      if (workoutsMessage) {
+        workoutsMessage.textContent = "Showing saved workouts (offline)";
+        workoutsMessage.style.color = "var(--text-muted)";
+      }
+    } else {
+      workoutsList.innerHTML = "<li>Could not load workouts.</li>";
+    }
   } else {
-    workoutsCache = data || [];
+    const remoteWorkouts = data || [];
+    const merged = mergeWorkouts(remoteWorkouts, storedWorkouts);
+    persistWorkoutsForFamily(currentFamilyId, merged);
+    workoutsCache = merged;
     renderWorkouts();
   }
 }
 
 export async function fetchWorkoutsByDate(dateValue) {
   if (!currentFamilyId || !dateValue) return [];
+
+  const storedWorkouts = getStoredWorkouts(currentFamilyId);
+  const storedForDate = storedWorkouts.filter(
+    (workout) => (workout.workout_date || "") === dateValue
+  );
 
   const { data, error } = await supabase
     .from("family_workouts")
@@ -80,10 +168,12 @@ export async function fetchWorkoutsByDate(dateValue) {
 
   if (error) {
     console.error("Error loading workouts for date:", error);
-    return [];
+    return storedForDate;
   }
 
-  return data || [];
+  const merged = mergeWorkouts(data || [], storedWorkouts);
+  persistWorkoutsForFamily(currentFamilyId, merged);
+  return merged.filter((workout) => (workout.workout_date || "") === dateValue);
 }
 
 function renderWorkouts(items = workoutsCache) {
@@ -271,6 +361,7 @@ if (workoutsList) {
         renderWorkouts();
         return;
       }
+      persistWorkoutsForFamily(currentFamilyId, workoutsCache);
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
       );
@@ -292,6 +383,7 @@ if (workoutsList) {
       }
 
       workoutsCache = workoutsCache.filter((workout) => workout.id !== workoutId);
+      persistWorkoutsForFamily(currentFamilyId, workoutsCache);
       setTimeout(() => renderWorkouts(), 160);
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
