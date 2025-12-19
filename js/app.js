@@ -56,7 +56,6 @@ import {
   insightMacrosCard,
   insightCaloriesCard,
   insightWorkoutsCard,
-  macrosChartCanvas,
   caloriesChartCanvas,
   workoutsChartCanvas,
   macrosEmptyState,
@@ -114,21 +113,21 @@ let mealsGuidedMode = false;
 let isCalendarOpen = false;
 let isQuickSheetOpen = false;
 const MACROS_CANVAS_HEIGHT = 220;
-const MACROS_ANIMATION_MS = 240;
-
-let macrosChart;
 let caloriesChart;
 let workoutsChart;
 let macrosLegendEl;
 let macrosResizeObserver;
 let macrosResizeHost;
 let macrosLastWidth = 0;
-let macrosRenderQueued = null;
 let macrosLatestTotals = null;
-let macrosHostPrepared = false;
 let macrosHostRef = null;
 let macrosResizePending = false;
-let isRenderingMacros = false;
+let macrosRingInitialized = false;
+let macrosRingSvg = null;
+let macrosRingLayers = {};
+let macrosRingTextValue = null;
+let macrosRingTextLabel = null;
+let isResizingMacrosRing = false;
 let insightsRenderLock = false;
 let insightsRenderQueued = false;
 let insightsResizeTimer;
@@ -310,18 +309,6 @@ function resetChartInstance(chartInstance, canvasEl) {
   }
 }
 
-function cancelMacrosAsyncLoops() {
-  if (typeof window === "undefined") return;
-  if (window.__EH_MACROS_RAF_ID__) {
-    cancelAnimationFrame(window.__EH_MACROS_RAF_ID__);
-    window.__EH_MACROS_RAF_ID__ = null;
-  }
-  if (window.__EH_MACROS_TIMER_ID__) {
-    clearTimeout(window.__EH_MACROS_TIMER_ID__);
-    window.__EH_MACROS_TIMER_ID__ = null;
-  }
-}
-
 function measureMacrosWidth(host) {
   if (!host) return 0;
   const rect = host.getBoundingClientRect?.();
@@ -335,14 +322,13 @@ function ensureMacrosResizeObserver(host) {
   if (macrosResizeObserver) {
     macrosResizeObserver.disconnect();
   }
-  const ro = new ResizeObserver((entries) => {
-    const entry = entries?.[0];
-    const w = Math.round(entry?.contentRect?.width || 0);
-    if (!w || Math.abs(w - macrosLastWidth) < 1) return;
-    // ResizeObserver should only adjust chart sizing to avoid render loops.
-    scheduleMacrosRender("resize", macrosLatestTotals, {
-      width: w,
-      skipWidthCheck: true,
+  const ro = new ResizeObserver(() => {
+    if (macrosResizePending) return;
+    macrosResizePending = true;
+    window.__EH_MACROS_RAF_ID__ = window.requestAnimationFrame(() => {
+      window.__EH_MACROS_RAF_ID__ = null;
+      macrosResizePending = false;
+      resizeMacrosRing();
     });
   });
   macrosResizeObserver = ro;
@@ -354,43 +340,105 @@ function ensureMacrosResizeObserver(host) {
 function getMacrosHost() {
   return (
     insightMacrosCard?.querySelector(".insight-body") ||
-    macrosChartCanvas?.parentElement ||
     null
   );
 }
 
-function prepareMacrosHost(host) {
-  if (!host) return;
-  if (macrosHostPrepared && macrosHostRef === host) return;
-  host.innerHTML = "";
-  macrosLegendEl = null;
-  macrosHostPrepared = true;
+function initMacrosRing(domRefs = {}) {
+  const host = domRefs.host || getMacrosHost();
+  if (!host || macrosRingInitialized) return;
+  macrosRingInitialized = true;
   macrosHostRef = host;
-  if (macrosEmptyState) host.appendChild(macrosEmptyState);
-  if (macrosChartCanvas) host.appendChild(macrosChartCanvas);
-}
 
-function sizeMacrosCanvas(host) {
-  if (!macrosChartCanvas || !host) return;
-  const cssW = measureMacrosWidth(host);
-  const cssH = MACROS_CANVAS_HEIGHT;
-  const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  if (!cssW) return;
-
-  macrosLastWidth = cssW;
-  macrosChartCanvas.style.width = `${cssW}px`;
-  macrosChartCanvas.style.height = `${cssH}px`;
-  macrosChartCanvas.width = Math.floor(cssW * dpr);
-  macrosChartCanvas.height = Math.floor(cssH * dpr);
-
-  const ctx = macrosChartCanvas.getContext("2d");
-  if (ctx) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const existingRing = host.querySelector("#macros-chart");
+  if (existingRing) {
+    existingRing.remove();
   }
+
+  const center = MACROS_CANVAS_HEIGHT / 2;
+  const spacing = 14;
+  const strokeWidth = 12;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("id", "macros-chart");
+  svg.setAttribute("viewBox", `0 0 ${MACROS_CANVAS_HEIGHT} ${MACROS_CANVAS_HEIGHT}`);
+  svg.setAttribute("width", `${MACROS_CANVAS_HEIGHT}`);
+  svg.setAttribute("height", `${MACROS_CANVAS_HEIGHT}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Macros today ring");
+  svg.classList.add("insight-canvas");
+
+  macrosRingLayers = {};
+  MACRO_ORDER.forEach((key, idx) => {
+    const radius = center - strokeWidth - idx * spacing;
+    const circumference = 2 * Math.PI * radius;
+
+    const track = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    track.setAttribute("cx", center);
+    track.setAttribute("cy", center);
+    track.setAttribute("r", radius);
+    track.setAttribute("fill", "none");
+    track.setAttribute("stroke-width", strokeWidth);
+    track.setAttribute("stroke-linecap", "round");
+    track.classList.add("macros-ring-track");
+
+    const arc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    arc.setAttribute("cx", center);
+    arc.setAttribute("cy", center);
+    arc.setAttribute("r", radius);
+    arc.setAttribute("fill", "none");
+    arc.setAttribute("stroke-width", strokeWidth);
+    arc.setAttribute("stroke-linecap", "round");
+    arc.setAttribute("stroke-dasharray", `${circumference} ${circumference}`);
+    arc.setAttribute("stroke-dashoffset", `${circumference}`);
+    arc.classList.add("macros-ring-arc");
+
+    svg.appendChild(track);
+    svg.appendChild(arc);
+
+    macrosRingLayers[key] = { track, arc, circumference };
+  });
+
+  macrosRingTextValue = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  macrosRingTextValue.setAttribute("x", center);
+  macrosRingTextValue.setAttribute("y", center - 2);
+  macrosRingTextValue.setAttribute("text-anchor", "middle");
+  macrosRingTextValue.setAttribute("fill", "var(--text-primary)");
+  macrosRingTextValue.setAttribute("font-size", "20");
+  macrosRingTextValue.setAttribute("font-weight", "600");
+  macrosRingTextValue.textContent = "0g";
+  svg.appendChild(macrosRingTextValue);
+
+  macrosRingTextLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  macrosRingTextLabel.setAttribute("x", center);
+  macrosRingTextLabel.setAttribute("y", center + 18);
+  macrosRingTextLabel.setAttribute("text-anchor", "middle");
+  macrosRingTextLabel.setAttribute("fill", "var(--text-muted)");
+  macrosRingTextLabel.setAttribute("font-size", "12");
+  macrosRingTextLabel.textContent = "Macros Today";
+  svg.appendChild(macrosRingTextLabel);
+
+  host.appendChild(svg);
+  macrosRingSvg = svg;
+
+  ensureMacrosResizeObserver(host);
+  resizeMacrosRing();
+  console.log("[macros] ring children", host.children.length);
 }
 
-function buildMacrosChartState(macros) {
-  const totals = macros || { protein: 0, carbs: 0, fat: 0 };
+function updateMacrosLegend(colors, totals) {
+  renderMacrosLegend(colors, totals);
+}
+
+function updateMacrosRing(macros) {
+  const host = macrosHostRef || getMacrosHost();
+  initMacrosRing({ host });
+  if (!macrosRingSvg) return;
+
+  if (macros) {
+    macrosLatestTotals = macros;
+  }
+  const totals = macrosLatestTotals || { protein: 0, carbs: 0, fat: 0 };
   const numericTotals = MACRO_ORDER.reduce((acc, key) => {
     acc[key] = parseMetricNumber(totals[key]);
     return acc;
@@ -403,201 +451,70 @@ function buildMacrosChartState(macros) {
     fat: "#5c8dff",
   };
   const trackColor = applyAlpha(palette.grid, hasData ? 0.6 : 0.4);
-  const datasets = MACRO_ORDER.map((key) => {
+
+  MACRO_ORDER.forEach((key) => {
+    const layer = macrosRingLayers[key];
+    if (!layer) return;
     const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
     const value = Math.max(0, numericTotals[key]);
-    const remaining = Math.max(goal - value, 0);
-    const baseColor = macroColors[key] || palette.accent;
-    const progressColor = hasData ? baseColor : applyAlpha(baseColor, 0.35);
+    const pct = hasData ? Math.min(value / goal, 1) : 0;
+    const dashOffset = layer.circumference * (1 - pct);
 
-    return {
-      label: `${key.charAt(0).toUpperCase()}${key.slice(1)}`,
-      data: [value, Math.max(remaining, goal * 0.08)],
-      backgroundColor: [progressColor, trackColor],
-      borderWidth: 0,
-      hoverOffset: 4,
-      spacing: 4,
-      weight: 1,
-    };
+    layer.track.setAttribute("stroke", trackColor);
+    layer.track.setAttribute("stroke-opacity", hasData ? "1" : "0.7");
+
+    layer.arc.setAttribute("stroke", macroColors[key] || palette.accent);
+    layer.arc.setAttribute("stroke-dasharray", `${layer.circumference} ${layer.circumference}`);
+    layer.arc.setAttribute("stroke-dashoffset", `${dashOffset}`);
+    layer.arc.style.opacity = hasData ? "1" : "0.55";
   });
 
-  const chartData = {
-    labels: MACRO_ORDER.map(
-      (key) => `${key.charAt(0).toUpperCase()}${key.slice(1)}`
-    ),
-    datasets,
-  };
-
-  return { chartData, macroColors, numericTotals, hasData };
-}
-
-function initMacrosChart(macros) {
-  if (!macrosChartCanvas || typeof Chart === "undefined" || macrosChart) return;
-  const host = getMacrosHost();
-  if (!host) return;
-  prepareMacrosHost(host);
-  sizeMacrosCanvas(host);
-
-  const { chartData } = buildMacrosChartState(macros);
-  const options = {
-    cutout: "38%",
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (ctx) => {
-            const key = MACRO_ORDER[ctx.datasetIndex];
-            const value = parseMetricNumber(macrosLatestTotals?.[key]);
-            const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
-            const pct = Math.round((value / goal) * 100);
-            return `${ctx.dataset.label}: ${value.toFixed(1)}g (${pct}% of ${goal}g)`;
-          },
-        },
-      },
-    },
-    animation: {
-      duration: MACROS_ANIMATION_MS,
-    },
-  };
-
-  macrosChart = new Chart(macrosChartCanvas, {
-    type: "doughnut",
-    data: chartData,
-    options,
-  });
-}
-
-function updateMacrosLegend(colors, totals) {
-  renderMacrosLegend(colors, totals);
-}
-
-function updateMacrosData(macros, options = {}) {
-  if (!macrosChartCanvas || typeof Chart === "undefined") return;
-  if (macros) {
-    macrosLatestTotals = macros;
+  const totalValue = Math.round(
+    numericTotals.protein + numericTotals.carbs + numericTotals.fat
+  );
+  if (macrosRingTextValue) {
+    macrosRingTextValue.textContent = hasData ? `${totalValue}g` : "No data";
+    macrosRingTextValue.setAttribute(
+      "fill",
+      hasData ? "var(--text-primary)" : palette.textMuted
+    );
   }
-  if (!macrosChart) {
-    initMacrosChart(macrosLatestTotals);
-  }
-  if (!macrosChart) return;
-
-  const { chartData, macroColors, numericTotals, hasData } =
-    buildMacrosChartState(macrosLatestTotals);
-
-  toggleInsightState(macrosEmptyState, macrosChartCanvas, hasData);
-
-  macrosChart.data = chartData;
-  if (macrosChart.options?.animation) {
-    macrosChart.options.animation.duration =
-      options.durationOverride ??
-      (options.animate === false ? 0 : MACROS_ANIMATION_MS);
+  if (macrosRingTextLabel) {
+    macrosRingTextLabel.textContent = hasData ? "Macros Today" : "Start logging to see macros";
+    macrosRingTextLabel.setAttribute("fill", palette.textMuted);
   }
 
+  toggleInsightState(macrosEmptyState, macrosRingSvg, hasData);
   updateMacrosLegend(macroColors, numericTotals);
-  macrosChart.update(options.animate === false ? "none" : undefined);
 }
 
-function resizeMacrosChart() {
+function resizeMacrosRing() {
   const host = macrosHostRef || getMacrosHost();
-  if (!host || !macrosChartCanvas || !macrosChart) return;
+  if (!macrosRingSvg || !host) return;
+  if (isResizingMacrosRing) return;
+
   const nextWidth = measureMacrosWidth(host);
   if (!nextWidth || Math.abs(nextWidth - macrosLastWidth) < 1) return;
-  if (isRenderingMacros) {
-    macrosRenderQueued = { reason: "resize" };
-    return;
-  }
 
-  isRenderingMacros = true;
-  window.__EH_MACROS_RENDERING__ = true;
-  try {
-    const prevDuration = macrosChart.options?.animation?.duration;
-    if (macrosChart.options?.animation) {
-      // Disable animation while resizing to prevent recursive render triggers.
-      macrosChart.options.animation.duration = 0;
-    }
-    sizeMacrosCanvas(host);
-    macrosChart.resize();
-    macrosChart.update("none");
-    if (macrosChart.options?.animation) {
-      macrosChart.options.animation.duration = prevDuration;
-    }
-  } finally {
-    isRenderingMacros = false;
-    window.__EH_MACROS_RENDERING__ = false;
-    if (macrosRenderQueued) {
-      const queued = macrosRenderQueued;
-      macrosRenderQueued = null;
-      scheduleMacrosRender(queued.reason || "queued", macrosLatestTotals);
-    }
-  }
-}
-
-function safeRenderMacros(reason = "manual", macros) {
-  const host = getMacrosHost();
-  if (!macrosChartCanvas || !host) return;
-  if (macros) {
-    macrosLatestTotals = macros;
-  }
-  if (isRenderingMacros) {
-    macrosRenderQueued = { reason, macros };
-    return;
-  }
-
-  isRenderingMacros = true;
-  window.__EH_MACROS_RENDERING__ = true;
-  try {
-    cancelMacrosAsyncLoops();
-    prepareMacrosHost(host);
-    ensureMacrosResizeObserver(host);
-    sizeMacrosCanvas(host);
-    initMacrosChart(macrosLatestTotals);
-    updateMacrosData(macrosLatestTotals, {
-      animate: reason !== "resize",
-    });
-  } finally {
-    isRenderingMacros = false;
-    window.__EH_MACROS_RENDERING__ = false;
-    if (macrosRenderQueued) {
-      const queued = macrosRenderQueued;
-      macrosRenderQueued = null;
-      scheduleMacrosRender(queued.reason || "queued", queued.macros);
-    }
-  }
-}
-
-function scheduleMacrosRender(reason = "manual", macros, options = {}) {
-  if (typeof window === "undefined") {
-    safeRenderMacros(reason, macros);
-    return;
-  }
-  if (macros) {
-    macrosLatestTotals = macros;
-  }
-  const host = macrosHostRef || getMacrosHost();
-  if (reason === "resize") {
-    const nextWidth = options.width || measureMacrosWidth(host);
-    if (!nextWidth) return;
-    if (!options.skipWidthCheck && Math.abs(nextWidth - macrosLastWidth) < 1) {
-      return;
-    }
+  const applySize = () => {
+    macrosRingSvg.setAttribute("width", `${nextWidth}`);
+    macrosRingSvg.style.width = `${nextWidth}px`;
+    macrosRingSvg.setAttribute("height", `${MACROS_CANVAS_HEIGHT}`);
+    macrosRingSvg.style.height = `${MACROS_CANVAS_HEIGHT}px`;
+    macrosRingSvg.setAttribute(
+      "viewBox",
+      `0 0 ${MACROS_CANVAS_HEIGHT} ${MACROS_CANVAS_HEIGHT}`
+    );
     macrosLastWidth = nextWidth;
-    if (macrosResizePending) return;
-    macrosResizePending = true;
-    window.__EH_MACROS_RAF_ID__ = window.requestAnimationFrame(() => {
-      window.__EH_MACROS_RAF_ID__ = null;
-      macrosResizePending = false;
-      resizeMacrosChart();
-    });
-    return;
-  }
+    isResizingMacrosRing = false;
+  };
 
-  cancelMacrosAsyncLoops();
-  window.__EH_MACROS_TIMER_ID__ = window.setTimeout(() => {
-    window.__EH_MACROS_TIMER_ID__ = null;
-    safeRenderMacros(reason, macrosLatestTotals || macros);
-  }, 0);
+  isResizingMacrosRing = true;
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(applySize);
+  } else {
+    applySize();
+  }
 }
 
 function formatShortLabel(dateValue) {
@@ -776,7 +693,7 @@ async function getDashboardMetrics() {
 }
 
 function renderMacrosInsight(macros) {
-  updateMacrosData(macros);
+  updateMacrosRing(macros);
 }
 
 function ensureMacrosLegend() {
@@ -953,10 +870,9 @@ async function renderInsights(reason = "manual") {
   const labels = metrics.labels || buildDateWindow();
   macrosLatestTotals = metrics.macrosToday;
 
+  updateMacrosRing(metrics.macrosToday);
   if (reason === "resize") {
-    scheduleMacrosRender(reason, metrics.macrosToday);
-  } else {
-    safeRenderMacros(reason, metrics.macrosToday);
+    resizeMacrosRing();
   }
   renderCaloriesInsight(labels, metrics.calories7Days);
   renderWorkoutsInsight(labels, metrics.workouts7Days);
