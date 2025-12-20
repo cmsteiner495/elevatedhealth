@@ -111,7 +111,11 @@ function upsertStoredWorkout(workout) {
 function removeStoredWorkout(workoutId, familyId = currentFamilyId) {
   if (!workoutId) return;
   const existing = getStoredWorkouts(familyId);
-  const filtered = existing.filter((item) => String(item.id) !== String(workoutId));
+  const filtered = existing.filter(
+    (item) =>
+      String(item.id) !== String(workoutId) &&
+      String(item.log_id || "") !== String(workoutId)
+  );
   persistWorkoutsForFamily(familyId, filtered);
 }
 
@@ -189,7 +193,7 @@ export async function loadWorkouts() {
       setWorkouts([], { reason: "loadWorkouts:error" });
     }
   } else {
-    const remoteWorkouts = data || [];
+    const remoteWorkouts = (data || []).map((item) => ({ log_id: item.id, ...item }));
     const merged = mergeWorkouts(remoteWorkouts, storedWorkouts);
     persistWorkoutsForFamily(familyId, merged);
     workoutsCache = merged;
@@ -222,7 +226,10 @@ export async function fetchWorkoutsByDate(dateValue) {
     return storedForDate;
   }
 
-  const merged = mergeWorkouts(data || [], storedWorkouts);
+  const merged = mergeWorkouts(
+    (data || []).map((item) => ({ log_id: item.id, ...item })),
+    storedWorkouts
+  );
   persistWorkoutsForFamily(familyId, merged);
   return merged.filter((workout) => (workout.workout_date || "") === dateValue);
 }
@@ -230,25 +237,28 @@ export async function fetchWorkoutsByDate(dateValue) {
 export async function deleteWorkoutById(workoutId, options = {}) {
   if (!workoutId) return { error: new Error("Missing workout id") };
   const normalizedId = String(workoutId);
-  const familyId = currentFamilyId;
   const dateDetail = options.date || options.workout_date;
   const shouldForceLocalRemoval = normalizedId.startsWith(LOCAL_ID_PREFIX);
 
   let deleteError = null;
 
-  if (familyId && !shouldForceLocalRemoval) {
-    let query = supabase
-      .from("family_workouts")
-      .delete()
-      .eq("id", normalizedId)
-      .eq("family_group_id", familyId);
-    if (currentUser?.id) {
-      query = query.eq("user_id", currentUser.id);
-    }
-    const { error } = await query;
+  if (!shouldForceLocalRemoval && currentUser?.id) {
+    const { data, error } = await supabase.functions.invoke("family_workouts", {
+      body: {
+        action: "remove",
+        log_id: normalizedId,
+        user_id: currentUser?.id || null,
+      },
+    });
+
     if (error) {
       deleteError = error;
+    } else if (!data?.ok) {
+      deleteError = new Error(data?.error || "Delete failed");
+      if (data?.details) deleteError.details = data.details;
     }
+  } else if (!shouldForceLocalRemoval && !currentUser?.id) {
+    deleteError = new Error("Not authenticated");
   }
 
   if (deleteError && shouldForceLocalRemoval) {
@@ -257,9 +267,12 @@ export async function deleteWorkoutById(workoutId, options = {}) {
   }
 
   if (!deleteError) {
-    removeStoredWorkout(normalizedId, familyId);
-    workoutsCache = workoutsCache.filter((workout) => String(workout.id) !== normalizedId);
-    persistWorkoutsForFamily(familyId, workoutsCache);
+    removeStoredWorkout(normalizedId, currentFamilyId);
+    workoutsCache = workoutsCache.filter(
+      (workout) =>
+        String(workout.id) !== normalizedId && String(workout.log_id || "") !== normalizedId
+    );
+    persistWorkoutsForFamily(currentFamilyId, workoutsCache);
     removeWorkout(normalizedId, { reason: options.reason || "deleteWorkout" });
     setWorkouts(workoutsCache, { reason: options.reason || "deleteWorkout" });
     announceDataChange("workouts", dateDetail);

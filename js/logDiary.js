@@ -32,7 +32,7 @@ import {
   toLocalDayKey,
 } from "./state.js";
 import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
-import { deleteWorkoutById, fetchWorkoutsByDate } from "./workouts.js";
+import { deleteWorkoutById, fetchWorkoutsByDate, loadWorkouts } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 
 const sectionLists = {
@@ -163,7 +163,8 @@ function renderList(listEl, items, sectionKey) {
 function createWorkoutEntry(item) {
   const li = document.createElement("li");
   li.className = "diary-entry";
-  li.dataset.workoutId = item.id || "";
+  li.dataset.logId = item.log_id || item.id || "";
+  li.dataset.workoutId = item.workout_id || item.id || "";
   li.dataset.workoutDate = item.workout_date || "";
   li.dataset.workoutTitle = item.title || "";
 
@@ -591,7 +592,8 @@ async function removeMealFromDiary(mealId, entryEl) {
 }
 
 async function removeWorkoutFromDiary(workoutId, entryEl) {
-  const normalizedWorkoutId = workoutId ?? entryEl?.dataset?.workoutId;
+  const normalizedWorkoutId =
+    workoutId ?? entryEl?.dataset?.logId ?? entryEl?.dataset?.workoutId;
   if (!normalizedWorkoutId) {
     console.error("removeWorkoutFromDiary: missing workout id", {
       workoutId,
@@ -616,7 +618,11 @@ async function removeWorkoutFromDiary(workoutId, entryEl) {
   });
 
   if (error) {
-    console.error("Error removing workout from diary:", error);
+    console.error(
+      "Error removing workout from diary:",
+      error?.message || error,
+      error?.details || ""
+    );
     if (String(error?.message || "").toLowerCase().includes("rls")) {
       console.error(
         "Supabase RLS: allow workout owners to delete their own rows:\n" +
@@ -635,7 +641,9 @@ async function removeWorkoutFromDiary(workoutId, entryEl) {
   }
 
   currentDiaryWorkouts = currentDiaryWorkouts.filter(
-    (workout) => String(workout.id) !== String(normalizedWorkoutId)
+    (workout) =>
+      String(workout.id) !== String(normalizedWorkoutId) &&
+      String(workout.log_id || "") !== String(normalizedWorkoutId)
   );
 
   const updateUI = () => {
@@ -661,6 +669,12 @@ async function removeWorkoutFromDiary(workoutId, entryEl) {
   window.dispatchEvent(
     new CustomEvent("eh:dataChanged", { detail: { source: "workouts", date: dateDetail } })
   );
+
+  try {
+    await Promise.all([loadWorkouts(), loadDiary(selectedDate)]);
+  } catch (err) {
+    console.warn("Post-delete refresh failed", err);
+  }
 }
 
 function attachDiaryListHandlers() {
@@ -696,7 +710,7 @@ function attachExerciseListHandlers() {
     const removeBtn = event.target.closest(".diary-entry-remove");
     if (!removeBtn) return;
     const entry = removeBtn.closest(".diary-entry");
-    const workoutId = entry?.dataset?.workoutId;
+    const workoutId = entry?.dataset?.logId || entry?.dataset?.workoutId;
     if (!workoutId) return;
     removeWorkoutFromDiary(workoutId, entry);
   });
