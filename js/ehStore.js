@@ -47,6 +47,7 @@ export function normalizeMeal(meal = {}) {
   if (!meal || typeof meal !== "object") return null;
 
   const nutrition = meal.nutrition || meal.macros || {};
+  const clientId = meal.client_id ?? meal.clientId ?? null;
   const calories =
     meal.calories ??
     nutrition.calories ??
@@ -90,6 +91,8 @@ export function normalizeMeal(meal = {}) {
 
   return {
     ...meal,
+    id: meal.id ?? null,
+    client_id: clientId,
     calories: parseMetricNumber(calories),
     protein: parseMetricNumber(protein),
     carbs: parseMetricNumber(carbs),
@@ -164,25 +167,63 @@ export function setWorkouts(workouts, options = {}) {
   emit(options.reason || "setWorkouts");
 }
 
+function matchesMealIdentifier(meal, identifier) {
+  if (!meal || identifier == null) return false;
+  const normalizedId = String(identifier);
+  return (
+    (meal.id != null && String(meal.id) === normalizedId) ||
+    (meal.client_id != null && String(meal.client_id) === normalizedId)
+  );
+}
+
+function findMealIndex(meals = [], identifiers = []) {
+  const candidates = identifiers.filter((value) => value != null).map(String);
+  return meals.findIndex((meal) =>
+    candidates.some((id) => matchesMealIdentifier(meal, id))
+  );
+}
+
 export function upsertMeal(mealRow, options = {}) {
   const normalized = normalizeMeal(mealRow);
   if (!normalized) return;
-  const key =
-    normalized.id || `${normalized.dateKey || normalized.meal_date || ""}:${normalized.title || ""}`;
-  const map = new Map(
-    state.meals.map((m) => [
-      m.id || `${m.dateKey || m.meal_date || ""}:${m.title || ""}`,
-      m,
-    ])
-  );
-  map.set(key, { ...(map.get(key) || {}), ...normalized });
-  state.meals = Array.from(map.values());
+  const identifiers = [
+    normalized.id,
+    normalized.client_id,
+    options.matchClientId,
+    options.matchId,
+  ].filter(Boolean);
+  const nextMeals = [...state.meals];
+  const existingIdx = findMealIndex(nextMeals, identifiers);
+  const merged = {
+    ...(existingIdx >= 0 ? nextMeals[existingIdx] : {}),
+    ...normalized,
+  };
+  if (existingIdx >= 0) {
+    nextMeals[existingIdx] = merged;
+  } else {
+    nextMeals.push(merged);
+  }
+  state.meals = nextMeals;
   emit(options.reason || "upsertMeal");
 }
 
 export function removeMeal(id, options = {}) {
-  if (id == null) return;
-  state.meals = state.meals.filter((meal) => String(meal.id) !== String(id));
+  removeMealByIdOrClientId(id, options);
+}
+
+export function removeMealByIdOrClientId(identifier, options = {}) {
+  if (identifier == null) return;
+  const candidates = [
+    identifier,
+    options.clientId,
+    options.client_id,
+    options.matchId,
+    options.matchClientId,
+  ].filter(Boolean);
+  state.meals = state.meals.filter(
+    (meal) =>
+      !candidates.some((id) => matchesMealIdentifier(meal, id))
+  );
   emit(options.reason || "removeMeal");
 }
 

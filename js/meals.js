@@ -20,7 +20,20 @@ import {
 } from "./state.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
 import { readMealsStore, saveMeals } from "./dataAdapter.js";
-import { normalizeMeal, setMeals, upsertMeal, removeMeal } from "./ehStore.js";
+import {
+  normalizeMeal,
+  setMeals,
+  upsertMeal,
+  removeMealByIdOrClientId,
+} from "./ehStore.js";
+
+const LOCAL_ID_PREFIX = "local-";
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUUID(value) {
+  return UUID_REGEX.test(String(value || ""));
+}
 
 function readMealStore() {
   const snapshot = readMealsStore();
@@ -75,35 +88,75 @@ function persistMealsForFamily(familyId, meals = []) {
   writeMealStore(store);
 }
 
+function mealsMatch(a, b) {
+  if (!a || !b) return false;
+  const aIds = [a.id, a.client_id].filter(Boolean).map(String);
+  const bIds = [b.id, b.client_id].filter(Boolean).map(String);
+  const sharesId = aIds.some((id) => bIds.includes(id));
+  const sharesMeta =
+    (a.meal_date || "") === (b.meal_date || "") &&
+    (a.title || "") === (b.title || "") &&
+    (a.meal_type || "") === (b.meal_type || "");
+  return sharesId || sharesMeta;
+}
+
 function mergeMeals(primary = [], secondary = []) {
-  const map = new Map();
+  const merged = [];
   const add = (meal) => {
     if (!meal) return;
-    const key = meal.id
-      ? `id:${meal.id}`
-      : `${meal.meal_date || ""}:${meal.title || ""}:${meal.meal_type || ""}`;
-    const existing = map.get(key) || {};
-    map.set(key, { ...existing, ...meal });
+    const existingIdx = merged.findIndex((item) => mealsMatch(item, meal));
+    const mergedRow = {
+      ...(existingIdx >= 0 ? merged[existingIdx] : {}),
+      ...meal,
+    };
+    if (existingIdx >= 0) {
+      merged[existingIdx] = mergedRow;
+    } else {
+      merged.push(mergedRow);
+    }
   };
 
   primary.forEach(add);
   secondary.forEach(add);
 
-  return Array.from(map.values()).sort((a, b) =>
+  return merged.sort((a, b) =>
     (a.meal_date || "").localeCompare(b.meal_date || "")
   );
 }
 
-function upsertStoredMeal(familyId, meal) {
+function upsertStoredMeal(familyId, meal, options = {}) {
   if (!familyId || !meal) return;
-  const merged = mergeMeals(getStoredMeals(familyId), [meal]);
-  persistMealsForFamily(familyId, merged);
+  const existing = getStoredMeals(familyId);
+  const matchValue = options.matchClientId || options.matchId;
+  const targetIdx = existing.findIndex((entry) =>
+    mealsMatch(entry, {
+      ...meal,
+      client_id: meal.client_id ?? matchValue,
+      id: meal.id ?? matchValue,
+    })
+  );
+  const mergedRow = {
+    ...(targetIdx >= 0 ? existing[targetIdx] : {}),
+    ...meal,
+  };
+  if (targetIdx >= 0) {
+    existing[targetIdx] = mergedRow;
+  } else {
+    existing.push(meal);
+  }
+  persistMealsForFamily(familyId, existing);
 }
 
-export function removeStoredMeal(familyId, mealId) {
-  if (!familyId || !mealId) return;
+export function removeStoredMeal(familyId, identifier, clientId) {
+  if (!familyId || identifier == null) return;
   const existing = getStoredMeals(familyId);
-  const filtered = existing.filter((meal) => String(meal.id) !== String(mealId));
+  const filtered = existing.filter(
+    (meal) =>
+      !mealsMatch(meal, {
+        id: identifier,
+        client_id: clientId,
+      })
+  );
   persistMealsForFamily(familyId, filtered);
 }
 
@@ -111,19 +164,58 @@ export async function deleteMealById(mealId, options = {}) {
   if (!mealId) return { error: new Error("Missing meal id") };
   if (!currentFamilyId) return { error: new Error("Missing family id") };
 
-  const query = supabase
-    .from("family_meals")
-    .delete()
-    .eq("id", mealId)
-    .eq("family_group_id", currentFamilyId);
+  const normalizedId = String(mealId);
+  const clientId = options.client_id || options.clientId || normalizedId;
+  const shouldForceLocalRemoval =
+    !isUUID(normalizedId) || String(clientId || "").startsWith(LOCAL_ID_PREFIX);
+  console.log("[MEAL DELETE] Attempting removal", {
+    serverId: normalizedId,
+    clientId,
+    reason: options.reason,
+  });
 
-  const { error } = await query;
-  if (error) return { error };
+  let deleteError = null;
+  let deletedRows = 0;
 
-  removeStoredMeal(currentFamilyId, mealId);
-  removeMeal(mealId, { reason: options.reason || "deleteMeal" });
-  announceDataChange("meals", options.date || options.meal_date);
-  return { error: null };
+  const attemptDelete = async (column, value) => {
+    const { data, error } = await supabase
+      .from("family_meals")
+      .delete()
+      .eq(column, value)
+      .eq("family_group_id", currentFamilyId)
+      .select("id, client_id");
+    if (error) {
+      deleteError = error;
+      return;
+    }
+    deletedRows += data?.length || 0;
+  };
+
+  if (isUUID(normalizedId)) {
+    await attemptDelete("id", normalizedId);
+    if (!deleteError && deletedRows === 0 && clientId && clientId !== normalizedId) {
+      console.log("[MEAL DELETE] Fallback to client_id", { clientId });
+      await attemptDelete("client_id", clientId);
+    }
+  } else if (clientId) {
+    await attemptDelete("client_id", clientId);
+  }
+
+  if (deleteError && shouldForceLocalRemoval) {
+    console.warn("[MEAL DELETE] Local removal despite error", deleteError);
+    deleteError = null;
+  }
+
+  if (!deleteError) {
+    removeStoredMeal(currentFamilyId, normalizedId, clientId);
+    removeMealByIdOrClientId(normalizedId, {
+      clientId,
+      reason: options.reason || "deleteMeal",
+    });
+    announceDataChange("meals", options.date || options.meal_date);
+  }
+
+  return { error: deleteError };
 }
 
 function announceDataChange(source, date) {
@@ -145,6 +237,7 @@ export async function logMealToDiary(meal, options = {}) {
   const mealType = meal.meal_type || meal.mealType || options.mealType || "dinner";
   const notes = (meal.notes || meal.description || "").trim() || null;
   const totals = computeMealTotals(meal);
+  const tempId = meal.client_id || meal.id || `${LOCAL_ID_PREFIX}${Date.now()}`;
   const payload = {
     family_group_id: currentFamilyId,
     added_by: currentUser.id,
@@ -156,7 +249,26 @@ export async function logMealToDiary(meal, options = {}) {
     protein: totals.protein,
     carbs: totals.carbs,
     fat: totals.fat,
+    client_id: tempId,
   };
+
+  const optimisticEntry = {
+    id: tempId,
+    client_id: tempId,
+    ...payload,
+    created_at: new Date().toISOString(),
+  };
+
+  upsertStoredMeal(currentFamilyId, optimisticEntry);
+  upsertMeal(optimisticEntry, {
+    reason: "logMealToDiary:optimistic",
+    matchClientId: tempId,
+  });
+  console.log("[MEAL CREATE] Optimistic insert", {
+    tempId,
+    date: targetDate,
+    mealType,
+  });
 
   let persistedMeal = null;
   const { data, error } = await supabase
@@ -167,30 +279,41 @@ export async function logMealToDiary(meal, options = {}) {
 
   if (error) {
     console.error("Error logging meal:", error);
+    removeStoredMeal(currentFamilyId, tempId, tempId);
+    removeMealByIdOrClientId(tempId, {
+      reason: "logMealToDiary:rollback",
+      clientId: tempId,
+    });
     if (!options.silent) {
-      showToast("Saved locally; sync when online");
+      showToast("Couldn't save meal. Try again.");
     }
-  } else {
-    persistedMeal = data;
-    if (!options.silent) {
-      showToast("Added to log");
-      maybeVibrate([16]);
-    }
+    return;
   }
 
-  const localEntry = persistedMeal || {
-    id: meal.id || `local-${Date.now()}`,
-    ...payload,
-    created_at: new Date().toISOString(),
+  persistedMeal = data;
+  const reconciled = {
+    ...optimisticEntry,
+    ...persistedMeal,
+    client_id: persistedMeal?.client_id || tempId,
   };
-  const savedRow = persistedMeal || localEntry;
-  upsertStoredMeal(currentFamilyId, localEntry);
-  upsertMeal(savedRow, { reason: "logMealToDiary" });
+  upsertStoredMeal(currentFamilyId, reconciled, { matchClientId: tempId });
+  upsertMeal(reconciled, {
+    reason: "logMealToDiary:reconcile",
+    matchClientId: tempId,
+  });
+  console.log("[MEAL RECONCILE] tempId -> uuid", {
+    tempId,
+    serverId: persistedMeal?.id,
+  });
+  if (!options.silent) {
+    showToast("Added to log");
+    maybeVibrate([16]);
+  }
   console.log("[EH MEAL] saved row totals", {
-    calories: savedRow.calories ?? 0,
-    protein: savedRow.protein ?? 0,
-    carbs: savedRow.carbs ?? 0,
-    fat: savedRow.fat ?? 0,
+    calories: reconciled.calories ?? 0,
+    protein: reconciled.protein ?? 0,
+    carbs: reconciled.carbs ?? 0,
+    fat: reconciled.fat ?? 0,
   });
 
   const viewingTarget = selectedDate === targetDate;
@@ -400,6 +523,7 @@ function renderMeals(items) {
   for (const meal of items) {
     const li = document.createElement("li");
     li.dataset.mealId = meal.id;
+    li.dataset.mealClientId = meal.client_id || meal.id;
     li.dataset.mealType = meal.meal_type;
     li.dataset.mealTitle = meal.title;
     li.dataset.mealDate = meal.meal_date;
@@ -502,7 +626,7 @@ if (mealsForm) {
 
     if (!dateValue || !mealType || !title) return;
 
-    let persistedMeal = null;
+    const tempId = `${LOCAL_ID_PREFIX}${Date.now()}`;
     const payload = {
       family_group_id: currentFamilyId,
       added_by: currentUser.id,
@@ -514,7 +638,21 @@ if (mealsForm) {
       protein: totals.protein,
       carbs: totals.carbs,
       fat: totals.fat,
+      client_id: tempId,
     };
+    const optimisticEntry = {
+      id: tempId,
+      client_id: tempId,
+      ...payload,
+      added_by: currentUser?.id || null,
+      created_at: new Date().toISOString(),
+    };
+    upsertStoredMeal(currentFamilyId, optimisticEntry);
+    upsertMeal(optimisticEntry, {
+      reason: "addMeal:optimistic",
+      matchClientId: tempId,
+    });
+
     const { data, error } = await supabase
       .from("family_meals")
       .insert(payload)
@@ -523,27 +661,32 @@ if (mealsForm) {
 
     if (error) {
       console.error("Error adding meal:", error);
+      removeStoredMeal(currentFamilyId, tempId, tempId);
+      removeMealByIdOrClientId(tempId, {
+        reason: "addMeal:rollback",
+        clientId: tempId,
+      });
       if (mealsMessage) {
         mealsMessage.textContent = "Error adding meal.";
         mealsMessage.style.color = "red";
       }
     } else {
-      persistedMeal = data;
+      const reconciled = {
+        ...optimisticEntry,
+        ...data,
+        client_id: data?.client_id || tempId,
+      };
+      upsertStoredMeal(currentFamilyId, reconciled, {
+        matchClientId: tempId,
+      });
+      upsertMeal(reconciled, { reason: "addMeal:reconcile", matchClientId: tempId });
     }
 
-    const localEntry = persistedMeal || {
-      id: `local-${Date.now()}`,
-      ...payload,
-      added_by: currentUser?.id || null,
-      created_at: new Date().toISOString(),
-    };
-    upsertStoredMeal(currentFamilyId, localEntry);
-    upsertMeal(localEntry, { reason: "addMeal" });
     console.log("[EH MEAL] saved row totals", {
-      calories: localEntry.calories ?? 0,
-      protein: localEntry.protein ?? 0,
-      carbs: localEntry.carbs ?? 0,
-      fat: localEntry.fat ?? 0,
+      calories: optimisticEntry.calories ?? 0,
+      protein: optimisticEntry.protein ?? 0,
+      carbs: optimisticEntry.carbs ?? 0,
+      fat: optimisticEntry.fat ?? 0,
     });
 
     const guidedDate = mealsForm.dataset.targetDate;
@@ -605,6 +748,7 @@ if (mealsList) {
       li.classList.add("list-removing");
       const { error } = await deleteMealById(mealId, {
         date: li.dataset.mealDate,
+        client_id: li.dataset.mealClientId,
         reason: "deleteMeal:planner",
       });
 

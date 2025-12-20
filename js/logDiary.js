@@ -86,10 +86,21 @@ function setListLoading(listEl) {
   listEl.innerHTML = '<li class="diary-empty">Loading…</li>';
 }
 
+function matchesMealIdentifier(meal, identifier, clientId) {
+  if (!meal) return false;
+  const identifiers = [identifier, clientId].filter(Boolean).map(String);
+  return identifiers.some(
+    (id) =>
+      (meal.id != null && String(meal.id) === id) ||
+      (meal.client_id != null && String(meal.client_id) === id)
+  );
+}
+
 function createMealEntry(item, sectionKey) {
   const li = document.createElement("li");
   li.className = "diary-entry";
   li.dataset.mealId = item.id;
+  li.dataset.mealClientId = item.client_id || item.clientId || item.id || "";
   li.dataset.mealType = sectionKey;
   li.dataset.mealDate = item.meal_date || "";
   li.dataset.mealTitle = item.title || "";
@@ -264,7 +275,11 @@ async function logMealFromDetail(meal) {
 function showMealDetails(entry) {
   if (!entry) return;
   const entryId = entry.dataset.mealId;
-  const mealData = currentDiaryMeals.find((meal) => String(meal.id) === entryId) || {};
+  const mealClientId = entry.dataset.mealClientId;
+  const mealData =
+    currentDiaryMeals.find((meal) =>
+      matchesMealIdentifier(meal, entryId, mealClientId)
+    ) || {};
 
   const title =
     mealData.title ||
@@ -467,6 +482,7 @@ function handleAddButtons() {
 // Remove a meal from the log and refresh UI without a full reload.
 async function removeMealFromDiary(mealId, entryEl) {
   const normalizedMealId = mealId ?? entryEl?.dataset?.mealId;
+  const clientId = entryEl?.dataset?.mealClientId || normalizedMealId;
   if (!normalizedMealId) {
     console.error("removeMealFromDiary: missing meal id", {
       mealId,
@@ -486,6 +502,7 @@ async function removeMealFromDiary(mealId, entryEl) {
   }
 
   const { error } = await deleteMealById(normalizedMealId, {
+    client_id: clientId,
     date: entryEl?.dataset?.mealDate || selectedDate,
     reason: "deleteMeal:diary",
   });
@@ -504,10 +521,10 @@ async function removeMealFromDiary(mealId, entryEl) {
   }
 
   const removedMeal = currentDiaryMeals.find(
-    (meal) => String(meal.id) === String(normalizedMealId)
+    (meal) => matchesMealIdentifier(meal, normalizedMealId, clientId)
   );
   currentDiaryMeals = currentDiaryMeals.filter(
-    (meal) => String(meal.id) !== String(normalizedMealId)
+    (meal) => !matchesMealIdentifier(meal, normalizedMealId, clientId)
   );
 
   const updateUI = () => {
