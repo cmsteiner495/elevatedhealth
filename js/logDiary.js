@@ -466,7 +466,16 @@ function handleAddButtons() {
 
 // Remove a meal from the log and refresh UI without a full reload.
 async function removeMealFromDiary(mealId, entryEl) {
-  if (!mealId) return;
+  const normalizedMealId = mealId ?? entryEl?.dataset?.mealId;
+  if (!normalizedMealId) {
+    console.error("removeMealFromDiary: missing meal id", {
+      mealId,
+      entryEl,
+    });
+    showToast("Couldn't delete meal. Missing meal id.");
+    return;
+  }
+
   const removeBtn = entryEl?.querySelector?.(".diary-entry-remove");
   if (removeBtn) {
     removeBtn.disabled = true;
@@ -476,7 +485,7 @@ async function removeMealFromDiary(mealId, entryEl) {
     entryEl.classList.add("diary-entry-removing");
   }
 
-  const { error } = await deleteMealById(mealId, {
+  const { error } = await deleteMealById(normalizedMealId, {
     date: entryEl?.dataset?.mealDate || selectedDate,
     reason: "deleteMeal:diary",
   });
@@ -494,8 +503,12 @@ async function removeMealFromDiary(mealId, entryEl) {
     return;
   }
 
-  const removedMeal = currentDiaryMeals.find((meal) => String(meal.id) === String(mealId));
-  currentDiaryMeals = currentDiaryMeals.filter((meal) => meal.id !== mealId);
+  const removedMeal = currentDiaryMeals.find(
+    (meal) => String(meal.id) === String(normalizedMealId)
+  );
+  currentDiaryMeals = currentDiaryMeals.filter(
+    (meal) => String(meal.id) !== String(normalizedMealId)
+  );
 
   const updateUI = () => {
     const byType = groupMealsByType(currentDiaryMeals);
