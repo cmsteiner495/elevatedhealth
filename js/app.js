@@ -73,7 +73,9 @@ import {
   getTodayDate,
   onSelectedDateChange,
   addDays,
-  toLocalDateString,
+  toLocalDayKey,
+  getLast7DaysLocal,
+  formatWeekdayShort,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
 import { loadMeals, logMealToDiary, setMealsFamilyState } from "./meals.js";
@@ -271,12 +273,8 @@ function mergeEntries(primary = [], secondary = [], keyBuilder) {
 }
 
 function buildDateWindow() {
-  const today = getTodayDate();
-  const dates = [];
-  for (let i = 6; i >= 0; i -= 1) {
-    dates.push(addDays(today, -i));
-  }
-  return dates;
+  const days = getLast7DaysLocal();
+  return days.map((day) => toLocalDayKey(day));
 }
 
 function parseMetricNumber(value) {
@@ -563,16 +561,15 @@ function resizeMacrosRing() {
 }
 
 function formatShortLabel(dateValue) {
-  if (!dateValue) return "";
-  const normalized = toLocalDateString(dateValue);
-  const parts = normalized.split("-").map(Number);
-  const [y, m, d] = parts;
+  const dayKey = toLocalDayKey(dateValue);
+  if (!dayKey) return "";
+  const [y, m, d] = dayKey.split("-").map(Number);
   const date = new Date(y || 0, (m || 1) - 1, d || 1);
-  return new Intl.DateTimeFormat("en", { weekday: "short" }).format(date);
+  return formatWeekdayShort(date);
 }
 
 function normalizeLogDate(dateValue) {
-  return toLocalDateString(dateValue);
+  return toLocalDayKey(dateValue);
 }
 
 function computeWorkoutStreakFromList(workouts = []) {
