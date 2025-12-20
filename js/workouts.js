@@ -19,6 +19,7 @@ import { readWorkoutsStore, saveWorkouts } from "./dataAdapter.js";
 import { setWorkouts, upsertWorkout, removeWorkout } from "./ehStore.js";
 
 let workoutsCache = [];
+const LOCAL_ID_PREFIX = "local-";
 
 function readWorkoutStore() {
   const snapshot = readWorkoutsStore();
@@ -81,11 +82,11 @@ function upsertStoredWorkout(workout) {
   persistWorkoutsForFamily(currentFamilyId, merged);
 }
 
-function removeStoredWorkout(workoutId) {
+function removeStoredWorkout(workoutId, familyId = currentFamilyId) {
   if (!workoutId) return;
-  const existing = getStoredWorkouts(currentFamilyId);
+  const existing = getStoredWorkouts(familyId);
   const filtered = existing.filter((item) => String(item.id) !== String(workoutId));
-  persistWorkoutsForFamily(currentFamilyId, filtered);
+  persistWorkoutsForFamily(familyId, filtered);
 }
 
 export function cacheWorkoutsLocally(familyId, workouts = []) {
@@ -198,6 +199,47 @@ export async function fetchWorkoutsByDate(dateValue) {
   const merged = mergeWorkouts(data || [], storedWorkouts);
   persistWorkoutsForFamily(familyId, merged);
   return merged.filter((workout) => (workout.workout_date || "") === dateValue);
+}
+
+export async function deleteWorkoutById(workoutId, options = {}) {
+  if (!workoutId) return { error: new Error("Missing workout id") };
+  const normalizedId = String(workoutId);
+  const familyId = currentFamilyId;
+  const dateDetail = options.date || options.workout_date;
+  const shouldForceLocalRemoval = normalizedId.startsWith(LOCAL_ID_PREFIX);
+
+  let deleteError = null;
+
+  if (familyId && !shouldForceLocalRemoval) {
+    let query = supabase
+      .from("family_workouts")
+      .delete()
+      .eq("id", normalizedId)
+      .eq("family_group_id", familyId);
+    if (currentUser?.id) {
+      query = query.eq("user_id", currentUser.id);
+    }
+    const { error } = await query;
+    if (error) {
+      deleteError = error;
+    }
+  }
+
+  if (deleteError && shouldForceLocalRemoval) {
+    console.warn("[WORKOUT DELETE] Local removal despite error", deleteError);
+    deleteError = null;
+  }
+
+  if (!deleteError) {
+    removeStoredWorkout(normalizedId, familyId);
+    workoutsCache = workoutsCache.filter((workout) => String(workout.id) !== normalizedId);
+    persistWorkoutsForFamily(familyId, workoutsCache);
+    removeWorkout(normalizedId, { reason: options.reason || "deleteWorkout" });
+    setWorkouts(workoutsCache, { reason: options.reason || "deleteWorkout" });
+    announceDataChange("workouts", dateDetail);
+  }
+
+  return { error: deleteError };
 }
 
 function renderWorkouts(items = workoutsCache) {
@@ -446,21 +488,22 @@ if (workoutsList) {
 
     if (e.target.classList.contains("workout-delete")) {
       li.classList.add("list-removing");
-      const { error } = await supabase
-        .from("family_workouts")
-        .delete()
-        .eq("id", workoutId);
+      const { error } = await deleteWorkoutById(workoutId, {
+        reason: "deleteWorkout:list",
+      });
 
       if (error) {
         console.error("Error deleting workout:", error);
+        if (String(error?.message || "").toLowerCase().includes("rls")) {
+          console.error(
+            "Supabase RLS: allow workout owners to delete their own rows:\n" +
+              "create policy \"Allow users to delete own workouts\" on family_workouts for delete using (auth.uid() = user_id);"
+          );
+        }
         li.classList.remove("list-removing");
         return;
       }
 
-      workoutsCache = workoutsCache.filter((workout) => workout.id !== workoutId);
-      persistWorkoutsForFamily(currentFamilyId, workoutsCache);
-      removeWorkout(workoutId, { reason: "deleteWorkout" });
-      setWorkouts(workoutsCache, { reason: "deleteWorkout" });
       setTimeout(() => renderWorkouts(), 160);
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
