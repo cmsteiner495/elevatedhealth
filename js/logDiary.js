@@ -501,10 +501,11 @@ function handleAddButtons() {
   diaryAddButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.dataset.diaryAdd;
+      const dateValue = toLocalDayKey(selectedDate) || toLocalDayKey(new Date());
       if (!target) return;
       document.dispatchEvent(
         new CustomEvent("diary:add", {
-          detail: { section: target, date: selectedDate },
+          detail: { section: target, date: dateValue },
         })
       );
     });
