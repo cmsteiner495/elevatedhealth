@@ -1794,17 +1794,18 @@ if (dashboardAiShortcut) {
 
 document.addEventListener("diary:add", (event) => {
   const { section, date } = event.detail || {};
-  if (!section || !date) return;
+  const normalizedSection = (section || "").toString().trim().toLowerCase();
+  if (!normalizedSection) return;
 
-  const targetDate = toLocalDayKey(date) || getTodayDate();
+  const targetDate = toLocalDayKey(date || getTodayDate()) || getTodayDate();
 
-  if (section === "exercise") {
+  if (normalizedSection === "exercise") {
     activateTab("workouts-tab");
     if (workoutDateInput) workoutDateInput.value = targetDate;
     return;
   }
 
-  openMealFlow(section, targetDate);
+  openMealFlow(normalizedSection, targetDate);
 });
 
 // QUICK ACTION SHEET + DESKTOP FAB MENU
