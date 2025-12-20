@@ -66,7 +66,7 @@ function normalizeDateString(value) {
   return null;
 }
 
-const isoToday = toLocalDateString(new Date());
+const isoToday = toLocalDayKey(new Date());
 export let selectedDate = isoToday;
 
 const dateListeners = new Set();
@@ -95,7 +95,7 @@ export function onSelectedDateChange(cb) {
 }
 
 export function getTodayDate() {
-  return isoToday;
+  return toLocalDayKey(new Date());
 }
 
 export function addDays(dateValue, daysDelta) {

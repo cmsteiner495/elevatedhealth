@@ -29,9 +29,10 @@ import {
   selectedDate,
   setSelectedDate,
   toLocalDateString,
+  toLocalDayKey,
 } from "./state.js";
 import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
-import { fetchWorkoutsByDate } from "./workouts.js";
+import { deleteWorkoutById, fetchWorkoutsByDate } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 
 const sectionLists = {
@@ -45,6 +46,8 @@ const emptyMessage = "No entries yet";
 
 let currentDiaryMeals = [];
 let currentDiaryWorkouts = [];
+let storedTodayKey = toLocalDayKey(new Date());
+let dayChangeIntervalId = null;
 
 function toLocalDate(dateValue) {
   const parts = (dateValue || "")
@@ -157,6 +160,64 @@ function renderList(listEl, items, sectionKey) {
   });
 }
 
+function createWorkoutEntry(item) {
+  const li = document.createElement("li");
+  li.className = "diary-entry";
+  li.dataset.workoutId = item.id || "";
+  li.dataset.workoutDate = item.workout_date || "";
+  li.dataset.workoutTitle = item.title || "";
+
+  const row = document.createElement("div");
+  row.className = "diary-entry-row";
+
+  const textWrap = document.createElement("div");
+  textWrap.className = "diary-entry-copy";
+
+  const title = document.createElement("div");
+  title.className = "diary-entry-title";
+  title.textContent = item.title || "Workout";
+  textWrap.appendChild(title);
+
+  const typeLabel = item.workout_type
+    ? item.workout_type.charAt(0).toUpperCase() + item.workout_type.slice(1)
+    : "Exercise";
+  const parts = [typeLabel];
+  if (item.duration_min) parts.push(`${item.duration_min} min`);
+  if (item.difficulty) {
+    parts.push(item.difficulty.charAt(0).toUpperCase() + item.difficulty.slice(1));
+  }
+  if (item.workout_date) parts.push(item.workout_date);
+
+  if (parts.length) {
+    const meta = document.createElement("div");
+    meta.className = "diary-entry-notes";
+    meta.textContent = parts.join(" • ");
+    textWrap.appendChild(meta);
+  }
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "ghost-btn diary-entry-remove";
+  removeBtn.textContent = "✕";
+  removeBtn.setAttribute(
+    "aria-label",
+    `Remove ${item.title || "workout"} from exercise log`
+  );
+
+  row.appendChild(textWrap);
+  row.appendChild(removeBtn);
+  li.appendChild(row);
+
+  if (item.notes) {
+    const notes = document.createElement("div");
+    notes.className = "diary-entry-notes";
+    notes.textContent = item.notes;
+    li.appendChild(notes);
+  }
+
+  return li;
+}
+
 function renderExercise(listEl, items) {
   if (!listEl) return;
 
@@ -167,36 +228,7 @@ function renderExercise(listEl, items) {
 
   listEl.innerHTML = "";
   items.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = "diary-entry";
-
-    const title = document.createElement("div");
-    title.className = "diary-entry-title";
-    title.textContent = item.title;
-
-    const meta = document.createElement("div");
-    meta.className = "diary-entry-notes";
-    const typeLabel = item.workout_type
-      ? item.workout_type.charAt(0).toUpperCase() + item.workout_type.slice(1)
-      : "Exercise";
-    const parts = [typeLabel];
-    if (item.duration_min) parts.push(`${item.duration_min} min`);
-    if (item.difficulty)
-      parts.push(
-        item.difficulty.charAt(0).toUpperCase() + item.difficulty.slice(1)
-      );
-    meta.textContent = parts.join(" • ");
-
-    li.appendChild(title);
-    if (parts.length) li.appendChild(meta);
-    if (item.notes) {
-      const notes = document.createElement("div");
-      notes.className = "diary-entry-notes";
-      notes.textContent = item.notes;
-      li.appendChild(notes);
-    }
-
-    listEl.appendChild(li);
+    listEl.appendChild(createWorkoutEntry(item));
   });
 }
 
@@ -557,6 +589,79 @@ async function removeMealFromDiary(mealId, entryEl) {
   );
 }
 
+async function removeWorkoutFromDiary(workoutId, entryEl) {
+  const normalizedWorkoutId = workoutId ?? entryEl?.dataset?.workoutId;
+  if (!normalizedWorkoutId) {
+    console.error("removeWorkoutFromDiary: missing workout id", {
+      workoutId,
+      entryEl,
+    });
+    showToast("Couldn't delete workout. Missing id.");
+    return;
+  }
+
+  const removeBtn = entryEl?.querySelector?.(".diary-entry-remove");
+  if (removeBtn) {
+    removeBtn.disabled = true;
+    removeBtn.setAttribute("aria-busy", "true");
+  }
+  if (entryEl) {
+    entryEl.classList.add("diary-entry-removing");
+  }
+
+  const { error } = await deleteWorkoutById(normalizedWorkoutId, {
+    date: entryEl?.dataset?.workoutDate || selectedDate,
+    reason: "deleteWorkout:diary",
+  });
+
+  if (error) {
+    console.error("Error removing workout from diary:", error);
+    if (String(error?.message || "").toLowerCase().includes("rls")) {
+      console.error(
+        "Supabase RLS: allow workout owners to delete their own rows:\n" +
+          "create policy \"Allow users to delete own workouts\" on family_workouts for delete using (auth.uid() = user_id);"
+      );
+    }
+    if (entryEl) {
+      entryEl.classList.remove("diary-entry-removing");
+    }
+    if (removeBtn) {
+      removeBtn.disabled = false;
+      removeBtn.removeAttribute("aria-busy");
+    }
+    showToast("Couldn't delete workout. Try again.");
+    return;
+  }
+
+  currentDiaryWorkouts = currentDiaryWorkouts.filter(
+    (workout) => String(workout.id) !== String(normalizedWorkoutId)
+  );
+
+  const updateUI = () => {
+    renderExercise(diaryExerciseList, currentDiaryWorkouts);
+    calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
+  };
+
+  if (entryEl) {
+    const handler = () => {
+      if (entryEl) entryEl.removeEventListener("transitionend", handler);
+      updateUI();
+    };
+    entryEl.addEventListener("transitionend", handler, { once: true });
+    setTimeout(() => updateUI(), 220);
+  } else {
+    updateUI();
+  }
+
+  const dateDetail = entryEl?.dataset?.workoutDate || selectedDate;
+  window.dispatchEvent(
+    new CustomEvent("eh:data-changed", { detail: { source: "workouts", date: dateDetail } })
+  );
+  window.dispatchEvent(
+    new CustomEvent("eh:dataChanged", { detail: { source: "workouts", date: dateDetail } })
+  );
+}
+
 function attachDiaryListHandlers() {
   const lists = [
     diaryBreakfastList,
@@ -584,8 +689,41 @@ function attachDiaryListHandlers() {
   });
 }
 
+function attachExerciseListHandlers() {
+  if (!diaryExerciseList) return;
+  diaryExerciseList.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest(".diary-entry-remove");
+    if (!removeBtn) return;
+    const entry = removeBtn.closest(".diary-entry");
+    const workoutId = entry?.dataset?.workoutId;
+    if (!workoutId) return;
+    removeWorkoutFromDiary(workoutId, entry);
+  });
+}
+
 export function refreshDiaryForSelectedDate() {
   return loadDiary(selectedDate);
+}
+
+function handleDayRollover(nextTodayKey) {
+  storedTodayKey = nextTodayKey;
+  setSelectedDate(nextTodayKey, { force: true });
+}
+
+function checkForDayChange() {
+  const nextTodayKey = toLocalDayKey(new Date());
+  if (!nextTodayKey || nextTodayKey === storedTodayKey) return;
+  handleDayRollover(nextTodayKey);
+}
+
+function startDayChangeWatcher() {
+  storedTodayKey = toLocalDayKey(new Date());
+  if (dayChangeIntervalId) {
+    clearInterval(dayChangeIntervalId);
+  }
+  window.addEventListener("focus", checkForDayChange);
+  document.addEventListener("visibilitychange", checkForDayChange);
+  dayChangeIntervalId = window.setInterval(checkForDayChange, 60 * 1000);
 }
 
 export function initDiary() {
@@ -631,6 +769,8 @@ export function initDiary() {
 
   handleAddButtons();
   attachDiaryListHandlers();
+  attachExerciseListHandlers();
+  startDayChangeWatcher();
 
   onSelectedDateChange(async (dateValue) => {
     setDateText(dateValue);
