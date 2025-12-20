@@ -1796,13 +1796,15 @@ document.addEventListener("diary:add", (event) => {
   const { section, date } = event.detail || {};
   if (!section || !date) return;
 
+  const targetDate = toLocalDayKey(date) || getTodayDate();
+
   if (section === "exercise") {
     activateTab("workouts-tab");
-    if (workoutDateInput) workoutDateInput.value = date;
+    if (workoutDateInput) workoutDateInput.value = targetDate;
     return;
   }
 
-  openMealFlow(section, date);
+  openMealFlow(section, targetDate);
 });
 
 // QUICK ACTION SHEET + DESKTOP FAB MENU
