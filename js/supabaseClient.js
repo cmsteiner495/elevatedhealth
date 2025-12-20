@@ -1,17 +1,16 @@
 // supabaseClient.js
-// Browser ESM version using esm.sh (recommended by Supabase docs).
-// NEVER put the Supabase service_role or any sb_secret key in frontend code—privileged
-// access belongs only inside secured Edge Functions. The browser must use the
-// publishable (anon) key provided via environment variables.
+// Publishable (anon) keys are safe to load in the browser when Row Level Security
+// is enforced on all tables. The service_role or any secret key must never be
+// exposed in frontend code—keep those only in secured backend functions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabaseUrl = import.meta.env.xjtriyybqsrumhkebobp.supabase.co;
-const supabaseAnonKey = import.meta.env.sb_publishable_qw6LJ5v0IG8UXJasDFI8CQ_rVdY65pb;
+const supabaseUrl = window?.EH_ENV?.SUPABASE_URL;
+const supabaseAnonKey = window?.EH_ENV?.SUPABASE_PUBLISHABLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    "Missing Supabase environment configuration. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are set.",
+    "Supabase configuration missing. Create js/env.local.js with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.",
   );
 }
 
