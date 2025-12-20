@@ -346,11 +346,21 @@ async function logWorkoutToDiary(workout) {
     return;
   }
 
+  const scheduledId =
+    workout.scheduled_workout_id || workout.source_scheduled_id || workout.id || null;
   const stored = getStoredWorkouts(currentFamilyId);
   const duplicate = stored.find((entry) => {
-    if ((entry.workout_date || "") !== targetDate) return false;
-    if (String(entry.id) === String(workout.id)) return false;
-    return normalizeTitle(entry.title) === normalizeTitle(title);
+    const entryDay =
+      normalizeWorkoutDay(entry.day_key || entry.workout_date) || entry.workout_date || "";
+    if (entryDay !== targetDate) return false;
+    const scheduledMatch =
+      scheduledId &&
+      (String(entry.scheduled_workout_id || "") === String(scheduledId) ||
+        String(entry.id || "") === String(scheduledId) ||
+        String(entry.log_id || "") === String(scheduledId));
+    const nameMatch = normalizeTitle(entry.title) === normalizeTitle(title);
+    const isSameRow = String(entry.id) === String(workout.id);
+    return !isSameRow && (scheduledMatch || nameMatch);
   });
   if (duplicate) {
     showToast("Already logged for this day.");
@@ -359,21 +369,30 @@ async function logWorkoutToDiary(workout) {
 
   const duration = parseDuration(workout.duration_min ?? workout.duration);
   const payload = {
+    action: "add",
     family_group_id: currentFamilyId,
-    added_by: currentUser.id || null,
     user_id: currentUser.id || null,
-    workout_date: targetDate,
-    title,
+    day_key: targetDate,
+    workout_name: title,
     workout_type: workout.workout_type || workout.workoutType || "workout",
     difficulty: workout.difficulty || null,
     duration_min: duration,
     notes: workout.notes || null,
+    scheduled_workout_id: scheduledId ? String(scheduledId) : null,
   };
 
   const tempId = `${LOCAL_ID_PREFIX}${Date.now()}`;
   const optimisticEntry = {
     id: tempId,
-    ...payload,
+    log_id: tempId,
+    ...workout,
+    title,
+    workout_type: payload.workout_type,
+    duration_min: duration,
+    workout_date: targetDate,
+    day_key: targetDate,
+    scheduled_workout_id: payload.scheduled_workout_id,
+    completed: true,
     created_at: new Date().toISOString(),
   };
 
@@ -382,23 +401,33 @@ async function logWorkoutToDiary(workout) {
   upsertWorkout(optimisticEntry, { reason: "logWorkout:optimistic" });
   renderWorkouts();
 
-  const { data, error } = await supabase
-    .from("family_workouts")
-    .insert(payload)
-    .select()
-    .single();
+  const { data, error } = await supabase.functions.invoke("family_workouts", {
+    body: payload,
+  });
 
-  if (error) {
-    console.error("Error adding workout to log:", error);
+  if (error || !data?.ok) {
+    const details = error?.message || data?.error || "Unknown error";
+    console.error("Error adding workout to log via edge function:", error || data);
     workoutsCache = workoutsCache.filter((item) => item.id !== tempId);
     persistWorkoutsForFamily(currentFamilyId, workoutsCache);
     removeWorkout(tempId, { reason: "logWorkout:rollback" });
     renderWorkouts();
     showToast("Couldn't add workout. Try again.");
+    if (details) {
+      console.warn("family_workouts error:", details);
+    }
     return;
   }
 
-  const persisted = data || optimisticEntry;
+  const persisted = {
+    ...optimisticEntry,
+    ...(data?.workout || {}),
+    id: data?.workout?.id || data?.log_id || optimisticEntry.id,
+    log_id: data?.log_id || data?.workout?.id || optimisticEntry.log_id,
+    workout_date: data?.workout?.workout_date || targetDate,
+    day_key: data?.workout?.day_key || targetDate,
+  };
+
   workoutsCache = mergeWorkouts(
     workoutsCache.filter((item) => item.id !== tempId),
     [persisted]
@@ -413,6 +442,11 @@ async function logWorkoutToDiary(workout) {
     })
   );
   announceDataChange("workouts", targetDate);
+  try {
+    await loadWorkouts();
+  } catch (err) {
+    console.warn("Post-log refresh failed", err);
+  }
   maybeVibrate([12]);
   showToast("Added to log");
 }
