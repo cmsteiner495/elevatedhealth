@@ -1,35 +1,16 @@
 // js/selectors.js
-import { addDays, getTodayDate } from "./state.js";
+import { getTodayDate, getLast7DaysLocal, toLocalDayKey } from "./state.js";
 
 const MACRO_KEYS = ["protein", "carbs", "fat"];
 
 function buildDateWindow() {
-  const today = getTodayDate();
-  const dates = [];
-  for (let i = 6; i >= 0; i -= 1) {
-    dates.push(addDays(today, -i));
-  }
-  return dates;
+  const days = getLast7DaysLocal();
+  return days.map((day) => toLocalDayKey(day));
 }
 
 function normalizeLogDate(value) {
-  if (!value) return null;
-  if (typeof value === "string") {
-    const parts = value.split("T")[0] || value;
-    const [y, m, d] = parts.split("-").map(Number);
-    if ([y, m, d].every((v) => Number.isFinite(v))) {
-      const month = String(m || 1).padStart(2, "0");
-      const day = String(d || 1).padStart(2, "0");
-      return `${y}-${month}-${day}`;
-    }
-  }
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    const y = value.getFullYear();
-    const m = String(value.getMonth() + 1).padStart(2, "0");
-    const d = String(value.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-  return null;
+  const key = toLocalDayKey(value);
+  return key || null;
 }
 
 function parseMetricNumber(value) {

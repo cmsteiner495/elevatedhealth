@@ -11,6 +11,44 @@ function toLocalDateString(date) {
   return `${year}-${month}-${day}`;
 }
 
+export function toLocalDayKey(value) {
+  if (!value) return "";
+  if (value instanceof Date) {
+    const copy = new Date(value);
+    copy.setHours(12, 0, 0, 0);
+    return toLocalDateString(copy);
+  }
+  if (typeof value === "string") {
+    const datePart = value.split("T")[0] || value;
+    const [y, m, d] = datePart.split("-").map(Number);
+    if ([y, m, d].every((n) => Number.isFinite(n))) {
+      return toLocalDateString(new Date(y, (m || 1) - 1, d || 1));
+    }
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return toLocalDayKey(parsed);
+    }
+  }
+  return "";
+}
+
+export function getLast7DaysLocal() {
+  const days = [];
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  for (let i = 6; i >= 0; i -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - i);
+    days.push(day);
+  }
+  return days;
+}
+
+export function formatWeekdayShort(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en", { weekday: "short" }).format(date);
+}
+
 function normalizeDateString(value) {
   if (!value) return null;
   if (value instanceof Date) return toLocalDateString(value);
