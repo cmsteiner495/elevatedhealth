@@ -6,8 +6,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const supabaseUrl = import.meta.env.xjtriyybqsrumhkebobp.supabase.co;
+const supabaseAnonKey = import.meta.env.sb_publishable_qw6LJ5v0IG8UXJasDFI8CQ_rVdY65pb;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
