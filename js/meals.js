@@ -69,6 +69,17 @@ function computeMealTotals(meal = {}) {
   };
 }
 
+function buildServerMealPayload(meal = {}) {
+  const serverPayload = { ...(meal || {}) };
+  if (!isUUID(serverPayload.id)) {
+    delete serverPayload.id;
+  }
+  if (!serverPayload.client_id && meal.id) {
+    serverPayload.client_id = meal.id;
+  }
+  return serverPayload;
+}
+
 export function getStoredMeals(familyId) {
   if (!familyId) return [];
   const store = readMealStore();
@@ -271,14 +282,16 @@ export async function logMealToDiary(meal, options = {}) {
   });
 
   let persistedMeal = null;
+  const serverPayload = buildServerMealPayload(payload);
+  console.log("[MEAL INSERT] serverPayload", serverPayload);
   const { data, error } = await supabase
     .from("family_meals")
-    .insert(payload)
+    .insert(serverPayload)
     .select("*")
     .single();
 
   if (error) {
-    console.error("Error logging meal:", error);
+    console.error("[MEAL INSERT ERROR]", error);
     removeStoredMeal(currentFamilyId, tempId, tempId);
     removeMealByIdOrClientId(tempId, {
       reason: "logMealToDiary:rollback",
@@ -291,6 +304,7 @@ export async function logMealToDiary(meal, options = {}) {
   }
 
   persistedMeal = data;
+  console.log("[MEAL INSERT] insertedRow", persistedMeal);
   const reconciled = {
     ...optimisticEntry,
     ...persistedMeal,
@@ -653,14 +667,16 @@ if (mealsForm) {
       matchClientId: tempId,
     });
 
+    const serverPayload = buildServerMealPayload(payload);
+    console.log("[MEAL INSERT] serverPayload", serverPayload);
     const { data, error } = await supabase
       .from("family_meals")
-      .insert(payload)
+      .insert(serverPayload)
       .select("*")
       .single();
 
     if (error) {
-      console.error("Error adding meal:", error);
+      console.error("[MEAL INSERT ERROR]", error);
       removeStoredMeal(currentFamilyId, tempId, tempId);
       removeMealByIdOrClientId(tempId, {
         reason: "addMeal:rollback",
@@ -671,6 +687,7 @@ if (mealsForm) {
         mealsMessage.style.color = "red";
       }
     } else {
+      console.log("[MEAL INSERT] insertedRow", data);
       const reconciled = {
         ...optimisticEntry,
         ...data,
