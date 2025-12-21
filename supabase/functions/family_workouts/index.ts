@@ -39,27 +39,28 @@ type ActionPayload = {
   scheduled_workout_id?: string | number | null;
 };
 
-async function readJsonBody(req: Request): Promise<ActionPayload> {
-  try {
-    return (await req.json()) ?? {};
-  } catch {
-    return {};
-  }
+function json(body: unknown, status = 200, cors: Record<string, string>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...cors,
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+function jsonError(
+  status: number,
+  code: string,
+  extra: Record<string, unknown> = {},
+  cors: Record<string, string>
+) {
+  return json({ ok: false, code, ...extra }, status, cors);
 }
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   const cors = buildCors(origin);
-
-  const jsonResponse = (body: unknown, status = 200, extraHeaders: HeadersInit = {}) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: {
-        ...cors,
-        "Content-Type": "application/json",
-        ...extraHeaders,
-      },
-    });
 
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors });
@@ -67,7 +68,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (req.method !== "POST") {
-      return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
+      return json({ ok: false, code: "method_not_allowed" }, 405, cors);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -75,23 +76,35 @@ Deno.serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseAnonKey) {
       console.error("Missing SUPABASE_URL or SUPABASE_ANON_KEY");
-      return jsonResponse(
-        { ok: false, error: "Server misconfigured: missing Supabase env" },
-        500
+      return json(
+        { ok: false, code: "server_misconfigured", message: "Missing Supabase env" },
+        500,
+        cors
       );
     }
 
-    const payload = await readJsonBody(req);
-    const action = (() => {
-      const normalized = (payload.action || "").toLowerCase();
-      if (normalized === "delete") return "remove";
-      return normalized;
-    })();
+    let body: ActionPayload | null = null;
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
+
+    if (!body || typeof body !== "object") {
+      return jsonError(400, "invalid_json", { hint: "Send JSON body" }, cors);
+    }
+
+    if (!body.action) {
+      return jsonError(400, "missing_action", { required: ["action"] }, cors);
+    }
+
+    const normalizedAction = (body.action || "").toLowerCase();
+    const action = normalizedAction === "remove" ? "delete" : normalizedAction;
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
-          Authorization: req.headers.get("Authorization") || "",
+          Authorization: req.headers.get("Authorization") ?? "",
         },
       },
     });
@@ -103,80 +116,74 @@ Deno.serve(async (req: Request) => {
 
     if (authError || !user) {
       console.error("Auth error", authError);
-      return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+      return jsonError(401, "unauthorized", { message: "No valid session" }, cors);
     }
 
-    if (payload.user_id && payload.user_id !== user.id) {
-      return jsonResponse({ ok: false, error: "Forbidden" }, 403);
-    }
+    if (action === "delete") {
+      const workoutId = (body.workout_id || "").toString().trim();
+      const diaryDate = (body.diary_date || "").toString().trim();
 
-    if (action === "remove") {
-      const logId = String(payload.log_id ?? payload.workout_id ?? "").trim();
-
-      if (!logId) {
-        return jsonResponse({ ok: false, error: "missing log_id" }, 400);
-      }
-
-      try {
-        const { error: deleteError, count } = await supabase
-          .from("family_workouts")
-          .delete()
-          .eq("id", logId)
-          .eq("user_id", user.id)
-          .select("id", { count: "exact" });
-
-        if (deleteError) {
-          console.error("Delete failed", deleteError);
-          return jsonResponse(
-            { ok: false, error: deleteError.message || "Delete failed" },
-            500
-          );
-        }
-
-        if (!count) {
-          return jsonResponse(
-            { ok: false, error: "Workout log not found", log_id: logId },
-            404
-          );
-        }
-
-        return jsonResponse({ ok: true, deleted: count, log_id: logId });
-      } catch (err) {
-        console.error("Unexpected delete error", err);
-        return jsonResponse(
-          { ok: false, error: "Unexpected server error", details: `${err}` },
-          500
+      if (!workoutId || !diaryDate) {
+        return jsonError(
+          400,
+          "missing_fields",
+          { required: ["workout_id", "diary_date"], received: body },
+          cors
         );
       }
+
+      const { error: delErr } = await supabase
+        .from("family_workouts")
+        .delete()
+        .eq("id", workoutId)
+        .eq("user_id", user.id)
+        .eq("workout_date", diaryDate)
+        .eq("day_key", diaryDate);
+
+      if (delErr) {
+        console.error("Delete failed", delErr);
+        return jsonError(500, "delete_failed", { details: String(delErr) }, cors);
+      }
+
+      return json(
+        { ok: true, action: "delete", workout_id: workoutId, diary_date: diaryDate },
+        200,
+        cors
+      );
     }
 
     if (action === "add") {
-      const familyGroupId = String(payload.family_group_id || "").trim();
-      const dayKey = String(payload.day_key || payload.workout_date || "").trim();
-      const workoutName = String(payload.workout_name || payload.title || "").trim();
-      const workoutType = String(payload.workout_type || "workout").trim();
-      const difficulty = payload.difficulty ? String(payload.difficulty) : null;
+      const familyGroupId = String(body.family_group_id || "").trim();
+      const dayKey = String(body.day_key || body.workout_date || "").trim();
+      const workoutName = String(body.workout_name || body.title || "").trim();
+      const workoutType = String(body.workout_type || "workout").trim();
+      const difficulty = body.difficulty ? String(body.difficulty) : null;
       const durationMin =
-        typeof payload.duration_min === "number"
-          ? payload.duration_min
-          : payload.duration_min
-          ? Number(payload.duration_min)
+        typeof body.duration_min === "number"
+          ? body.duration_min
+          : body.duration_min
+          ? Number(body.duration_min)
           : null;
-      const notes = payload.notes ? String(payload.notes) : null;
-      const scheduledWorkoutId = payload.scheduled_workout_id
-        ? String(payload.scheduled_workout_id)
+      const notes = body.notes ? String(body.notes) : null;
+      const scheduledWorkoutId = body.scheduled_workout_id
+        ? String(body.scheduled_workout_id)
         : null;
 
       if (!familyGroupId) {
-        return jsonResponse({ ok: false, error: "missing family_group_id" }, 400);
+        return jsonError(
+          400,
+          "missing_family_group_id",
+          { required: ["family_group_id"] },
+          cors
+        );
       }
 
       if (!dayKey) {
-        return jsonResponse({ ok: false, error: "missing day_key" }, 400);
+        return jsonError(400, "missing_day_key", { required: ["day_key"] }, cors);
       }
 
       if (!workoutName) {
-        return jsonResponse({ ok: false, error: "missing workout name" }, 400);
+        return jsonError(400, "missing_workout_name", { required: ["workout_name"] }, cors);
       }
 
       const insertPayload = {
@@ -204,25 +211,24 @@ Deno.serve(async (req: Request) => {
 
         if (insertError) {
           console.error("Insert failed", insertError);
-          return jsonResponse(
-            { ok: false, error: insertError.message || "Insert failed" },
-            500
+          return jsonError(
+            500,
+            "insert_failed",
+            { details: insertError.message || "Insert failed" },
+            cors
           );
         }
 
-        return jsonResponse({ ok: true, workout: inserted, log_id: inserted?.id });
+        return json({ ok: true, workout: inserted, log_id: inserted?.id }, 200, cors);
       } catch (err) {
         console.error("Unexpected insert error", err);
-        return jsonResponse(
-          { ok: false, error: "Unexpected server error", details: `${err}` },
-          500
-        );
+        return jsonError(500, "unexpected_error", { details: `${err}` }, cors);
       }
     }
 
-    return jsonResponse({ ok: false, error: "Unsupported action" }, 400);
+    return jsonError(400, "unsupported_action", { action: body.action }, cors);
   } catch (err) {
     console.error("Unhandled family_workouts error", err);
-    return jsonResponse({ ok: false, error: "Unexpected server error" }, 500);
+    return json({ ok: false, code: "unexpected_error", details: `${err}` }, 500, cors);
   }
 });

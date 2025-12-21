@@ -250,7 +250,6 @@ export async function deleteWorkoutById(workoutId, options = {}) {
           action: "delete",
           workout_id: normalizedId,
           diary_date: dateDetail || null,
-          user_id: currentUser?.id || null,
         },
       });
 
