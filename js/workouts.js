@@ -248,7 +248,7 @@ export async function deleteWorkoutById(workoutId, options = {}) {
       const { data, error } = await supabase.functions.invoke("family_workouts", {
         body: {
           action: "delete",
-          workout_id: normalizedId,
+          id: normalizedId,
           diary_date: dateDetail || null,
         },
       });
@@ -318,8 +318,6 @@ async function logWorkoutToDiary(workout) {
   if (workout.id && normalizeWorkoutDay(workout.workout_date) === targetDate) {
     const updatePayload = {
       completed: true,
-      user_id: currentUser.id || workout.user_id || null,
-      added_by: currentUser.id || workout.added_by || null,
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await supabase
@@ -379,7 +377,7 @@ async function logWorkoutToDiary(workout) {
   const payload = {
     action: "add",
     family_group_id: currentFamilyId,
-    user_id: currentUser.id || null,
+    added_by: currentUser.id || null,
     day_key: targetDate,
     workout_name: title,
     workout_type: workout.workout_type || workout.workoutType || "workout",
@@ -608,7 +606,6 @@ if (workoutsForm) {
     const payload = {
       family_group_id: currentFamilyId || null,
       added_by: currentUser?.id || null,
-      user_id: currentUser?.id || null,
       workout_date: dateValue,
       title,
       workout_type: workoutType,
@@ -741,7 +738,7 @@ if (workoutsList) {
         if (String(error?.message || "").toLowerCase().includes("rls")) {
           console.error(
             "Supabase RLS: allow workout owners to delete their own rows:\n" +
-              "create policy \"Allow users to delete own workouts\" on family_workouts for delete using (auth.uid() = user_id);"
+              "create policy \"Allow users to delete own workouts\" on family_workouts for delete using (auth.uid() = added_by);"
           );
         }
         li.classList.remove("list-removing");

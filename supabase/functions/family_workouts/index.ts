@@ -22,10 +22,11 @@ function buildCors(origin: string | null) {
 }
 
 type ActionPayload = {
+  id?: string | null;
   action?: string;
   log_id?: string;
   workout_id?: string | null;
-  user_id?: string | null;
+  added_by?: string | null;
   family_group_id?: string | null;
   day_key?: string | null;
   workout_date?: string | null;
@@ -120,25 +121,43 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "delete") {
-      const workoutId = (body.workout_id || "").toString().trim();
-      const diaryDate = (body.diary_date || "").toString().trim();
+      const workoutId = (
+        body.id ||
+        body.workout_id ||
+        body.log_id ||
+        ""
+      )
+        .toString()
+        .trim();
+      const diaryDate = (
+        body.diary_date ||
+        body.workout_date ||
+        body.day_key ||
+        ""
+      )
+        .toString()
+        .trim();
 
-      if (!workoutId || !diaryDate) {
+      if (!workoutId) {
         return jsonError(
           400,
           "missing_fields",
-          { required: ["workout_id", "diary_date"], received: body },
+          { required: ["id"], received: body },
           cors
         );
       }
 
-      const { error: delErr } = await supabase
+      let deleteQuery = supabase
         .from("family_workouts")
         .delete()
         .eq("id", workoutId)
-        .eq("user_id", user.id)
-        .eq("workout_date", diaryDate)
-        .eq("day_key", diaryDate);
+        .eq("added_by", user.id);
+
+      if (diaryDate) {
+        deleteQuery = deleteQuery.eq("workout_date", diaryDate).eq("day_key", diaryDate);
+      }
+
+      const { error: delErr } = await deleteQuery;
 
       if (delErr) {
         console.error("Delete failed", delErr);
@@ -146,7 +165,7 @@ Deno.serve(async (req: Request) => {
       }
 
       return json(
-        { ok: true, action: "delete", workout_id: workoutId, diary_date: diaryDate },
+        { ok: true, action: "delete", id: workoutId, diary_date: diaryDate },
         200,
         cors
       );
@@ -188,7 +207,6 @@ Deno.serve(async (req: Request) => {
 
       const insertPayload = {
         family_group_id: familyGroupId,
-        user_id: user.id,
         added_by: user.id,
         title: workoutName,
         workout_name: workoutName,
