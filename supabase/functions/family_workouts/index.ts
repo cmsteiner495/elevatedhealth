@@ -121,47 +121,38 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "delete") {
-      const workoutId = (
-        body.id ||
-        body.workout_id ||
-        body.log_id ||
-        ""
-      )
-        .toString()
-        .trim();
-      const diaryDate = (
-        body.diary_date ||
-        body.workout_date ||
-        body.day_key ||
-        ""
-      )
-        .toString()
-        .trim();
-
-      if (!workoutId) {
+      if (!body.id) {
         return jsonError(
           400,
-          "missing_fields",
+          "missing_id",
           { required: ["id"], received: body },
           cors
         );
       }
 
-      let deleteQuery = supabase
+      const workoutId = String(body.id).trim();
+      const diaryDate = (body.diary_date || "").toString().trim();
+
+      const deleteQuery = supabase
         .from("family_workouts")
         .delete()
         .eq("id", workoutId)
         .eq("added_by", user.id);
 
-      if (diaryDate) {
-        deleteQuery = deleteQuery.eq("workout_date", diaryDate).eq("day_key", diaryDate);
-      }
-
-      const { error: delErr } = await deleteQuery;
+      const { data: deletedRows, error: delErr } = await deleteQuery.select();
 
       if (delErr) {
         console.error("Delete failed", delErr);
         return jsonError(500, "delete_failed", { details: String(delErr) }, cors);
+      }
+
+      if (!deletedRows || deletedRows.length === 0) {
+        return jsonError(
+          404,
+          "not_found",
+          { message: "No matching workout row for this user", id: workoutId },
+          cors
+        );
       }
 
       return json(
