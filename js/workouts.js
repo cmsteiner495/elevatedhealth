@@ -234,6 +234,11 @@ export async function fetchWorkoutsByDate(dateValue) {
   return merged.filter((workout) => (workout.workout_date || "") === dateValue);
 }
 
+async function deleteWorkoutRow(id) {
+  const { error } = await supabase.from("family_workouts").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteWorkoutById(workoutId, options = {}) {
   if (!workoutId) return { error: new Error("Missing workout id") };
   const normalizedId = String(workoutId);
@@ -244,21 +249,9 @@ export async function deleteWorkoutById(workoutId, options = {}) {
 
   if (!shouldForceLocalRemoval && currentUser?.id) {
     try {
-      // Edge Function endpoint: /functions/v1/family_workouts
-      const { data, error } = await supabase.functions.invoke("family_workouts", {
-        body: {
-          action: "delete",
-          id: normalizedId,
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.ok) {
-        const invokeError = new Error(data?.error || "Delete failed");
-        if (data?.details) invokeError.details = data.details;
-        throw invokeError;
-      }
+      await deleteWorkoutRow(normalizedId);
     } catch (err) {
+      console.error("Delete workout failed", err);
       deleteError = err;
     }
   } else if (!shouldForceLocalRemoval && !currentUser?.id) {
