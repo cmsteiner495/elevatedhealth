@@ -67,6 +67,20 @@ export const diaryCaloriesRemaining = document.getElementById(
 export const dashboardCaloriesFill = document.getElementById(
   "dashboard-calories-fill"
 );
+export const insightMacrosCard = document.getElementById("insight-macros-card");
+export const insightCaloriesCard = document.getElementById(
+  "insight-calories-card"
+);
+export const insightWorkoutsCard = document.getElementById(
+  "insight-workouts-card"
+);
+export const macrosChartCanvas = document.getElementById("macros-chart");
+export const caloriesChartCanvas = document.getElementById("calories-chart");
+export const workoutsChartCanvas = document.getElementById("workouts-chart");
+export const macrosEmptyState = document.getElementById("macros-empty");
+export const caloriesEmptyState = document.getElementById("calories-empty");
+export const workoutsEmptyState = document.getElementById("workouts-empty");
+export const streakCount = document.getElementById("streak-count");
 
 // Family
 export const familyStatus = document.getElementById("family-status");

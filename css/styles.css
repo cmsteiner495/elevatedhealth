@@ -314,6 +314,19 @@ body {
   max-width: 76vw;
 }
 
+.top-bar-logo-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.site-logo {
+  display: block;
+  height: 36px;
+  max-height: 42px;
+  width: auto;
+  object-fit: contain;
+}
+
 .logo-mark {
   display: inline-flex;
   align-items: center;
@@ -348,6 +361,10 @@ body {
 @media (max-width: 899px) {
   .mobile-overline {
     display: none;
+  }
+
+  .site-logo {
+    height: 32px;
   }
 }
 
@@ -731,6 +748,114 @@ body {
   gap: var(--space-16);
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   margin-top: var(--space-12);
+}
+
+.dashboard-insights {
+  margin-top: var(--space-20);
+}
+
+.insights-grid {
+  display: grid;
+  gap: var(--space-12);
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  grid-auto-rows: minmax(260px, auto);
+}
+
+@media (min-width: 900px) {
+  .insights-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.insight-card {
+  background: var(--surface-elevated);
+  border-radius: 18px;
+  padding: var(--space-12);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  height: 100%;
+  transition: transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+  overflow: hidden;
+}
+
+.insight-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.insight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-floating);
+  border-color: rgba(0, 163, 163, 0.48);
+}
+
+.insight-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: var(--space-12);
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+}
+
+.insight-canvas {
+  width: 100%;
+  height: 220px;
+  display: block;
+  z-index: 1;
+  flex: 1;
+}
+
+.macros-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-8);
+  width: 100%;
+}
+
+.macros-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.macros-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.16);
+  flex-shrink: 0;
+}
+
+.insight-canvas.insight-canvas-empty {
+  opacity: 0.72;
+  filter: saturate(0.78);
+}
+
+.eh-debug-totals {
+  width: 100%;
+  margin-top: var(--space-8);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  opacity: 0.82;
+  text-align: center;
+  pointer-events: none;
 }
 
 .streak-card .card-header {

@@ -1,5 +1,6 @@
 // js/app.js
 import { supabase } from "./supabaseClient.js";
+import { getMeals, getWorkouts } from "./dataAdapter.js";
 import {
   authSection,
   appSection,
@@ -52,6 +53,15 @@ import {
   diaryCalendarBtn,
   diaryDatePicker,
   diaryAddButtons,
+  insightMacrosCard,
+  insightCaloriesCard,
+  insightWorkoutsCard,
+  caloriesChartCanvas,
+  workoutsChartCanvas,
+  macrosEmptyState,
+  caloriesEmptyState,
+  workoutsEmptyState,
+  streakCount,
 } from "./dom.js";
 import {
   currentUser,
@@ -63,10 +73,17 @@ import {
   getTodayDate,
   onSelectedDateChange,
   addDays,
+  toLocalDayKey,
+  getLast7DaysLocal,
+  formatWeekdayShort,
 } from "./state.js";
 import { setGroceryFamilyState } from "./grocery.js";
-import { loadMeals, setMealsFamilyState } from "./meals.js";
-import { setWorkoutsFamilyState } from "./workouts.js";
+import { loadMeals, logMealToDiary, setMealsFamilyState } from "./meals.js";
+import {
+  cacheWorkoutsLocally,
+  getStoredWorkouts,
+  setWorkoutsFamilyState,
+} from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
 import { initCoachHandlers, runWeeklyPlanGeneration } from "./coach.js";
@@ -79,6 +96,8 @@ import {
   showToast,
   maybeVibrate,
 } from "./ui.js";
+import { subscribe, getState as getStoreState, setMeals, setWorkouts } from "./ehStore.js";
+import { computeDashboardModel } from "./selectors.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -97,9 +116,53 @@ let diaryRealtimeChannel;
 let mealsGuidedMode = false;
 let isCalendarOpen = false;
 let isQuickSheetOpen = false;
+const MACROS_CANVAS_HEIGHT = 220;
+let caloriesChart;
+let workoutsChart;
+let macrosLegendEl;
+let macrosResizeObserver;
+let macrosResizeHost;
+let macrosLastWidth = 0;
+let macrosLatestTotals = null;
+let macrosHostRef = null;
+let macrosResizePending = false;
+let macrosRingInitialized = false;
+let macrosRingSvg = null;
+let macrosRingLayers = {};
+let macrosRingTextValue = null;
+let macrosRingTextLabel = null;
+let dashboardUnsubscribe = null;
+let latestDashboardModel = null;
+let isResizingMacrosRing = false;
+let insightsRenderLock = false;
+let insightsRenderQueued = false;
+let insightsResizeTimer;
+let debugTotalsContainer = null;
 const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
+if (typeof window !== "undefined") {
+  if (!("__EH_MACROS_RENDERING__" in window)) {
+    window.__EH_MACROS_RENDERING__ = false;
+  }
+  if (!("__EH_MACROS_RAF_ID__" in window)) {
+    window.__EH_MACROS_RAF_ID__ = null;
+  }
+  if (!("__EH_MACROS_TIMER_ID__" in window)) {
+    window.__EH_MACROS_TIMER_ID__ = null;
+  }
+}
+
+const DASHBOARD_CHARTS_INIT_FLAG = "__EH_DASHBOARD_CHARTS_INIT__";
+const CHART_REGISTRY_KEY = "EH_CHARTS";
+
 const THEME_STORAGE_KEY = "eh-theme";
+// Default macro targets; adjust here to tune ring goals.
+const MACRO_GOALS = {
+  protein: 150,
+  carbs: 200,
+  fat: 70,
+};
+const MACRO_ORDER = ["protein", "carbs", "fat"];
 const THEME_TOKEN_MAP = {
   dark: {
     "--bg-app": "#031c2c",
@@ -149,6 +212,765 @@ const TAB_TITLE_MAP = {
   "settings-tab": "Settings",
   "more-tab": "More",
 };
+
+function getInsightPalette() {
+  const styles = getComputedStyle(document.documentElement);
+  const read = (token, fallback) =>
+    styles.getPropertyValue(token)?.trim() || fallback;
+
+  return {
+    accent: read("--accent", "#00a3a3"),
+    accentStrong: read("--accent-strong", "#ff6b1a"),
+    accentBlue: read("--accent-blue", "#4aa5ff"),
+    textMuted: read("--text-muted", "#7aa0b8"),
+    grid: read("--border-subtle", "rgba(0, 154, 154, 0.35)"),
+  };
+}
+
+function applyAlpha(color, alpha) {
+  if (!color) return `rgba(0,0,0,${alpha})`;
+  if (color.startsWith("#")) {
+    const hex = color.replace("#", "");
+    const normalized = hex.length === 3
+      ? hex
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex;
+    const int = parseInt(normalized, 16);
+    const r = (int >> 16) & 255;
+    const g = (int >> 8) & 255;
+    const b = int & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  const match = color.match(/rgba?\(([^)]+)\)/);
+  if (match) {
+    const parts = match[1].split(",").map((p) => Number(p.trim())) || [];
+    const [r, g, b] = parts;
+    if ([r, g, b].every((v) => Number.isFinite(v))) {
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+  }
+
+  return color;
+}
+
+function mergeEntries(primary = [], secondary = [], keyBuilder) {
+  const map = new Map();
+  const buildKey = keyBuilder || ((item) => item?.id);
+  const add = (item, priority = false) => {
+    if (!item) return;
+    const key = buildKey(item) || `k-${map.size}`;
+    const existing = map.get(key) || {};
+    map.set(key, priority ? { ...existing, ...item } : { ...item, ...existing });
+  };
+
+  primary.forEach((item) => add(item, false));
+  secondary.forEach((item) => add(item, true));
+
+  return Array.from(map.values());
+}
+
+function buildDateWindow() {
+  const days = getLast7DaysLocal();
+  return days.map((day) => toLocalDayKey(day));
+}
+
+function parseMetricNumber(value) {
+  if (value == null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "string") {
+    const match = value.match(/-?\d+(?:\.\d+)?/);
+    if (match) {
+      const parsed = Number(match[0]);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function getChartRegistry() {
+  if (typeof window === "undefined") return {};
+  window[CHART_REGISTRY_KEY] = window[CHART_REGISTRY_KEY] || {};
+  return window[CHART_REGISTRY_KEY];
+}
+
+function destroyRegisteredChart(key) {
+  const registry = getChartRegistry();
+  const chart = registry[key];
+  if (chart && typeof chart.destroy === "function") {
+    chart.destroy();
+  }
+  delete registry[key];
+  if (key === "calories7") {
+    caloriesChart = null;
+  }
+  if (key === "workouts7") {
+    workoutsChart = null;
+  }
+}
+
+function toggleInsightState(emptyEl, canvasEl, hasData) {
+  if (emptyEl) emptyEl.style.display = hasData ? "none" : "block";
+  if (canvasEl) {
+    canvasEl.style.display = "block";
+    canvasEl.classList.toggle("insight-canvas-empty", !hasData);
+  }
+}
+
+function resetChartInstance(chartInstance, canvasEl) {
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+  if (canvasEl) {
+    const ctx = canvasEl.getContext("2d");
+    if (ctx && canvasEl.width && canvasEl.height) {
+      ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    }
+  }
+}
+
+function measureMacrosWidth(host) {
+  if (!host) return 0;
+  const rect = host.getBoundingClientRect?.();
+  const width = rect?.width || host.clientWidth || 0;
+  return Math.round(width);
+}
+
+function ensureMacrosResizeObserver(host) {
+  if (typeof ResizeObserver === "undefined" || !host) return;
+  if (macrosResizeObserver && macrosResizeHost === host) return;
+  if (macrosResizeObserver) {
+    macrosResizeObserver.disconnect();
+  }
+  const ro = new ResizeObserver(() => {
+    if (macrosResizePending) return;
+    macrosResizePending = true;
+    window.__EH_MACROS_RAF_ID__ = window.requestAnimationFrame(() => {
+      window.__EH_MACROS_RAF_ID__ = null;
+      macrosResizePending = false;
+      resizeMacrosRing();
+    });
+  });
+  macrosResizeObserver = ro;
+  macrosResizeHost = host;
+  window.__EH_MACROS_RESIZE_OBSERVER__ = ro;
+  ro.observe(host);
+}
+
+function getMacrosHost() {
+  return (
+    insightMacrosCard?.querySelector(".insight-body") ||
+    null
+  );
+}
+
+function resetMacrosRing() {
+  if (macrosResizeObserver) {
+    macrosResizeObserver.disconnect();
+    macrosResizeObserver = null;
+  }
+  macrosResizeHost = null;
+  macrosRingInitialized = false;
+  macrosRingLayers = {};
+  macrosRingTextValue = null;
+  macrosRingTextLabel = null;
+  macrosLastWidth = 0;
+  macrosHostRef = null;
+  macrosResizePending = false;
+  isResizingMacrosRing = false;
+  if (macrosRingSvg?.parentNode) {
+    macrosRingSvg.parentNode.removeChild(macrosRingSvg);
+  }
+  macrosRingSvg = null;
+  macrosLatestTotals = null;
+}
+
+function initMacrosRing(domRefs = {}) {
+  const host = domRefs.host || getMacrosHost();
+  if (!host || macrosRingInitialized) return;
+  macrosRingInitialized = true;
+  macrosHostRef = host;
+
+  const existingRing = host.querySelector("#macros-chart");
+  if (existingRing) {
+    existingRing.remove();
+  }
+
+  const center = MACROS_CANVAS_HEIGHT / 2;
+  const spacing = 14;
+  const strokeWidth = 12;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("id", "macros-chart");
+  svg.setAttribute("viewBox", `0 0 ${MACROS_CANVAS_HEIGHT} ${MACROS_CANVAS_HEIGHT}`);
+  svg.setAttribute("width", `${MACROS_CANVAS_HEIGHT}`);
+  svg.setAttribute("height", `${MACROS_CANVAS_HEIGHT}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Macros today ring");
+  svg.classList.add("insight-canvas");
+
+  macrosRingLayers = {};
+  MACRO_ORDER.forEach((key, idx) => {
+    const radius = center - strokeWidth - idx * spacing;
+    const circumference = 2 * Math.PI * radius;
+
+    const track = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    track.setAttribute("cx", center);
+    track.setAttribute("cy", center);
+    track.setAttribute("r", radius);
+    track.setAttribute("fill", "none");
+    track.setAttribute("stroke-width", strokeWidth);
+    track.setAttribute("stroke-linecap", "round");
+    track.classList.add("macros-ring-track");
+
+    const arc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    arc.setAttribute("cx", center);
+    arc.setAttribute("cy", center);
+    arc.setAttribute("r", radius);
+    arc.setAttribute("fill", "none");
+    arc.setAttribute("stroke-width", strokeWidth);
+    arc.setAttribute("stroke-linecap", "round");
+    arc.setAttribute("stroke-dasharray", `${circumference} ${circumference}`);
+    arc.setAttribute("stroke-dashoffset", `${circumference}`);
+    arc.classList.add("macros-ring-arc");
+
+    svg.appendChild(track);
+    svg.appendChild(arc);
+
+    macrosRingLayers[key] = { track, arc, circumference };
+  });
+
+  macrosRingTextValue = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  macrosRingTextValue.setAttribute("x", center);
+  macrosRingTextValue.setAttribute("y", center - 2);
+  macrosRingTextValue.setAttribute("text-anchor", "middle");
+  macrosRingTextValue.setAttribute("fill", "var(--text-primary)");
+  macrosRingTextValue.setAttribute("font-size", "20");
+  macrosRingTextValue.setAttribute("font-weight", "600");
+  macrosRingTextValue.textContent = "0g";
+  svg.appendChild(macrosRingTextValue);
+
+  macrosRingTextLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  macrosRingTextLabel.setAttribute("x", center);
+  macrosRingTextLabel.setAttribute("y", center + 18);
+  macrosRingTextLabel.setAttribute("text-anchor", "middle");
+  macrosRingTextLabel.setAttribute("fill", "var(--text-muted)");
+  macrosRingTextLabel.setAttribute("font-size", "12");
+  macrosRingTextLabel.textContent = "Macros Today";
+  svg.appendChild(macrosRingTextLabel);
+
+  host.appendChild(svg);
+  macrosRingSvg = svg;
+
+  ensureMacrosResizeObserver(host);
+  resizeMacrosRing();
+  console.log("[macros] ring children", host.children.length);
+}
+
+function updateMacrosLegend(colors, totals) {
+  renderMacrosLegend(colors, totals);
+}
+
+function updateMacrosRing(macros) {
+  const host = macrosHostRef || getMacrosHost();
+  initMacrosRing({ host });
+  if (!macrosRingSvg) return;
+
+  if (macros) {
+    macrosLatestTotals = macros;
+  }
+  const totals = macrosLatestTotals || { protein: 0, carbs: 0, fat: 0 };
+  const numericTotals = MACRO_ORDER.reduce((acc, key) => {
+    acc[key] = parseMetricNumber(totals[key]);
+    return acc;
+  }, {});
+  const hasData = MACRO_ORDER.some((key) => numericTotals[key] > 0);
+  const palette = getInsightPalette();
+  const macroColors = {
+    protein: palette.accentStrong,
+    carbs: "#00c2c2",
+    fat: "#5c8dff",
+  };
+  const trackColor = applyAlpha(palette.grid, hasData ? 0.6 : 0.4);
+
+  MACRO_ORDER.forEach((key) => {
+    const layer = macrosRingLayers[key];
+    if (!layer) return;
+    const goal = parseMetricNumber(MACRO_GOALS[key]) || 1;
+    const value = Math.max(0, numericTotals[key]);
+    const pct = hasData ? Math.min(value / goal, 1) : 0;
+    const dashOffset = layer.circumference * (1 - pct);
+
+    layer.track.setAttribute("stroke", trackColor);
+    layer.track.setAttribute("stroke-opacity", hasData ? "1" : "0.7");
+
+    layer.arc.setAttribute("stroke", macroColors[key] || palette.accent);
+    layer.arc.setAttribute("stroke-dasharray", `${layer.circumference} ${layer.circumference}`);
+    layer.arc.setAttribute("stroke-dashoffset", `${dashOffset}`);
+    layer.arc.style.opacity = hasData ? "1" : "0.55";
+  });
+
+  const totalValue = Math.round(
+    numericTotals.protein + numericTotals.carbs + numericTotals.fat
+  );
+  if (macrosRingTextValue) {
+    macrosRingTextValue.textContent = hasData ? `${totalValue}g` : "";
+    macrosRingTextValue.setAttribute("fill", hasData ? "var(--text-primary)" : palette.textMuted);
+  }
+  if (macrosRingTextLabel) {
+    macrosRingTextLabel.textContent = hasData ? "Macros Today" : "";
+    macrosRingTextLabel.setAttribute("fill", palette.textMuted);
+  }
+
+  toggleInsightState(macrosEmptyState, macrosRingSvg, hasData);
+  updateMacrosLegend(macroColors, numericTotals);
+}
+
+function resizeMacrosRing() {
+  const host = macrosHostRef || getMacrosHost();
+  if (!macrosRingSvg || !host) return;
+  if (isResizingMacrosRing) return;
+
+  const nextWidth = measureMacrosWidth(host);
+  if (!nextWidth || Math.abs(nextWidth - macrosLastWidth) < 1) return;
+
+  const applySize = () => {
+    macrosRingSvg.setAttribute("width", `${nextWidth}`);
+    macrosRingSvg.style.width = `${nextWidth}px`;
+    macrosRingSvg.setAttribute("height", `${MACROS_CANVAS_HEIGHT}`);
+    macrosRingSvg.style.height = `${MACROS_CANVAS_HEIGHT}px`;
+    macrosRingSvg.setAttribute(
+      "viewBox",
+      `0 0 ${MACROS_CANVAS_HEIGHT} ${MACROS_CANVAS_HEIGHT}`
+    );
+    macrosLastWidth = nextWidth;
+    isResizingMacrosRing = false;
+  };
+
+  isResizingMacrosRing = true;
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(applySize);
+  } else {
+    applySize();
+  }
+}
+
+function formatShortLabel(dateValue) {
+  const dayKey = toLocalDayKey(dateValue);
+  if (!dayKey) return "";
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const date = new Date(y || 0, (m || 1) - 1, d || 1);
+  return formatWeekdayShort(date);
+}
+
+function normalizeLogDate(dateValue) {
+  return toLocalDayKey(dateValue);
+}
+
+function computeWorkoutStreakFromList(workouts = []) {
+  const workoutDates = new Set();
+  workouts.forEach((workout) => {
+    const date = normalizeLogDate(workout.workout_date || workout.date);
+    if (date) workoutDates.add(date);
+  });
+
+  let streak = 0;
+  let cursor = getTodayDate();
+  while (workoutDates.has(cursor)) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+async function calculateWorkoutStreak() {
+  if (streakCount) streakCount.textContent = "0";
+  if (!currentFamilyId) return 0;
+
+  try {
+    let workouts = getStoredWorkouts(currentFamilyId);
+    if (!workouts.length) {
+      const { data, error } = await supabase
+        .from("family_workouts")
+        .select("id, workout_date")
+        .eq("family_group_id", currentFamilyId)
+        .order("workout_date", { ascending: false });
+
+      if (!error && data) {
+        workouts = data;
+        cacheWorkoutsLocally(currentFamilyId, data);
+      } else if (error) {
+        console.error("Error loading workouts for streak", error);
+      }
+    }
+
+    const streakValue = computeWorkoutStreakFromList(workouts);
+    if (streakCount) streakCount.textContent = String(streakValue);
+    return streakValue;
+  } catch (err) {
+    console.error("Could not calculate workout streak", err);
+    if (streakCount) streakCount.textContent = "0";
+    return 0;
+  }
+}
+
+async function getDashboardMetrics() {
+  const metrics = computeDashboardModel(getStoreState());
+  latestDashboardModel = metrics;
+  return metrics;
+}
+
+function renderMacrosInsight(macros) {
+  updateMacrosRing(macros);
+}
+
+function createMacrosChart(model = {}) {
+  resetMacrosRing();
+  renderMacrosInsight(model.macrosToday);
+  return {
+    destroy: resetMacrosRing,
+  };
+}
+
+function ensureMacrosLegend() {
+  if (macrosLegendEl) return macrosLegendEl;
+  const container = insightMacrosCard?.querySelector(".insight-body");
+  if (!container) return null;
+  macrosLegendEl = document.createElement("div");
+  macrosLegendEl.className = "macros-legend";
+  container.appendChild(macrosLegendEl);
+  return macrosLegendEl;
+}
+
+function renderMacrosLegend(colors, totals) {
+  const legend = ensureMacrosLegend();
+  if (!legend) return;
+  legend.innerHTML = "";
+
+  MACRO_ORDER.forEach((key) => {
+    const item = document.createElement("div");
+    item.className = "macros-legend-item";
+
+    const dot = document.createElement("span");
+    dot.className = "macros-legend-dot";
+    dot.style.backgroundColor = colors[key] || "var(--accent)";
+
+    const label = document.createElement("span");
+    const value = parseMetricNumber(totals[key]);
+    const valueLabel = Number.isFinite(value) && value > 0 ? ` · ${value}g` : "";
+    label.textContent = `${
+      key.charAt(0).toUpperCase() + key.slice(1)
+    }${valueLabel}`;
+
+    item.appendChild(dot);
+    item.appendChild(label);
+    legend.appendChild(item);
+  });
+}
+
+function renderCaloriesInsight(labels, calories, existingChart) {
+  if (!caloriesChartCanvas || typeof Chart === "undefined") return null;
+  const data = Array.isArray(calories) ? calories : [];
+  const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
+  const hasData = dataset.some((v) => v > 0);
+  const tooltipValues = dataset;
+
+  const visibleData = hasData ? dataset : labels.map(() => 0);
+
+  toggleInsightState(caloriesEmptyState, caloriesChartCanvas, hasData);
+
+  const palette = getInsightPalette();
+  const labelSet = labels.map((label) => formatShortLabel(label));
+
+  const chartData = {
+    labels: labelSet,
+    datasets: [
+      {
+        label: "Calories",
+        data: visibleData,
+        borderColor: hasData ? palette.accent : applyAlpha(palette.grid, 0.7),
+        backgroundColor: hasData
+          ? "rgba(0, 163, 163, 0.14)"
+          : applyAlpha(palette.grid, 0.14),
+        tension: 0.35,
+        pointRadius: hasData ? 3 : 2,
+        pointHoverRadius: hasData ? 4 : 2,
+        fill: true,
+      },
+    ],
+  };
+
+  const options = {
+    maintainAspectRatio: false,
+    responsive: true,
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: palette.textMuted },
+      },
+      y: {
+        beginAtZero: true,
+        suggestedMax: hasData ? undefined : 1,
+        grid: { color: "rgba(255,255,255,0.06)" },
+        ticks: { color: palette.textMuted },
+      },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} kcal`,
+        },
+      },
+    },
+    animation: {
+      duration: 220,
+    },
+  };
+
+  resetChartInstance(existingChart || caloriesChart, caloriesChartCanvas);
+  const nextChart = new Chart(caloriesChartCanvas, {
+    type: "line",
+    data: chartData,
+    options,
+  });
+  caloriesChart = nextChart;
+  return nextChart;
+}
+
+function renderWorkoutsInsight(labels, workouts, existingChart) {
+  if (!workoutsChartCanvas || typeof Chart === "undefined") return null;
+  const data = Array.isArray(workouts) ? workouts : [];
+  const dataset = labels.map((_, idx) => parseMetricNumber(data[idx]));
+  const hasData = dataset.some((v) => v > 0);
+  const tooltipValues = dataset;
+
+  const visibleData = hasData ? dataset : labels.map(() => 0);
+
+  toggleInsightState(workoutsEmptyState, workoutsChartCanvas, hasData);
+
+  const palette = getInsightPalette();
+  const labelSet = labels.map((label) => formatShortLabel(label));
+
+  const chartData = {
+    labels: labelSet,
+    datasets: [
+      {
+        label: "Sessions",
+        data: visibleData,
+        backgroundColor: hasData
+          ? palette.accentStrong
+          : applyAlpha(palette.grid, 0.65),
+        borderRadius: 10,
+      },
+    ],
+  };
+
+  const options = {
+    maintainAspectRatio: false,
+    responsive: true,
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: palette.textMuted },
+      },
+      y: {
+        beginAtZero: true,
+        suggestedMax: hasData ? undefined : 1,
+        grid: { color: "rgba(255,255,255,0.06)" },
+        ticks: { color: palette.textMuted, precision: 0 },
+      },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${tooltipValues[ctx.dataIndex] || 0} sessions`,
+        },
+      },
+    },
+    animation: {
+      duration: 200,
+    },
+  };
+
+  resetChartInstance(existingChart || workoutsChart, workoutsChartCanvas);
+  const nextChart = new Chart(workoutsChartCanvas, {
+    type: "bar",
+    data: chartData,
+    options,
+  });
+  workoutsChart = nextChart;
+  return nextChart;
+}
+
+function createCalories7Chart(model = {}) {
+  const labels = model.labels || buildDateWindow();
+  return renderCaloriesInsight(labels, model.calories7Days, null);
+}
+
+function createWorkouts7Chart(model = {}) {
+  const labels = model.labels || buildDateWindow();
+  return renderWorkoutsInsight(labels, model.workouts7Days, null);
+}
+
+function ensureDebugTotalsContainer() {
+  const host = getMacrosHost() || insightMacrosCard?.querySelector(".insight-body");
+  if (debugTotalsContainer && debugTotalsContainer.isConnected) {
+    if (host && debugTotalsContainer.parentElement !== host) {
+      host.appendChild(debugTotalsContainer);
+    } else if (host && host.lastElementChild !== debugTotalsContainer) {
+      host.appendChild(debugTotalsContainer);
+    }
+    return debugTotalsContainer;
+  }
+  if (!host) return null;
+  const container = document.createElement("div");
+  container.id = "eh-debug-totals";
+  container.className = "eh-debug-totals";
+  host.appendChild(container);
+  debugTotalsContainer = container;
+  return container;
+}
+
+function updateDebugTotals(totals = {}, mealsTodayCount = 0) {
+  const container = ensureDebugTotalsContainer();
+  if (!container) return;
+  container.innerHTML = `
+    <div>Meals Today: ${mealsTodayCount}</div>
+    <div>Calories Today: ${totals.calories ?? 0}</div>
+    <div>Protein: ${totals.protein ?? 0}g · Carbs: ${totals.carbs ?? 0}g · Fat: ${totals.fat ?? 0}g</div>
+  `;
+}
+
+async function renderInsights(reason = "manual") {
+  if (!insightMacrosCard) return;
+  const metrics = latestDashboardModel || (await getDashboardMetrics());
+  const labels = metrics.labels || buildDateWindow();
+  const caloriesToday =
+    labels.length && Array.isArray(metrics.calories7Days)
+      ? metrics.calories7Days[labels.length - 1] || 0
+      : 0;
+  const totals = metrics.macrosToday || {};
+  const numericTotals = {
+    calories: parseMetricNumber(caloriesToday),
+    protein: parseMetricNumber(totals.protein),
+    carbs: parseMetricNumber(totals.carbs),
+    fat: parseMetricNumber(totals.fat),
+  };
+  const mealsTodayCount = parseMetricNumber(metrics.mealsTodayCount ?? 0);
+  const todayKey = metrics.todayKey || getTodayDate();
+  console.log("[EH DASH] totals", numericTotals);
+  console.log("[EH DASH] model", {
+    todayKey,
+    mealsToday: mealsTodayCount,
+    totals: numericTotals,
+  });
+
+  destroyRegisteredChart("macros");
+  destroyRegisteredChart("calories7");
+  destroyRegisteredChart("workouts7");
+
+  const registry = getChartRegistry();
+  registry.macros = createMacrosChart(metrics);
+  if (reason === "resize") {
+    resizeMacrosRing();
+  }
+  registry.calories7 = createCalories7Chart(metrics);
+  registry.workouts7 = createWorkouts7Chart(metrics);
+  updateDebugTotals(numericTotals, mealsTodayCount);
+}
+
+async function runSafeInsightsRender(reason = "manual") {
+  if (!window[DASHBOARD_CHARTS_INIT_FLAG]) return;
+  if (insightsRenderLock) {
+    insightsRenderQueued = true;
+    return;
+  }
+  insightsRenderLock = true;
+  try {
+    await renderInsights(reason);
+  } finally {
+    insightsRenderLock = false;
+    if (insightsRenderQueued) {
+      insightsRenderQueued = false;
+      runSafeInsightsRender("queued");
+    }
+  }
+}
+
+function scheduleInsightsRender(reason = "manual", options = {}) {
+  if (!window[DASHBOARD_CHARTS_INIT_FLAG]) return;
+  if (options.debounceMs) {
+    clearTimeout(insightsResizeTimer);
+    insightsResizeTimer = setTimeout(
+      () => runSafeInsightsRender(reason),
+      options.debounceMs
+    );
+    return;
+  }
+  runSafeInsightsRender(reason);
+}
+
+const refreshDashboardInsights = (reason = "refresh") =>
+  runSafeInsightsRender(reason);
+
+function initDashboardInsights() {
+  if (window[DASHBOARD_CHARTS_INIT_FLAG]) return;
+  window[DASHBOARD_CHARTS_INIT_FLAG] = true;
+
+  bindInsightCards();
+
+  if (!dashboardUnsubscribe) {
+    dashboardUnsubscribe = subscribe((nextState) => {
+      latestDashboardModel = computeDashboardModel(nextState);
+      renderInsights("store-update");
+    });
+  }
+
+  const handleDataChanged = (event) => {
+    scheduleInsightsRender("data-change");
+    const source = event?.detail?.source || event?.detail?.entity;
+    if (
+      !source ||
+      source === "workouts" ||
+      source === "workout" ||
+      source === "all"
+    ) {
+      calculateWorkoutStreak();
+    }
+  };
+
+  document.addEventListener("family:changed", () => {
+    scheduleInsightsRender("family-changed");
+    calculateWorkoutStreak();
+  });
+
+  document.addEventListener("diary:refresh", () => {
+    scheduleInsightsRender("diary-refresh");
+  });
+
+  window.addEventListener("eh:data-changed", handleDataChanged);
+  window.addEventListener("eh:dataChanged", handleDataChanged);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      scheduleInsightsRender("visibility");
+    }
+  });
+  document.addEventListener("DOMContentLoaded", () => {
+    scheduleInsightsRender("dom-ready");
+  });
+  window.addEventListener("resize", () =>
+    scheduleInsightsRender("resize", { debounceMs: 120 })
+  );
+
+  scheduleInsightsRender("init");
+}
 
 function createInitialState() {
   return {
@@ -391,6 +1213,7 @@ async function init() {
     setCurrentUser(session.user);
     await loadUserProfile(session.user);
     await loadFamilyState(session.user);
+    await refreshDashboardInsights();
     setupDiaryRealtime();
     showApp();
   } else {
@@ -401,6 +1224,7 @@ async function init() {
     setWorkoutsFamilyState();
     setProgressFamilyState();
     teardownDiaryRealtime();
+    await refreshDashboardInsights();
     showAuth();
   }
 }
@@ -465,6 +1289,7 @@ function setupDiaryRealtime() {
 
   const handleChange = () => {
     refreshDiaryForSelectedDate();
+    refreshDashboardInsights();
   };
 
   diaryRealtimeChannel = supabase
@@ -527,6 +1352,44 @@ function scrollAndFocus(target, focusEl) {
   if (focusEl) {
     setTimeout(() => focusEl.focus({ preventScroll: true }), 60);
   }
+}
+
+function bindInsightCards() {
+  const attachHandler = (card, handler) => {
+    if (!card) return;
+    card.addEventListener("click", handler);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        handler();
+      }
+    });
+  };
+
+  attachHandler(insightMacrosCard, () => {
+    const today = getTodayDate();
+    setSelectedDate(today, { force: true });
+    activateTab("meals-tab");
+    if (mealDateInput) mealDateInput.value = today;
+    const anchor = mealsForm?.closest(".card") || mealsForm;
+    scrollAndFocus(anchor, mealTitleInput);
+  });
+
+  attachHandler(insightCaloriesCard, () => {
+    const today = getTodayDate();
+    setSelectedDate(today, { force: true });
+    activateTab("log-tab");
+    focusLogSection("meal");
+  });
+
+  attachHandler(insightWorkoutsCard, () => {
+    const today = getTodayDate();
+    setSelectedDate(today, { force: true });
+    activateTab("workouts-tab");
+    if (workoutDateInput) workoutDateInput.value = today;
+    const anchor = workoutsForm?.closest(".card") || workoutsForm;
+    scrollAndFocus(anchor, workoutTitleInput);
+  });
 }
 
 function openMealsQuickEntry() {
@@ -696,33 +1559,23 @@ async function logUpcomingMealToToday(entryEl) {
   const notes = entryEl.dataset.mealNotes || null;
   const mealType = entryEl.dataset.mealType || "dinner";
   const targetDate = selectedDate || getTodayDate();
+  const calories = entryEl.dataset.mealCalories;
+  const protein = entryEl.dataset.mealProtein;
+  const carbs = entryEl.dataset.mealCarbs;
+  const fat = entryEl.dataset.mealFat;
 
-  const { error } = await supabase.from("family_meals").insert({
-    family_group_id: currentFamilyId,
-    added_by: currentUser.id,
-    meal_date: targetDate,
-    meal_type: mealType,
-    title,
-    notes,
-  });
-
-  if (error) {
-    console.error("Error logging meal to today", error);
-    showToast("Could not add meal to log");
-    return;
-  }
-
-  const viewingTarget = selectedDate === targetDate;
-  if (!viewingTarget) {
-    setSelectedDate(targetDate, { force: true });
-  } else {
-    document.dispatchEvent(
-      new CustomEvent("diary:refresh", {
-        detail: { date: targetDate, entity: "meal" },
-      })
-    );
-  }
-  showToast("Added to log");
+  await logMealToDiary(
+    {
+      title,
+      meal_type: mealType,
+      notes,
+      calories,
+      protein,
+      carbs,
+      fat,
+    },
+    { date: targetDate }
+  );
 }
 
 function bindMealsLogButtons() {
@@ -868,6 +1721,7 @@ if (loginForm) {
       setCurrentUser(user);
       await loadUserProfile(user);
       await loadFamilyState(user);
+      await refreshDashboardInsights();
       showApp();
       loginForm.reset();
       if (loginMessage) loginMessage.textContent = "";
@@ -912,6 +1766,12 @@ document.querySelectorAll(".log-card-button").forEach((btn) => {
   });
 });
 
+window.EH_DEBUG = {
+  getMeals,
+  getWorkouts,
+  renderInsights,
+};
+
 if (dashboardAiShortcut) {
   dashboardAiShortcut.addEventListener("click", async () => {
     const originalLabel = dashboardAiShortcut.textContent;
@@ -934,15 +1794,18 @@ if (dashboardAiShortcut) {
 
 document.addEventListener("diary:add", (event) => {
   const { section, date } = event.detail || {};
-  if (!section || !date) return;
+  const normalizedSection = (section || "").toString().trim().toLowerCase();
+  if (!normalizedSection) return;
 
-  if (section === "exercise") {
+  const targetDate = toLocalDayKey(date || getTodayDate()) || getTodayDate();
+
+  if (normalizedSection === "exercise") {
     activateTab("workouts-tab");
-    if (workoutDateInput) workoutDateInput.value = date;
+    if (workoutDateInput) workoutDateInput.value = targetDate;
     return;
   }
 
-  openMealFlow(section, date);
+  openMealFlow(normalizedSection, targetDate);
 });
 
 // QUICK ACTION SHEET + DESKTOP FAB MENU
@@ -1417,11 +2280,17 @@ if (logoutButton) {
     await supabase.auth.signOut();
     setCurrentUser(null);
     setCurrentFamilyId(null);
+    setMeals([], { reason: "logout" });
+    setWorkouts([], { reason: "logout" });
     setGroceryFamilyState();
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    if (streakCount) {
+      streakCount.textContent = "0";
+    }
     teardownDiaryRealtime();
+    await refreshDashboardInsights();
     if (coachMessages) {
       coachMessages.innerHTML = "";
     }
@@ -1435,6 +2304,7 @@ async function instantiateAppAfterInitialization() {
   initInitialState();
   initThemeMode();
   initThemeStyles();
+  initDashboardInsights();
   initModal();
   initAIDinnerCards();
   bindDiaryDateNav();

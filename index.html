@@ -7,6 +7,39 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <link rel="icon" type="image/x-icon" href="img/favicon/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="img/favicon/favicon-16x16.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="img/favicon/favicon-32x32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="img/favicon/favicon-180x180.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="img/favicon/favicon-192x192.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="512x512"
+      href="img/favicon/favicon-512x512.png"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+    ></script>
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
@@ -89,9 +122,9 @@
           <header class="top-bar">
             <div class="top-bar-inner">
             <div class="top-bar-left">
-              <div class="logo-mark desktop-only" aria-label="Elevated Health logo">
-                <span class="logo-mark-initials">EH</span>
-              </div>
+              <a class="top-bar-logo-link" href="/" aria-label="Elevated Health home">
+                <img src="img/EHlogo.png" alt="Elevated Health" class="site-logo" />
+              </a>
               <button
                 class="icon-button notification-button desktop-only"
                 type="button"
@@ -172,7 +205,7 @@
           <!-- DESKTOP TAB ROW -->
           <nav class="tab-nav tab-nav-top page-tabs">
             <button class="tab-button active" data-tab="dashboard-tab">
-              Overview
+              Dashboard
             </button>
             <button class="tab-button" data-tab="log-tab">Log</button>
             <button class="tab-button" data-tab="meals-tab">Meals</button>
@@ -289,6 +322,83 @@
                         A weekly summary of your meals, workouts, and wins will live
                         here. Tap preview to test the placeholder.
                       </p>
+                    </div>
+                  </div>
+
+                  <div class="dashboard-insights">
+                    <div class="card-header">
+                      <div>
+                        <h3>Insights</h3>
+                        <p class="subtitle small">Trends from your recent logs.</p>
+                      </div>
+                    </div>
+                    <div class="insights-grid">
+                      <div
+                        id="insight-macros-card"
+                        class="insight-card"
+                        role="button"
+                        tabindex="0"
+                        aria-label="View today's macros in Meals"
+                      >
+                        <div class="card-header">
+                          <div>
+                            <h4>Macros Today</h4>
+                            <p class="subtitle tiny">Protein · Carbs · Fat</p>
+                          </div>
+                        </div>
+                        <div class="insight-body">
+                          <canvas
+                            id="macros-chart"
+                            class="insight-canvas"
+                            aria-label="Macros today donut chart"
+                          ></canvas>
+                        </div>
+                      </div>
+
+                      <div
+                        id="insight-calories-card"
+                        class="insight-card"
+                        role="button"
+                        tabindex="0"
+                        aria-label="View calories in Log"
+                      >
+                        <div class="card-header">
+                          <div>
+                            <h4>Calories — Last 7 Days</h4>
+                            <p class="subtitle tiny">Oldest to newest</p>
+                          </div>
+                        </div>
+                        <div class="insight-body">
+                          <canvas
+                            id="calories-chart"
+                            class="insight-canvas"
+                            aria-label="Calories last 7 days line chart"
+                          ></canvas>
+                        </div>
+                      </div>
+
+                      <div
+                        id="insight-workouts-card"
+                        class="insight-card"
+                        role="button"
+                        tabindex="0"
+                        aria-label="View workouts"
+                      >
+                        <div class="card-header">
+                          <div>
+                            <h4>Workouts — Last 7 Days</h4>
+                            <p class="subtitle tiny">Sessions per day</p>
+                          </div>
+                        </div>
+                        <div class="insight-body">
+                          <canvas
+                            id="workouts-chart"
+                            class="insight-canvas"
+                            aria-label="Workouts last 7 days bar chart"
+                          ></canvas>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1306,6 +1416,7 @@
 
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
+    <script src="js/env.local.js"></script>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>

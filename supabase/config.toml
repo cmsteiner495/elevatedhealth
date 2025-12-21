@@ -366,3 +366,9 @@ entrypoint = "./functions/ai-coach/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/ai-coach/*.html" ]
+
+[functions.family_workouts]
+enabled = true
+verify_jwt = true
+import_map = "./functions/family_workouts/deno.json"
+entrypoint = "./functions/family_workouts/index.ts"

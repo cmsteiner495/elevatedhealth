@@ -1,11 +1,18 @@
 // supabaseClient.js
-// Browser ESM version using esm.sh (recommended by Supabase docs).
+// Publishable (anon) keys are safe to load in the browser when Row Level Security
+// is enforced on all tables. The service_role or any secret key must never be
+// exposed in frontend code—keep those only in secured backend functions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ⬇️ REUSE the same URL + anon key that were working before
-const supabaseUrl = "https://xjtriyybqsrumhkebobp.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqdHJpeXlicXNydW1oa2Vib2JwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NDM3OTgsImV4cCI6MjA4MDExOTc5OH0.uT3jYu1MpFjuD-bJNiV17KK2jXKQbIEsXkSGvDgg_Rs";
+const supabaseUrl = window?.EH_ENV?.SUPABASE_URL;
+const supabaseAnonKey = window?.EH_ENV?.SUPABASE_PUBLISHABLE_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "Supabase configuration missing. Create js/env.local.js with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.",
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
