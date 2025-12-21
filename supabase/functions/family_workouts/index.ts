@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { corsHeaders } from "../_shared/cors.ts";
 
 type ActionPayload = {
   action?: string;
@@ -17,28 +17,6 @@ type ActionPayload = {
   scheduled_workout_id?: string | number | null;
 };
 
-const allowedOrigins = (Deno.env.get("ALLOWED_ORIGINS") || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-function getCorsHeaders(origin: string | null) {
-  const allowOrigin =
-    allowedOrigins.length === 0
-      ? "*"
-      : origin && allowedOrigins.includes(origin)
-      ? origin
-      : allowedOrigins[0] || "*";
-
-  return {
-    "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Headers":
-      "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    Vary: "Origin",
-  };
-}
-
 async function readJsonBody(req: Request): Promise<ActionPayload> {
   try {
     return (await req.json()) ?? {};
@@ -47,26 +25,28 @@ async function readJsonBody(req: Request): Promise<ActionPayload> {
   }
 }
 
-serve(async (req: Request) => {
-  const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
-  const jsonResponse = (body: unknown, status = 200, headers: HeadersInit = {}) =>
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("origin");
+  const headers = corsHeaders(origin);
+
+  // Dev diagnostic to confirm preflight / origin handling
+  console.log(`[family_workouts] ${req.method} from ${origin || "unknown origin"}`);
+
+  const jsonResponse = (body: unknown, status = 200, extraHeaders: HeadersInit = {}) =>
     new Response(JSON.stringify(body), {
       status,
       headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
         ...headers,
+        "Content-Type": "application/json",
+        ...extraHeaders,
       },
     });
 
-  try {
-    if (req.method === "OPTIONS") {
-      return new Response("ok", {
-        status: 204,
-        headers: corsHeaders,
-      });
-    }
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers });
+  }
 
+  try {
     if (req.method !== "POST") {
       return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
     }
@@ -225,7 +205,7 @@ serve(async (req: Request) => {
       {
         status: 500,
         headers: {
-          ...corsHeaders,
+          ...headers,
           "Content-Type": "application/json",
         },
       }

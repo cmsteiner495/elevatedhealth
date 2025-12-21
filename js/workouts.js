@@ -243,6 +243,7 @@ export async function deleteWorkoutById(workoutId, options = {}) {
   let deleteError = null;
 
   if (!shouldForceLocalRemoval && currentUser?.id) {
+    // Edge Function endpoint: /functions/v1/family_workouts
     const { data, error } = await supabase.functions.invoke("family_workouts", {
       body: {
         action: "remove",
@@ -404,6 +405,7 @@ async function logWorkoutToDiary(workout) {
   upsertWorkout(optimisticEntry, { reason: "logWorkout:optimistic" });
   renderWorkouts();
 
+  // Edge Function endpoint: /functions/v1/family_workouts
   const { data, error } = await supabase.functions.invoke("family_workouts", {
     body: payload,
   });
