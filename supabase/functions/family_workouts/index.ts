@@ -1,13 +1,35 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
-import { corsHeaders } from "../_shared/cors.ts";
+
+const allowedOrigins = new Set([
+  "http://127.0.0.1:5500",
+  "http://localhost:5500",
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+]);
+
+function buildCors(origin: string | null) {
+  const allowOrigin = origin && allowedOrigins.has(origin)
+    ? origin
+    : "http://127.0.0.1:5500";
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    Vary: "Origin",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    "Access-Control-Max-Age": "86400",
+  };
+}
 
 type ActionPayload = {
   action?: string;
   log_id?: string;
+  workout_id?: string | null;
   user_id?: string | null;
   family_group_id?: string | null;
   day_key?: string | null;
   workout_date?: string | null;
+  diary_date?: string | null;
   workout_name?: string | null;
   title?: string | null;
   workout_type?: string | null;
@@ -27,23 +49,20 @@ async function readJsonBody(req: Request): Promise<ActionPayload> {
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
-  const headers = corsHeaders(origin);
-
-  // Dev diagnostic to confirm preflight / origin handling
-  console.log(`[family_workouts] ${req.method} from ${origin || "unknown origin"}`);
+  const cors = buildCors(origin);
 
   const jsonResponse = (body: unknown, status = 200, extraHeaders: HeadersInit = {}) =>
     new Response(JSON.stringify(body), {
       status,
       headers: {
-        ...headers,
+        ...cors,
         "Content-Type": "application/json",
         ...extraHeaders,
       },
     });
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers });
+    return new Response(null, { status: 204, headers: cors });
   }
 
   try {
@@ -63,7 +82,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const payload = await readJsonBody(req);
-    const action = (payload.action || "").toLowerCase();
+    const action = (() => {
+      const normalized = (payload.action || "").toLowerCase();
+      if (normalized === "delete") return "remove";
+      return normalized;
+    })();
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
@@ -88,7 +111,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "remove") {
-      const logId = String(payload.log_id || "").trim();
+      const logId = String(payload.log_id ?? payload.workout_id ?? "").trim();
 
       if (!logId) {
         return jsonResponse({ ok: false, error: "missing log_id" }, 400);
@@ -200,15 +223,6 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ ok: false, error: "Unsupported action" }, 400);
   } catch (err) {
     console.error("Unhandled family_workouts error", err);
-    return new Response(
-      JSON.stringify({ ok: false, error: "Unexpected server error" }),
-      {
-        status: 500,
-        headers: {
-          ...headers,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    return jsonResponse({ ok: false, error: "Unexpected server error" }, 500);
   }
 });

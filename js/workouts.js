@@ -243,20 +243,25 @@ export async function deleteWorkoutById(workoutId, options = {}) {
   let deleteError = null;
 
   if (!shouldForceLocalRemoval && currentUser?.id) {
-    // Edge Function endpoint: /functions/v1/family_workouts
-    const { data, error } = await supabase.functions.invoke("family_workouts", {
-      body: {
-        action: "remove",
-        log_id: normalizedId,
-        user_id: currentUser?.id || null,
-      },
-    });
+    try {
+      // Edge Function endpoint: /functions/v1/family_workouts
+      const { data, error } = await supabase.functions.invoke("family_workouts", {
+        body: {
+          action: "delete",
+          workout_id: normalizedId,
+          diary_date: dateDetail || null,
+          user_id: currentUser?.id || null,
+        },
+      });
 
-    if (error) {
-      deleteError = error;
-    } else if (!data?.ok) {
-      deleteError = new Error(data?.error || "Delete failed");
-      if (data?.details) deleteError.details = data.details;
+      if (error) throw error;
+      if (!data?.ok) {
+        const invokeError = new Error(data?.error || "Delete failed");
+        if (data?.details) invokeError.details = data.details;
+        throw invokeError;
+      }
+    } catch (err) {
+      deleteError = err;
     }
   } else if (!shouldForceLocalRemoval && !currentUser?.id) {
     deleteError = new Error("Not authenticated");
