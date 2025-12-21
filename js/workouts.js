@@ -262,7 +262,10 @@ export async function deleteWorkoutById(workoutId, options = {}) {
   }
 
   if (deleteError && shouldForceLocalRemoval) {
-    console.warn("[WORKOUT DELETE] Local removal despite error", deleteError);
+    console.warn(
+      "[WORKOUT DELETE] Local removal despite error",
+      deleteError?.message || deleteError
+    );
     deleteError = null;
   }
 
@@ -728,7 +731,7 @@ if (workoutsList) {
       });
 
       if (error) {
-        console.error("Error deleting workout:", error);
+        console.error("Error deleting workout:", error?.message || error);
         if (String(error?.message || "").toLowerCase().includes("rls")) {
           console.error(
             "Supabase RLS: allow workout owners to delete their own rows:\n" +
