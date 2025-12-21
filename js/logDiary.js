@@ -626,7 +626,7 @@ async function removeWorkoutFromDiary(workoutId, entryEl) {
     if (String(error?.message || "").toLowerCase().includes("rls")) {
       console.error(
         "Supabase RLS: allow workout owners to delete their own rows:\n" +
-          "create policy \"Allow users to delete own workouts\" on family_workouts for delete using (auth.uid() = user_id);"
+          "create policy \"Allow users to delete own workouts\" on family_workouts for delete using (auth.uid() = added_by);"
       );
     }
     if (entryEl) {
