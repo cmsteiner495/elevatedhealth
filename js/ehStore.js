@@ -1,4 +1,6 @@
 // js/ehStore.js
+import { normalizeMealNutrition } from "./nutrition.js";
+
 const subscribers = new Set();
 
 const state = {
@@ -46,37 +48,8 @@ function normalizeDateKey(value) {
 export function normalizeMeal(meal = {}) {
   if (!meal || typeof meal !== "object") return null;
 
-  const nutrition = meal.nutrition || meal.macros || {};
   const clientId = meal.client_id ?? meal.clientId ?? null;
-  const calories =
-    meal.calories ??
-    nutrition.calories ??
-    meal.calories_total ??
-    meal.total_calories ??
-    meal.kcal ??
-    meal.kcals ??
-    meal.energy_kcal ??
-    meal.energy;
-  const protein =
-    meal.protein ??
-    nutrition.protein ??
-    meal.protein_g ??
-    meal.protein_total ??
-    meal.protein_grams;
-  const carbs =
-    meal.carbs ??
-    nutrition.carbs ??
-    meal.carbohydrates ??
-    meal.carbs_total ??
-    meal.net_carbs ??
-    meal.total_carbs;
-  const fat =
-    meal.fat ??
-    nutrition.fat ??
-    meal.fat_g ??
-    meal.fat_total ??
-    meal.fats ??
-    meal.total_fat;
+  const normalizedNutrition = normalizeMealNutrition(meal);
 
   const dateSource =
     meal.dateKey ||
@@ -98,10 +71,10 @@ export function normalizeMeal(meal = {}) {
     ...meal,
     id: meal.id ?? null,
     client_id: clientId,
-    calories: parseMetricNumber(calories),
-    protein: parseMetricNumber(protein),
-    carbs: parseMetricNumber(carbs),
-    fat: parseMetricNumber(fat),
+    calories: parseMetricNumber(normalizedNutrition.calories),
+    protein: parseMetricNumber(normalizedNutrition.protein),
+    carbs: parseMetricNumber(normalizedNutrition.carbs),
+    fat: parseMetricNumber(normalizedNutrition.fat),
     dateKey,
     logged,
   };
