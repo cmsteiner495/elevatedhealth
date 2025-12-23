@@ -41,11 +41,14 @@ export const dashboardMealsCard = document.getElementById("dashboard-meals-card"
 export const dashboardWorkoutsCard = document.getElementById("dashboard-workouts-card");
 export const dashboardGroceryCard = document.getElementById("dashboard-grocery-card");
 export const dashboardProgressCard = document.getElementById("dashboard-progress-card");
+export const dashboardWeightCard = document.getElementById("dashboard-weight-card");
 export const dashboardMealsPreview = document.getElementById("dashboard-meals-preview");
 export const dashboardWorkoutsPreview = document.getElementById("dashboard-workouts-preview");
 export const dashboardGroceryPreview = document.getElementById("dashboard-grocery-preview");
 export const dashboardProgressCta = document.getElementById("dashboard-progress-cta");
 export const dashboardProgressSummary = document.getElementById("dashboard-progress-summary");
+export const dashboardWeightChart = document.getElementById("dashboard-weight-chart");
+export const dashboardWeightEmpty = document.getElementById("dashboard-weight-empty");
 
 // Log / diary
 export const diaryPrevDayBtn = document.getElementById("diary-prev-day");
@@ -150,6 +153,8 @@ export const progressNotesInput =
   document.getElementById("progress-notes");
 export const progressMessage = document.getElementById("progress-message");
 export const progressList = document.getElementById("progress-list");
+export const progressWeightChart = document.getElementById("progress-weight-chart");
+export const progressWeightEmpty = document.getElementById("progress-weight-empty");
 
 // Ella
 export const coachMessages = document.getElementById("coach-messages");

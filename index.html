@@ -239,7 +239,7 @@
                   </div>
                   <div class="dashboard-main">
                     <div class="dashboard-grid">
-                      <div class="metric-card dashboard-card progress-card" id="dashboard-progress-card">
+                      <div class="metric-card dashboard-card progress-card" data-area="progress" id="dashboard-progress-card">
                         <div class="metric-card-header">
                           <div>
                             <div class="metric-label">Progress</div>
@@ -256,26 +256,45 @@
                           </button>
                         </div>
                       </div>
-                      <div class="metric-card dashboard-card" id="dashboard-meals-card">
+                      <div class="metric-card dashboard-card" data-area="meals" id="dashboard-meals-card">
                         <div class="metric-label">Meals</div>
                         <div class="metric-subtext">Upcoming meals at a glance.</div>
                         <ul class="dashboard-preview" id="dashboard-meals-preview">
                           <li class="preview-empty">No upcoming meals.</li>
                         </ul>
                       </div>
-                      <div class="metric-card dashboard-card" id="dashboard-workouts-card">
+                      <div class="metric-card dashboard-card" data-area="workouts" id="dashboard-workouts-card">
                         <div class="metric-label">Workouts</div>
                         <div class="metric-subtext">What’s scheduled next.</div>
                         <ul class="dashboard-preview" id="dashboard-workouts-preview">
                           <li class="preview-empty">No workouts scheduled.</li>
                         </ul>
                       </div>
-                      <div class="metric-card dashboard-card" id="dashboard-grocery-card">
+                      <div class="metric-card dashboard-card" data-area="grocery" id="dashboard-grocery-card">
                         <div class="metric-label">Grocery</div>
                         <div class="metric-subtext">Quick peek at your list.</div>
                         <ul class="dashboard-preview" id="dashboard-grocery-preview">
                           <li class="preview-empty">No grocery items yet.</li>
                         </ul>
+                      </div>
+                      <div class="metric-card dashboard-card weight-card" data-area="weight" id="dashboard-weight-card">
+                        <div class="metric-card-header">
+                          <div>
+                            <div class="metric-label">Weight trend</div>
+                            <div class="metric-subtext">Last 30 days</div>
+                          </div>
+                        </div>
+                        <div class="chart-shell">
+                          <canvas
+                            id="dashboard-weight-chart"
+                            class="weight-chart-canvas"
+                            height="220"
+                            aria-label="Weight trend line chart"
+                          ></canvas>
+                          <div id="dashboard-weight-empty" class="chart-empty-state">
+                            Log weight to see trend.
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -864,8 +883,16 @@
                         <h3>Weight trend</h3>
                         <span class="subtitle tiny">Last 30 days</span>
                       </div>
-                      <div class="chart-placeholder">
-                        <div class="chart-line"></div>
+                      <div class="chart-shell">
+                        <canvas
+                          id="progress-weight-chart"
+                          class="weight-chart-canvas"
+                          height="240"
+                          aria-label="Progress weight trend line chart"
+                        ></canvas>
+                        <div id="progress-weight-empty" class="chart-empty-state">
+                          Log weight to see trend.
+                        </div>
                       </div>
                     </div>
 
