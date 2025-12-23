@@ -14,6 +14,19 @@ import { currentUser, currentFamilyId } from "./state.js";
 
 let groceryItems = [];
 
+export function getGroceryItems() {
+  return Array.isArray(groceryItems) ? [...groceryItems] : [];
+}
+
+function announceGroceryChange() {
+  window.dispatchEvent(
+    new CustomEvent("eh:data-changed", { detail: { source: "grocery" } })
+  );
+  window.dispatchEvent(
+    new CustomEvent("eh:dataChanged", { detail: { source: "grocery" } })
+  );
+}
+
 export function setGroceryFamilyState() {
   if (!groceryNoFamily || !groceryHasFamily) return;
 
@@ -55,6 +68,7 @@ export async function loadGroceryItems() {
 
   groceryItems = data || [];
   renderGroceryList();
+  announceGroceryChange();
 }
 
 function renderGroceryList(items = groceryItems) {
@@ -200,6 +214,7 @@ if (groceryList) {
         renderGroceryList();
         return;
       }
+      announceGroceryChange();
       return;
     }
 
@@ -219,6 +234,7 @@ if (groceryList) {
 
       groceryItems = groceryItems.filter((item) => item.id !== itemId);
       setTimeout(() => renderGroceryList(), 160);
+      announceGroceryChange();
       return;
     }
   });

@@ -3,6 +3,25 @@ import { getTodayDate, getLast7DaysLocal, toLocalDayKey } from "./state.js";
 
 const MACRO_KEYS = ["protein", "carbs", "fat"];
 
+export function isMealLogged(meal) {
+  if (!meal) return false;
+  if (meal.logged === true) return true;
+  if (meal.logged === false) return false;
+  if (meal.completed === true) return true;
+  if (meal.completed === false) return false;
+  if (meal.logged_at || meal.loggedAt) return true;
+  return false;
+}
+
+export function isWorkoutLogged(workout) {
+  if (!workout) return false;
+  if (workout.completed === true) return true;
+  if (workout.completed === false) return false;
+  if (workout.logged_at) return true;
+  if (workout.loggedAt) return true;
+  return workout.logged === true;
+}
+
 function buildDateWindow() {
   const days = getLast7DaysLocal();
   return days.map((day) => toLocalDayKey(day));
@@ -39,13 +58,15 @@ export function computeDashboardModel(state = {}) {
       }))
     : [];
   const workouts = Array.isArray(state.workouts) ? state.workouts : [];
+  const loggedMeals = meals.filter(isMealLogged);
+  const loggedWorkouts = workouts.filter(isWorkoutLogged);
 
   const macrosToday = { protein: 0, carbs: 0, fat: 0 };
   const caloriesByDate = Object.fromEntries(labels.map((date) => [date, 0]));
   const workoutsByDate = Object.fromEntries(labels.map((date) => [date, 0]));
   const mealsToday = [];
 
-  meals.forEach((meal) => {
+  loggedMeals.forEach((meal) => {
     const date = meal.dateKey || normalizeLogDate(meal.meal_date || meal.date);
     if (!date) return;
     if (caloriesByDate[date] !== undefined) {
@@ -63,7 +84,7 @@ export function computeDashboardModel(state = {}) {
     });
   });
 
-  workouts.forEach((workout) => {
+  loggedWorkouts.forEach((workout) => {
     const date = normalizeLogDate(workout.workout_date || workout.date);
     if (!date) return;
     if (workoutsByDate[date] !== undefined) {
@@ -78,6 +99,6 @@ export function computeDashboardModel(state = {}) {
     workouts7Days: labels.map((date) => workoutsByDate[date] || 0),
     mealsTodayCount: mealsToday.length,
     todayKey: today,
-    firstMeal: meals.length ? meals[0] : null,
+    firstMeal: loggedMeals.length ? loggedMeals[0] : null,
   };
 }

@@ -18,10 +18,18 @@ import {
   mobilePageTitle,
   mobileOverline,
   profileAvatar,
-  dashboardAiShortcut,
   tabButtons,
   tabPanels,
   coachMessages,
+  dashboardMealsCard,
+  dashboardWorkoutsCard,
+  dashboardGroceryCard,
+  dashboardProgressCard,
+  dashboardMealsPreview,
+  dashboardWorkoutsPreview,
+  dashboardGroceryPreview,
+  dashboardProgressCta,
+  dashboardProgressSummary,
   mealDateInput,
   mealTypeInput,
   mealTitleInput,
@@ -77,7 +85,7 @@ import {
   getLast7DaysLocal,
   formatWeekdayShort,
 } from "./state.js";
-import { setGroceryFamilyState } from "./grocery.js";
+import { setGroceryFamilyState, getGroceryItems } from "./grocery.js";
 import { loadMeals, logMealToDiary, setMealsFamilyState } from "./meals.js";
 import {
   cacheWorkoutsLocally,
@@ -86,7 +94,7 @@ import {
 } from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
-import { initCoachHandlers, runWeeklyPlanGeneration } from "./coach.js";
+import { initCoachHandlers } from "./coach.js";
 import { initDiary, refreshDiaryForSelectedDate } from "./logDiary.js";
 import {
   initAIDinnerCards,
@@ -97,7 +105,7 @@ import {
   maybeVibrate,
 } from "./ui.js";
 import { subscribe, getState as getStoreState, setMeals, setWorkouts } from "./ehStore.js";
-import { computeDashboardModel } from "./selectors.js";
+import { computeDashboardModel, isMealLogged, isWorkoutLogged } from "./selectors.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -133,6 +141,7 @@ let macrosRingTextValue = null;
 let macrosRingTextLabel = null;
 let dashboardUnsubscribe = null;
 let latestDashboardModel = null;
+let latestStoreSnapshot = null;
 let isResizingMacrosRing = false;
 let insightsRenderLock = false;
 let insightsRenderQueued = false;
@@ -848,6 +857,202 @@ function updateDebugTotals(totals = {}, mealsTodayCount = 0) {
   `;
 }
 
+const MEAL_TYPE_ORDER = {
+  breakfast: 0,
+  lunch: 1,
+  dinner: 2,
+  snacks: 3,
+};
+
+function formatDashboardDateLabel(dayKey) {
+  const normalized = toLocalDayKey(dayKey);
+  if (!normalized) return "";
+  if (normalized === getTodayDate()) return "Today";
+  const [y, m, d] = normalized.split("-").map(Number);
+  const date = new Date(y || 0, (m || 1) - 1, d || 1);
+  const weekday = formatWeekdayShort(date);
+  return `${weekday} ${m}/${d}`;
+}
+
+function renderPreviewList(listEl, items, buildRow, emptyText, moreCount = 0) {
+  if (!listEl) return;
+  listEl.innerHTML = "";
+
+  if (!items?.length) {
+    const li = document.createElement("li");
+    li.className = "preview-empty";
+    li.textContent = emptyText;
+    listEl.appendChild(li);
+    return;
+  }
+
+  items.forEach((item) => {
+    const { title, subtitle, meta } = buildRow(item);
+    const li = document.createElement("li");
+    const titleEl = document.createElement("div");
+    titleEl.className = "preview-title";
+    titleEl.textContent = title || "";
+    li.appendChild(titleEl);
+
+    if (subtitle) {
+      const sub = document.createElement("div");
+      sub.className = "preview-subtext";
+      sub.textContent = subtitle;
+      li.appendChild(sub);
+    }
+
+    if (meta) {
+      const metaEl = document.createElement("div");
+      metaEl.className = "preview-meta";
+      metaEl.textContent = meta;
+      li.appendChild(metaEl);
+    }
+
+    listEl.appendChild(li);
+  });
+
+  if (moreCount > 0) {
+    const more = document.createElement("li");
+    more.className = "preview-more";
+    more.textContent = `+ ${moreCount} more`;
+    listEl.appendChild(more);
+  }
+}
+
+function formatMealPreviewRow(meal) {
+  const dayKey = toLocalDayKey(meal.dayKey || meal.meal_date || meal.date);
+  const dateLabel = formatDashboardDateLabel(dayKey);
+  const mealTypeValue = (meal.meal_type || "Meal").toString();
+  const typeLabel =
+    mealTypeValue.charAt(0).toUpperCase() + mealTypeValue.slice(1);
+  const calories = parseMetricNumber(meal.calories);
+  const protein = parseMetricNumber(meal.protein);
+  const carbs = parseMetricNumber(meal.carbs);
+  const fat = parseMetricNumber(meal.fat);
+  const macroSummary = `Cal ${calories} • P ${protein}g • C ${carbs}g • F ${fat}g`;
+
+  return {
+    title: meal.title || "Meal",
+    subtitle: [typeLabel, dateLabel].filter(Boolean).join(" • "),
+    meta: macroSummary,
+  };
+}
+
+function formatWorkoutPreviewRow(workout) {
+  const dayKey = toLocalDayKey(workout.dayKey || workout.workout_date || workout.date);
+  const dateLabel = formatDashboardDateLabel(dayKey);
+  const typeLabel = workout.workout_type
+    ? workout.workout_type.charAt(0).toUpperCase() + workout.workout_type.slice(1)
+    : "Workout";
+  const parts = [typeLabel];
+  if (workout.difficulty) {
+    parts.push(workout.difficulty.charAt(0).toUpperCase() + workout.difficulty.slice(1));
+  }
+  if (workout.duration_min) {
+    parts.push(`${workout.duration_min} min`);
+  }
+
+  return {
+    title: workout.title || "Workout",
+    subtitle: [...parts, dateLabel].filter(Boolean).join(" • "),
+    meta: null,
+  };
+}
+
+function formatGroceryPreviewRow(item) {
+  const details = [item.quantity || null, item.category || null]
+    .filter(Boolean)
+    .join(" • ");
+
+  return {
+    title: item.name || "Item",
+    subtitle: details,
+    meta: null,
+  };
+}
+
+function getUpcomingMealsPreview(state, limit = 3) {
+  const todayKey = getTodayDate();
+  const meals = Array.isArray(state?.meals) ? state.meals : [];
+  return meals
+    .map((meal) => ({
+      ...meal,
+      dayKey: toLocalDayKey(meal.meal_date || meal.date),
+    }))
+    .filter((meal) => meal.logged === false && meal.dayKey && meal.dayKey >= todayKey)
+    .sort((a, b) => {
+      if (a.dayKey !== b.dayKey) return a.dayKey.localeCompare(b.dayKey);
+      const aOrder = MEAL_TYPE_ORDER[a.meal_type] ?? 99;
+      const bOrder = MEAL_TYPE_ORDER[b.meal_type] ?? 99;
+      return aOrder - bOrder;
+    })
+    .slice(0, limit);
+}
+
+function getUpcomingWorkoutsPreview(state, limit = 2) {
+  const todayKey = getTodayDate();
+  const workouts = Array.isArray(state?.workouts) ? state.workouts : [];
+  const upcoming = workouts
+    .map((workout) => ({
+      ...workout,
+      dayKey: toLocalDayKey(workout.workout_date || workout.date),
+    }))
+    .filter((workout) => !isWorkoutLogged(workout));
+
+  const todayWorkouts = upcoming.filter((workout) => workout.dayKey === todayKey);
+  const fallback = upcoming.filter((workout) => !workout.dayKey || workout.dayKey >= todayKey);
+  const target = todayWorkouts.length ? todayWorkouts : fallback;
+
+  return target
+    .sort((a, b) => {
+      if (a.dayKey && b.dayKey && a.dayKey !== b.dayKey) {
+        return a.dayKey.localeCompare(b.dayKey);
+      }
+      return (a.created_at || "").localeCompare(b.created_at || "");
+    })
+    .slice(0, limit);
+}
+
+function getGroceryPreview(limit = 3) {
+  const items = getGroceryItems();
+  const unchecked = items.filter((item) => !item.checked);
+  const source = unchecked.length ? unchecked : items;
+  const visible = source.slice(0, limit);
+  return {
+    items: visible,
+    moreCount: Math.max(0, source.length - visible.length),
+  };
+}
+
+function renderDashboardWidgets(state = latestStoreSnapshot || getStoreState()) {
+  const snapshot = state || getStoreState();
+  if (!snapshot) return;
+  latestStoreSnapshot = snapshot;
+
+  renderPreviewList(
+    dashboardMealsPreview,
+    getUpcomingMealsPreview(snapshot),
+    formatMealPreviewRow,
+    "No upcoming meals."
+  );
+
+  renderPreviewList(
+    dashboardWorkoutsPreview,
+    getUpcomingWorkoutsPreview(snapshot),
+    formatWorkoutPreviewRow,
+    "No workouts scheduled."
+  );
+
+  const grocery = getGroceryPreview();
+  renderPreviewList(
+    dashboardGroceryPreview,
+    grocery.items,
+    formatGroceryPreviewRow,
+    "No grocery items yet.",
+    grocery.moreCount
+  );
+}
+
 async function renderInsights(reason = "manual") {
   if (!insightMacrosCard) return;
   const metrics = latestDashboardModel || (await getDashboardMetrics());
@@ -928,8 +1133,10 @@ function initDashboardInsights() {
 
   if (!dashboardUnsubscribe) {
     dashboardUnsubscribe = subscribe((nextState) => {
+      latestStoreSnapshot = nextState;
       latestDashboardModel = computeDashboardModel(nextState);
       renderInsights("store-update");
+      renderDashboardWidgets(nextState);
     });
   }
 
@@ -944,11 +1151,13 @@ function initDashboardInsights() {
     ) {
       calculateWorkoutStreak();
     }
+    renderDashboardWidgets();
   };
 
   document.addEventListener("family:changed", () => {
     scheduleInsightsRender("family-changed");
     calculateWorkoutStreak();
+    renderDashboardWidgets();
   });
 
   document.addEventListener("diary:refresh", () => {
@@ -969,6 +1178,7 @@ function initDashboardInsights() {
     scheduleInsightsRender("resize", { debounceMs: 120 })
   );
 
+  renderDashboardWidgets(getStoreState());
   scheduleInsightsRender("init");
 }
 
@@ -1392,6 +1602,40 @@ function bindInsightCards() {
   });
 }
 
+function bindDashboardCards() {
+  const attach = (card, targetTab) => {
+    if (!card) return;
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    const handler = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      activateTab(targetTab);
+    };
+    card.addEventListener("click", handler);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        handler(e);
+      }
+    });
+  };
+
+  attach(dashboardMealsCard, "meals-tab");
+  attach(dashboardWorkoutsCard, "workouts-tab");
+  attach(dashboardGroceryCard, "grocery-tab");
+  attach(dashboardProgressCard, "progress-tab");
+
+  if (dashboardProgressCta) {
+    dashboardProgressCta.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      activateTab("progress-tab");
+    });
+  }
+}
+
 function openMealsQuickEntry() {
   const targetDate = selectedDate || getTodayDate();
   activateTab("meals-tab");
@@ -1563,9 +1807,13 @@ async function logUpcomingMealToToday(entryEl) {
   const protein = entryEl.dataset.mealProtein;
   const carbs = entryEl.dataset.mealCarbs;
   const fat = entryEl.dataset.mealFat;
+  const mealId = entryEl.dataset.mealId || null;
+  const clientId = entryEl.dataset.mealClientId || mealId || null;
 
   await logMealToDiary(
     {
+      id: mealId,
+      client_id: clientId,
       title,
       meal_type: mealType,
       notes,
@@ -1771,26 +2019,6 @@ window.EH_DEBUG = {
   getWorkouts,
   renderInsights,
 };
-
-if (dashboardAiShortcut) {
-  dashboardAiShortcut.addEventListener("click", async () => {
-    const originalLabel = dashboardAiShortcut.textContent;
-    dashboardAiShortcut.disabled = true;
-    dashboardAiShortcut.textContent = "Refreshing…";
-    try {
-      await runWeeklyPlanGeneration();
-      document.dispatchEvent(
-        new CustomEvent("diary:refresh", { detail: { entity: "plan" } })
-      );
-    } catch (err) {
-      console.error("Weekly plan refresh failed", err);
-      showToast("Could not refresh the 7-day plan");
-    } finally {
-      dashboardAiShortcut.disabled = false;
-      dashboardAiShortcut.textContent = originalLabel;
-    }
-  });
-}
 
 document.addEventListener("diary:add", (event) => {
   const { section, date } = event.detail || {};
@@ -2286,6 +2514,7 @@ if (logoutButton) {
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    renderDashboardWidgets({ meals: [], workouts: [] });
     if (streakCount) {
       streakCount.textContent = "0";
     }
@@ -2305,6 +2534,7 @@ async function instantiateAppAfterInitialization() {
   initThemeMode();
   initThemeStyles();
   initDashboardInsights();
+  bindDashboardCards();
   initModal();
   initAIDinnerCards();
   bindDiaryDateNav();

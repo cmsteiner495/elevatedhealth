@@ -274,6 +274,7 @@ async function applyCoachUpdates(updates) {
             meal_type: mealType,
             title,
             notes: m.notes ? `[Ella] ${m.notes}` : "[Ella]",
+            logged: false,
           };
         })
         .filter(Boolean);
@@ -324,6 +325,7 @@ async function applyCoachUpdates(updates) {
             duration_min:
               w.duration_min != null ? w.duration_min : w.duration || null,
             notes: w.notes ? `[Ella] ${w.notes}` : "[Ella]",
+            completed: false,
           };
 
           // If you later sync this with your DB constraint, you can
