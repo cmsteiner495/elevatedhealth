@@ -61,6 +61,7 @@ import {
   diaryCalendarBtn,
   diaryDatePicker,
   diaryAddButtons,
+  diaryWeightButton,
   insightMacrosCard,
   insightCaloriesCard,
   insightWorkoutsCard,
@@ -1537,6 +1538,7 @@ function focusLogSection(sectionKey) {
     workout: "exercise",
     exercise: "exercise",
     progress: "exercise",
+    weight: "weight",
   };
   const targetKey = targetKeyMap[sectionKey] || sectionKey;
   const target = document.querySelector(
@@ -1786,6 +1788,15 @@ function bindDiaryAddButtons() {
       },
       { capture: true }
     );
+  });
+}
+
+function bindWeightLogButton() {
+  if (!diaryWeightButton || diaryWeightButton.dataset.bound) return;
+  diaryWeightButton.dataset.bound = "true";
+  diaryWeightButton.addEventListener("click", (e) => {
+    e.preventDefault();
+    openProgressQuickEntry("weight");
   });
 }
 
@@ -2536,6 +2547,7 @@ async function instantiateAppAfterInitialization() {
   initAIDinnerCards();
   bindDiaryDateNav();
   bindDiaryAddButtons();
+  bindWeightLogButton();
   bindMealsLogButtons();
   bindMealsListRemoveButtons();
   initInstallState();

@@ -57,6 +57,7 @@ export const diaryDateMeta = document.getElementById("diary-date-meta");
 export const diaryDateLabel = document.getElementById("diary-date-label");
 export const diaryDateSub = document.getElementById("diary-date-sub");
 export const diaryAddButtons = document.querySelectorAll("[data-diary-add]");
+export const diaryWeightButton = document.getElementById("diary-weight-button");
 export const diaryBreakfastList = document.getElementById(
   "diary-breakfast-list"
 );
