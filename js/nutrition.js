@@ -56,6 +56,36 @@ const KEYWORD_ADJUSTMENTS = [
   },
 ];
 
+function coerceIngredientsToText(ingredients) {
+  if (!ingredients) return "";
+
+  if (Array.isArray(ingredients)) {
+    return ingredients
+      .map((x) => {
+        if (typeof x === "string") return x;
+        if (x && typeof x === "object") {
+          return x.name || x.item || x.ingredient || x.text || JSON.stringify(x);
+        }
+        return String(x);
+      })
+      .join(", ");
+  }
+
+  if (typeof ingredients === "string") return ingredients;
+
+  try {
+    return JSON.stringify(ingredients);
+  } catch {
+    return String(ingredients);
+  }
+}
+
+function clampInt(n, fallback) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return fallback;
+  return Math.round(v);
+}
+
 function coerceNumber(value) {
   if (value == null) return 0;
   if (typeof value === "number") {
@@ -86,15 +116,6 @@ function averageRange([min, max]) {
   return (Number(min) + Number(max)) / 2;
 }
 
-function clampNutrition(values) {
-  const result = {};
-  for (const key of NUTRIENT_KEYS) {
-    const value = Math.round(values[key] || 0);
-    result[key] = Math.max(1, value);
-  }
-  return result;
-}
-
 function applyKeywordAdjustments(base, text = "") {
   if (!text) return base;
   const lower = text.toLowerCase();
@@ -112,7 +133,7 @@ function applyKeywordAdjustments(base, text = "") {
 }
 
 export function estimateMealNutrition(input = {}) {
-  const baseline = pickBaseline(input.meal_type || input.type);
+  const baseline = pickBaseline(input.meal_type || input.mealType || input.type);
   const estimate = {
     calories: averageRange(baseline.calories),
     protein: averageRange(baseline.protein),
@@ -120,17 +141,26 @@ export function estimateMealNutrition(input = {}) {
     fat: averageRange(baseline.fat),
   };
 
-  const descriptor = [
-    input.title || "",
-    input.name || "",
-    input.ingredients ? input.ingredients.join(" ") : "",
-    input.notes || "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const ingredientsText = coerceIngredientsToText(input?.ingredients);
+  const nameText = (input?.name || input?.title || "").toString();
+  const typeText = (input?.meal_type || input?.mealType || input?.type || "").toString();
+  const text = `${nameText} ${typeText} ${ingredientsText} ${(input?.notes || "").toString()}`.toLowerCase();
 
-  const biased = applyKeywordAdjustments(estimate, descriptor);
-  return clampNutrition(biased);
+  const biased = applyKeywordAdjustments(estimate, text);
+  const calories = clampInt(biased.calories, 550);
+  const protein = clampInt(biased.protein, 30);
+  const carbs = clampInt(biased.carbs, 60);
+  const fat = clampInt(biased.fat, 18);
+
+  return {
+    calories,
+    protein,
+    carbs,
+    fat,
+    protein_g: protein,
+    carbs_g: carbs,
+    fat_g: fat,
+  };
 }
 
 function extractRawNutrition(meal = {}) {
@@ -172,24 +202,72 @@ export function hasIncompleteNutrition(meal = {}) {
   return NUTRIENT_KEYS.some((key) => raw[key] <= 0);
 }
 
-export function normalizeMealNutrition(meal = {}) {
-  const raw = extractRawNutrition(meal);
-  const isComplete = NUTRIENT_KEYS.every((key) => raw[key] > 0);
-  if (isComplete) return raw;
+export function normalizeMealNutrition(meal) {
+  try {
+    const m = meal || {};
 
-  const estimate = estimateMealNutrition({
-    meal_type: meal.meal_type || meal.type,
-    title: meal.title || meal.name,
-    ingredients: meal.ingredients,
-    notes: meal.notes,
-  });
+    const calories = Number(m.calories ?? m.cal ?? m.kcal);
+    const protein = Number(m.protein_g ?? m.protein);
+    const carbs = Number(m.carbs_g ?? m.carbs);
+    const fat = Number(m.fat_g ?? m.fat);
 
-  const normalized = {};
-  for (const key of NUTRIENT_KEYS) {
-    const rawValue = raw[key];
-    normalized[key] = rawValue > 0 ? rawValue : estimate[key];
+    const hasValid =
+      Number.isFinite(calories) &&
+      calories > 0 &&
+      Number.isFinite(protein) &&
+      protein > 0 &&
+      Number.isFinite(carbs) &&
+      carbs > 0 &&
+      Number.isFinite(fat) &&
+      fat > 0;
+
+    if (hasValid) {
+      const caloriesVal = Math.round(calories);
+      const proteinVal = Math.round(protein);
+      const carbsVal = Math.round(carbs);
+      const fatVal = Math.round(fat);
+      return {
+        ...m,
+        calories: caloriesVal,
+        protein: proteinVal,
+        carbs: carbsVal,
+        fat: fatVal,
+        protein_g: proteinVal,
+        carbs_g: carbsVal,
+        fat_g: fatVal,
+      };
+    }
+
+    const est = estimateMealNutrition(m);
+
+    const caloriesEst = clampInt(est.calories, 550);
+    const proteinEst = clampInt(est.protein ?? est.protein_g, 30);
+    const carbsEst = clampInt(est.carbs ?? est.carbs_g, 60);
+    const fatEst = clampInt(est.fat ?? est.fat_g, 18);
+
+    return {
+      ...m,
+      calories: caloriesEst,
+      protein: proteinEst,
+      carbs: carbsEst,
+      fat: fatEst,
+      protein_g: proteinEst,
+      carbs_g: carbsEst,
+      fat_g: fatEst,
+    };
+  } catch (err) {
+    console.warn("[nutrition] normalizeMealNutrition failed, using safe defaults", err);
+    return {
+      ...(meal || {}),
+      calories: 550,
+      protein: 30,
+      carbs: 60,
+      fat: 18,
+      protein_g: 30,
+      carbs_g: 60,
+      fat_g: 18,
+    };
   }
-  return clampNutrition(normalized);
 }
 
 export function formatNutritionSummary(meal = {}) {
