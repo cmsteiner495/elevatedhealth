@@ -10,7 +10,7 @@ import {
   workoutTypeInput,
   workoutDifficultyInput,
 } from "./dom.js";
-import { currentUser, currentFamilyId } from "./state.js";
+import { currentUser, currentFamilyId, toLocalDayKey } from "./state.js";
 import { loadMeals } from "./meals.js";
 import { loadWorkouts } from "./workouts.js";
 import { loadGroceryItems } from "./grocery.js";
@@ -221,6 +221,10 @@ async function applyCoachUpdates(updates) {
   }
 
   const SAFE_WORKOUT_TYPE = "cardio";
+  const coerceNumber = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
 
   try {
     const mealDates = Array.isArray(updates.meals)
@@ -244,28 +248,35 @@ async function applyCoachUpdates(updates) {
       : [];
 
     // MEALS
-    if (mealDates.length > 0) {
-      const { error: deleteMealsError } = await supabase
-        .from("family_meals")
-        .delete()
-        .eq("family_group_id", currentFamilyId)
-        .in("meal_date", mealDates);
-
-      if (deleteMealsError) {
-        console.error(
-          "Error deleting existing meals for plan range:",
-          deleteMealsError
-        );
-      }
-    }
-
     if (Array.isArray(updates.meals) && updates.meals.length > 0) {
       const mealRows = updates.meals
-        .map((m) => {
-          const mealDate = m.meal_date || m.date;
-          const mealType = m.meal_type || m.type || "dinner";
-          const title = m.title;
-          if (!mealDate || !title) return null;
+        .map((m, index) => {
+          const mealDate = toLocalDayKey(m.meal_date || m.date);
+          const mealType = (m.meal_type || m.type || "dinner")
+            .toString()
+            .toLowerCase();
+          const title = m.title?.toString().trim();
+          if (!mealDate || !title) {
+            console.warn("[AI COACH] Skipping meal with missing fields", {
+              mealDate,
+              title,
+              index,
+              raw: m,
+            });
+            return null;
+          }
+
+          const calories = coerceNumber(
+            m.calories ?? m.calories_total ?? m.nutrition?.calories
+          );
+          const protein = coerceNumber(
+            m.protein ?? m.nutrition?.protein ?? m.protein_g
+          );
+          const carbs = coerceNumber(m.carbs ?? m.nutrition?.carbs);
+          const fat = coerceNumber(m.fat ?? m.nutrition?.fat);
+          const clientId = (m.client_id || m.clientId || "")
+            .toString()
+            .trim();
 
           return {
             family_group_id: currentFamilyId,
@@ -274,15 +285,34 @@ async function applyCoachUpdates(updates) {
             meal_type: mealType,
             title,
             notes: m.notes ? `[Ella] ${m.notes}` : "[Ella]",
+            calories,
+            protein,
+            carbs,
+            fat,
+            client_id:
+              clientId ||
+              `ella-${mealDate}-${mealType}-${title}`.slice(0, 120),
             logged: false,
+            logged_at: null,
           };
         })
         .filter(Boolean);
 
       if (mealRows.length > 0) {
+        console.log("[AI COACH] Prepared meal rows", {
+          count: mealRows.length,
+          sample: mealRows[0],
+        });
+
         const { error } = await supabase.from("family_meals").insert(mealRows);
         if (error) {
-          console.error("Error inserting meals from AI coach:", error);
+          console.error("Error inserting meals from AI coach:", {
+            error,
+            details: error?.details,
+            hint: error?.hint,
+            code: error?.code,
+            payloadPreview: { count: mealRows.length, sample: mealRows[0] },
+          });
         } else {
           console.log("Inserted meals from AI coach:", mealRows);
         }
