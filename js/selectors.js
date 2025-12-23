@@ -5,11 +5,11 @@ const MACRO_KEYS = ["protein", "carbs", "fat"];
 
 export function isMealLogged(meal) {
   if (!meal) return false;
-  if (meal.logged === true) return true;
-  if (meal.logged === false) return false;
+  if (meal.logged_at || meal.loggedAt) return true;
   if (meal.completed === true) return true;
   if (meal.completed === false) return false;
-  if (meal.logged_at || meal.loggedAt) return true;
+  if (meal.logged === true) return true;
+  if (meal.logged === false) return false;
   return false;
 }
 

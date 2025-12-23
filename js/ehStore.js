@@ -89,14 +89,10 @@ export function normalizeMeal(meal = {}) {
     meal.timestamp;
   const dateKey = normalizeDateKey(dateSource);
   const logged =
-    meal.logged === true ||
-    meal.completed === true ||
     !!meal.logged_at ||
-    !!meal.loggedAt
-      ? true
-      : meal.logged === false || meal.completed === false
-      ? false
-      : false;
+    !!meal.loggedAt ||
+    meal.completed === true ||
+    meal.logged === true;
 
   return {
     ...meal,
