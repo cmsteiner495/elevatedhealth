@@ -565,19 +565,26 @@ function normalizeMealsWithNutrition(meals = [], options = {}) {
 
   meals.forEach((meal) => {
     if (!meal) return;
-    const nutrition = normalizeMealNutrition({
-      ...meal,
-      ingredients: meal.ingredients || meal.notes,
-    });
-    const normalized = { ...meal, ...nutrition };
-    normalizedMeals.push(normalized);
+    let nutrition = null;
+    let normalized = meal;
+    try {
+      nutrition = normalizeMealNutrition({
+        ...meal,
+        ingredients: meal.ingredients || meal.notes,
+      });
+      normalized = { ...meal, ...nutrition };
+      normalizedMeals.push(normalized);
+    } catch (err) {
+      console.warn("[meals] Failed to normalize meal, leaving as-is", meal?.id, err);
+      normalizedMeals.push(meal);
+    }
 
     const mealKey = meal.id || meal.client_id;
     const shouldPatch =
       hasIncompleteNutrition(meal) ||
       (mealKey && patchKeys.has(String(mealKey)));
 
-    if (shouldPatch) {
+    if (shouldPatch && nutrition) {
       patches.push({
         meal: normalized,
         nutrition,
@@ -611,22 +618,31 @@ async function applyNutritionBackfill(patches = []) {
     );
 
     const matchColumn = isUUID(meal.id) ? "id" : "client_id";
-    const { error } = await supabase
-      .from("family_meals")
-      .update(payload)
-      .eq(matchColumn, matchValue)
-      .eq("family_group_id", currentFamilyId);
 
-    if (error) {
-      console.error("[MEALS] Failed to backfill nutrition", {
-        error,
+    try {
+      const { error } = await supabase
+        .from("family_meals")
+        .update(payload)
+        .eq(matchColumn, matchValue)
+        .eq("family_group_id", currentFamilyId);
+
+      if (error) {
+        console.error("[MEALS] Failed to backfill nutrition", {
+          error,
+          matchValue,
+          matchColumn,
+        });
+        continue;
+      }
+
+      nutritionPatchedKeys.add(String(matchValue));
+    } catch (err) {
+      console.error("[MEALS] Exception during nutrition backfill", {
+        error: err,
         matchValue,
         matchColumn,
       });
-      continue;
     }
-
-    nutritionPatchedKeys.add(String(matchValue));
   }
 }
 
