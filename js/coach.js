@@ -11,7 +11,7 @@ import {
   workoutDifficultyInput,
 } from "./dom.js";
 import { currentUser, currentFamilyId, toLocalDayKey } from "./state.js";
-import { loadMeals } from "./meals.js";
+import { loadMeals, sanitizeFamilyMealPayload } from "./meals.js";
 import { loadWorkouts } from "./workouts.js";
 import { loadGroceryItems } from "./grocery.js";
 import { maybeVibrate, showToast } from "./ui.js";
@@ -292,7 +292,6 @@ async function applyCoachUpdates(updates) {
             client_id:
               clientId ||
               `ella-${mealDate}-${mealType}-${title}`.slice(0, 120),
-            logged: false,
             logged_at: null,
           };
         })
@@ -304,14 +303,18 @@ async function applyCoachUpdates(updates) {
           sample: mealRows[0],
         });
 
-        const { error } = await supabase.from("family_meals").insert(mealRows);
+        const sanitizedRows = mealRows.map((row, index) => ({
+          ...sanitizeFamilyMealPayload(row, `coach:insert:${index}`),
+        }));
+
+        const { error } = await supabase.from("family_meals").insert(sanitizedRows);
         if (error) {
           console.error("Error inserting meals from AI coach:", {
             error,
             details: error?.details,
             hint: error?.hint,
             code: error?.code,
-            payloadPreview: { count: mealRows.length, sample: mealRows[0] },
+            payloadPreview: { count: sanitizedRows.length, sample: sanitizedRows[0] },
           });
         } else {
           console.log("Inserted meals from AI coach:", mealRows);

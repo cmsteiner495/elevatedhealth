@@ -32,6 +32,49 @@ const LOCAL_ID_PREFIX = "local-";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const FAMILY_MEAL_COLUMNS = [
+  "id",
+  "family_group_id",
+  "added_by",
+  "meal_date",
+  "meal_type",
+  "title",
+  "notes",
+  "calories",
+  "protein",
+  "carbs",
+  "fat",
+  "client_id",
+  "logged_at",
+  "created_at",
+  "updated_at",
+];
+
+function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
+  const entries = Object.entries(payload || {});
+  const allowed = new Set(FAMILY_MEAL_COLUMNS);
+  const unknownKeys = entries.map(([key]) => key).filter((key) => !allowed.has(key));
+  if (unknownKeys.length) {
+    console.warn("[FAMILY MEALS] Dropping unknown columns before Supabase insert/update", {
+      context,
+      unknownKeys,
+      payloadPreview: {
+        keys: entries.map(([key]) => key),
+        sample: Object.fromEntries(entries.slice(0, 5)),
+      },
+    });
+  }
+
+  return entries.reduce((acc, [key, value]) => {
+    if (allowed.has(key)) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+
+export { sanitizeFamilyMealPayload };
+
 function isUUID(value) {
   return UUID_REGEX.test(String(value || ""));
 }
@@ -78,7 +121,7 @@ function buildServerMealPayload(meal = {}) {
   if (!serverPayload.client_id && meal.id) {
     serverPayload.client_id = meal.id;
   }
-  return serverPayload;
+  return sanitizeFamilyMealPayload(serverPayload, "family_meals:payload");
 }
 
 export function getStoredMeals(familyId) {
@@ -265,7 +308,6 @@ export async function logMealToDiary(meal, options = {}) {
     carbs: totals.carbs,
     fat: totals.fat,
     client_id: tempId,
-    logged: true,
     logged_at: loggedAt,
   };
 
@@ -586,7 +628,7 @@ function renderMeals(items) {
   if (!mealsList) return;
 
   const upcomingMeals = Array.isArray(items)
-    ? items.filter((meal) => meal && meal.logged === false)
+    ? items.filter((meal) => meal && !isMealLogged(meal))
     : [];
 
   if (!upcomingMeals.length) {
@@ -723,11 +765,10 @@ if (mealsForm) {
       calories: totals.calories,
       protein: totals.protein,
       carbs: totals.carbs,
-      fat: totals.fat,
-      client_id: tempId,
-      logged: false,
-      logged_at: null,
-    };
+    fat: totals.fat,
+    client_id: tempId,
+    logged_at: null,
+  };
     const optimisticEntry = {
       id: tempId,
       client_id: tempId,

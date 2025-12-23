@@ -979,7 +979,7 @@ function getUpcomingMealsPreview(state, limit = 3) {
       ...meal,
       dayKey: toLocalDayKey(meal.meal_date || meal.date),
     }))
-    .filter((meal) => meal.logged === false && meal.dayKey && meal.dayKey >= todayKey)
+    .filter((meal) => !isMealLogged(meal) && meal.dayKey && meal.dayKey >= todayKey)
     .sort((a, b) => {
       if (a.dayKey !== b.dayKey) return a.dayKey.localeCompare(b.dayKey);
       const aOrder = MEAL_TYPE_ORDER[a.meal_type] ?? 99;
