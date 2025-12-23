@@ -10,7 +10,7 @@ import { setMealsFamilyState, loadMeals } from "./meals.js";
 import { setWorkoutsFamilyState, loadWorkouts } from "./workouts.js";
 import { setProgressFamilyState, loadProgressLogs } from "./progress.js";
 import { loadCoachHistory } from "./coach.js";
-import { setMeals, setWorkouts } from "./ehStore.js";
+import { setMeals, setProgressLogs, setWorkouts } from "./ehStore.js";
 
 export async function loadFamilyState(user) {
   if (!familyStatus) return;
@@ -19,6 +19,7 @@ export async function loadFamilyState(user) {
   setCurrentFamilyId(null);
   setMeals([], { reason: "family-reset" });
   setWorkouts([], { reason: "family-reset" });
+  setProgressLogs([], { reason: "family-reset" });
   setGroceryFamilyState();
   setMealsFamilyState();
   setWorkoutsFamilyState();
@@ -58,6 +59,7 @@ export async function loadFamilyState(user) {
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    setProgressLogs([], { reason: "no-family" });
     await loadCoachHistory();
     document.dispatchEvent(
       new CustomEvent("family:changed", { detail: { familyId: null } })
@@ -85,6 +87,7 @@ export async function loadFamilyState(user) {
     setMealsFamilyState();
     setWorkoutsFamilyState();
     setProgressFamilyState();
+    setProgressLogs([], { reason: "family-selected" });
 
     await loadGroceryItems();
     await loadMeals();

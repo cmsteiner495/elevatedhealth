@@ -16,6 +16,18 @@ import {
 } from "./dom.js";
 import { currentUser, currentFamilyId } from "./state.js";
 import { maybeVibrate, showToast } from "./ui.js";
+import {
+  getState as getStoreState,
+  removeProgressLog,
+  setProgressLogs,
+  subscribe,
+  upsertProgressLog,
+} from "./ehStore.js";
+
+let progressStoreUnsubscribe = null;
+let lastProgressSignature = null;
+let forceProgressRender = false;
+ensureProgressSubscription();
 
 export function setProgressFamilyState() {
   if (!progressNoFamily || !progressHasFamily) return;
@@ -35,13 +47,21 @@ export function setProgressFamilyState() {
 }
 
 export async function loadProgressLogs() {
-  if (!currentFamilyId || !progressList) return;
+  if (!progressList) return;
+  if (!currentFamilyId) {
+    forceProgressRender = true;
+    setProgressLogs([], { reason: "progress-no-family" });
+    return;
+  }
+
+  ensureProgressSubscription();
 
   if (progressMessage) {
     progressMessage.textContent = "";
     progressMessage.style.color = "";
   }
   progressList.innerHTML = "<li>Loading progress...</li>";
+  forceProgressRender = true;
 
   const { data, error } = await supabase
     .from("progress_logs")
@@ -54,8 +74,24 @@ export async function loadProgressLogs() {
     console.error("Error loading progress logs:", error);
     progressList.innerHTML = "<li>Could not load progress.</li>";
   } else {
-    renderProgressLogs(data || []);
+    setProgressLogs(data || [], { reason: "progress-load" });
   }
+}
+
+function ensureProgressSubscription() {
+  if (!progressList || progressStoreUnsubscribe) return;
+  progressStoreUnsubscribe = subscribe((snapshot) => {
+    const logs = snapshot.progressLogs || [];
+    const signature = logs
+      .map((log) => `${log.id ?? ""}-${log.log_date ?? log.dayKey ?? ""}`)
+      .join("|");
+    if (!forceProgressRender && signature === lastProgressSignature) return;
+    forceProgressRender = false;
+    lastProgressSignature = signature;
+    renderProgressLogs(logs);
+  });
+  const initial = getStoreState();
+  renderProgressLogs(initial.progressLogs || []);
 }
 
 function renderProgressLogs(items) {
@@ -86,7 +122,7 @@ function renderProgressLogs(items) {
     const left = document.createElement("div");
 
     const title = document.createElement("div");
-    const dateStr = p.log_date;
+    const dateStr = p.log_date || p.dayKey || "—";
     title.textContent = `Progress • ${dateStr}`;
     title.style.fontWeight = "600";
 
@@ -168,19 +204,23 @@ if (progressForm) {
     const sleep = sleepRaw ? Number(sleepRaw) : null;
     const steps = stepsRaw ? Number(stepsRaw) : null;
 
-    const { error } = await supabase.from("progress_logs").insert({
-      family_group_id: currentFamilyId,
-      user_id: currentUser.id,
-      log_date: dateValue,
-      weight_lb: weight,
-      water_oz: water,
-      sleep_hours: sleep,
-      steps: steps,
-      mood: mood || null,
-      notes: notes || null,
-    });
+    const { data, error } = await supabase
+      .from("progress_logs")
+      .insert({
+        family_group_id: currentFamilyId,
+        user_id: currentUser.id,
+        log_date: dateValue,
+        weight_lb: weight,
+        water_oz: water,
+        sleep_hours: sleep,
+        steps: steps,
+        mood: mood || null,
+        notes: notes || null,
+      })
+      .select()
+      .single();
 
-    if (error) {
+    if (error || !data) {
       console.error("Error adding progress entry:", error);
       if (progressMessage) {
         progressMessage.textContent = "Error adding progress.";
@@ -190,7 +230,7 @@ if (progressForm) {
     }
 
     progressForm.reset();
-    await loadProgressLogs();
+    upsertProgressLog(data, { reason: "progress-insert" });
     showToast("Progress saved");
     maybeVibrate([10]);
   });
@@ -216,7 +256,7 @@ if (progressList) {
         return;
       }
 
-      await loadProgressLogs();
+      removeProgressLog(progressId, { reason: "progress-delete" });
       return;
     }
   });

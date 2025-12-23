@@ -1,5 +1,6 @@
 // js/ehStore.js
 import { normalizeMealNutrition } from "./nutrition.js";
+import { toLocalDayKey } from "./state.js";
 
 const subscribers = new Set();
 
@@ -7,6 +8,7 @@ const state = {
   hydrated: false,
   meals: [],
   workouts: [],
+  progressLogs: [],
 };
 
 function parseMetricNumber(value) {
@@ -91,13 +93,14 @@ function freezeState(nextState) {
     ...nextState,
     meals: freezeList(nextState.meals || []),
     workouts: freezeList(nextState.workouts || []),
+    progressLogs: freezeList(nextState.progressLogs || []),
   });
 }
 
 function emit(reason) {
   const snapshot = getState();
   console.log(
-    `[EH STORE] update: ${reason} meals=${snapshot.meals.length} workouts=${snapshot.workouts.length}`
+    `[EH STORE] update: ${reason} meals=${snapshot.meals.length} workouts=${snapshot.workouts.length} progress=${snapshot.progressLogs.length}`
   );
   subscribers.forEach((cb) => {
     try {
@@ -144,6 +147,88 @@ export function setWorkouts(workouts, options = {}) {
     state.hydrated = true;
   }
   emit(options.reason || "setWorkouts");
+}
+
+function normalizeProgressLog(log = {}) {
+  if (!log || typeof log !== "object") return null;
+
+  const dayKey = toLocalDayKey(
+    log.dayKey ||
+      log.log_date ||
+      log.logDate ||
+      log.date ||
+      log.logged_at ||
+      log.created_at
+  );
+
+  const rawWeight =
+    log.weight_lb ?? log.weight ?? log.weightLb ?? log.body_weight ?? null;
+  const weight =
+    rawWeight === null || rawWeight === undefined
+      ? null
+      : parseMetricNumber(rawWeight);
+
+  return {
+    ...log,
+    id: log.id ?? null,
+    log_date: dayKey || log.log_date || null,
+    dayKey,
+    weight_lb: weight,
+  };
+}
+
+function sortProgressLogs(list = []) {
+  return [...list].sort((a, b) => {
+    if (a.dayKey && b.dayKey && a.dayKey !== b.dayKey) {
+      return a.dayKey.localeCompare(b.dayKey);
+    }
+    return (a.created_at || "").localeCompare(b.created_at || "");
+  });
+}
+
+export function setProgressLogs(logs, options = {}) {
+  const normalized = Array.isArray(logs)
+    ? logs.map((log) => normalizeProgressLog(log)).filter(Boolean)
+    : [];
+  state.progressLogs = sortProgressLogs(normalized);
+  if (options.hydrated !== false) {
+    state.hydrated = true;
+  }
+  emit(options.reason || "setProgressLogs");
+}
+
+export function upsertProgressLog(logRow, options = {}) {
+  const normalized = normalizeProgressLog(logRow);
+  if (!normalized) return;
+  const nextLogs = [...state.progressLogs];
+  const targetId = normalized.id ?? options.matchId ?? options.matchClientId;
+  const idx = nextLogs.findIndex(
+    (item) =>
+      item.id != null && targetId != null && String(item.id) === String(targetId)
+  );
+  if (idx >= 0) {
+    nextLogs[idx] = { ...nextLogs[idx], ...normalized };
+  } else {
+    nextLogs.push(normalized);
+  }
+  state.progressLogs = sortProgressLogs(nextLogs);
+  emit(options.reason || "upsertProgressLog");
+}
+
+export function removeProgressLog(identifier, options = {}) {
+  if (identifier == null) return;
+  const candidates = [
+    identifier,
+    options.id,
+    options.matchId,
+    options.matchClientId,
+  ]
+    .filter(Boolean)
+    .map(String);
+  state.progressLogs = state.progressLogs.filter(
+    (log) => !candidates.some((id) => log.id != null && String(log.id) === id)
+  );
+  emit(options.reason || "removeProgressLog");
 }
 
 function matchesMealIdentifier(meal, identifier) {

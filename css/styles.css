@@ -766,8 +766,14 @@ body {
   align-items: stretch;
   grid-auto-rows: minmax(200px, auto);
   grid-template-columns: 1fr;
-  max-width: 100%;
-  margin: 0;
+  grid-template-areas:
+    "progress"
+    "meals"
+    "workouts"
+    "grocery"
+    "weight";
+  max-width: 1100px;
+  margin: 0 auto;
 }
 
 @media (max-width: 640px) {
@@ -778,14 +784,41 @@ body {
 
 @media (min-width: 641px) and (max-width: 1023px) {
   .dashboard-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "progress progress"
+      "meals workouts"
+      "grocery weight";
   }
 }
 
 @media (min-width: 1024px) {
   .dashboard-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "meals workouts grocery"
+      "progress progress weight";
   }
+}
+
+.dashboard-card[data-area="progress"] {
+  grid-area: progress;
+}
+
+.dashboard-card[data-area="meals"] {
+  grid-area: meals;
+}
+
+.dashboard-card[data-area="workouts"] {
+  grid-area: workouts;
+}
+
+.dashboard-card[data-area="grocery"] {
+  grid-area: grocery;
+}
+
+.dashboard-card[data-area="weight"] {
+  grid-area: weight;
 }
 
 .dashboard-secondary-grid {
@@ -877,6 +910,36 @@ body {
   gap: 0.35rem;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
+}
+
+.chart-shell {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+}
+
+.weight-chart-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.chart-empty-state {
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  padding: var(--space-12);
+  width: 100%;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  background: var(--surface-secondary);
 }
 
 .macros-legend-dot {
@@ -1925,8 +1988,14 @@ input[type="submit"] {
   align-items: stretch;
   grid-auto-rows: minmax(200px, auto);
   grid-template-columns: 1fr;
-  max-width: 100%;
-  margin: 0;
+  grid-template-areas:
+    "progress"
+    "meals"
+    "workouts"
+    "grocery"
+    "weight";
+  max-width: 1100px;
+  margin: 0 auto;
 }
 
 @media (max-width: 640px) {
@@ -1937,13 +2006,20 @@ input[type="submit"] {
 
 @media (min-width: 641px) and (max-width: 1023px) {
   .dashboard-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "progress progress"
+      "meals workouts"
+      "grocery weight";
   }
 }
 
 @media (min-width: 1024px) {
   .dashboard-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "meals workouts grocery"
+      "progress progress weight";
   }
 }
 

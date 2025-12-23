@@ -25,6 +25,7 @@ import {
   dashboardWorkoutsCard,
   dashboardGroceryCard,
   dashboardProgressCard,
+  dashboardWeightCard,
   dashboardMealsPreview,
   dashboardWorkoutsPreview,
   dashboardGroceryPreview,
@@ -104,10 +105,17 @@ import {
   showToast,
   maybeVibrate,
 } from "./ui.js";
-import { subscribe, getState as getStoreState, setMeals, setWorkouts } from "./ehStore.js";
+import {
+  subscribe,
+  getState as getStoreState,
+  setMeals,
+  setProgressLogs,
+  setWorkouts,
+} from "./ehStore.js";
 import { computeDashboardModel, isMealLogged, isWorkoutLogged } from "./selectors.js";
 import { formatNutritionSummary } from "./nutrition.js";
 import { computeWorkoutStreak, collectWorkoutDayKeys } from "./streak.js";
+import { initWeightTrends } from "./weightTrends.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -1623,6 +1631,7 @@ function bindDashboardCards() {
   attach(dashboardWorkoutsCard, "workouts-tab");
   attach(dashboardGroceryCard, "grocery-tab");
   attach(dashboardProgressCard, "progress-tab");
+  attach(dashboardWeightCard, "progress-tab");
 
   if (dashboardProgressCta) {
     dashboardProgressCta.addEventListener("click", (e) => {
@@ -2516,6 +2525,7 @@ if (logoutButton) {
     setCurrentFamilyId(null);
     setMeals([], { reason: "logout" });
     setWorkouts([], { reason: "logout" });
+    setProgressLogs([], { reason: "logout" });
     setGroceryFamilyState();
     setMealsFamilyState();
     setWorkoutsFamilyState();
@@ -2540,6 +2550,7 @@ async function instantiateAppAfterInitialization() {
   initThemeMode();
   initThemeStyles();
   initDashboardInsights();
+  initWeightTrends();
   bindDashboardCards();
   initModal();
   initAIDinnerCards();
