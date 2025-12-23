@@ -135,7 +135,94 @@ const dinnerIdeas = [
     instructions:
       "Cook pasta to al dente. Toss with sautéed veggies and cream sauce; finish with parmesan and pepper.",
   },
+  {
+    id: "turkey-taco-skillet",
+    title: "Turkey Taco Skillet Bowls",
+    description:
+      "Seasoned ground turkey with peppers, black beans, and corn served over rice with avocado.",
+    ingredients: [
+      "1 lb lean ground turkey",
+      "1 bell pepper, diced",
+      "1 cup black beans",
+      "1 cup corn kernels",
+      "Cooked rice + avocado + lime",
+    ],
+    nutrition: {
+      calories: 540,
+      protein: "39g",
+      carbs: "62g",
+      fat: "14g",
+    },
+    instructions:
+      "Brown turkey with taco seasoning, stir in veggies and beans, then spoon over rice and top with avocado and lime.",
+  },
 ];
+
+const DINNER_DESKTOP_QUERY = "(min-width: 900px)";
+let dinnerDesktopMediaQuery = null;
+let dinnerMediaQueryHandler = null;
+
+function getDinnerDesktopMediaQuery() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return null;
+  }
+
+  if (!dinnerDesktopMediaQuery) {
+    dinnerDesktopMediaQuery = window.matchMedia(DINNER_DESKTOP_QUERY);
+  }
+
+  return dinnerDesktopMediaQuery;
+}
+
+function getDinnerMaxCards() {
+  const mediaQuery = getDinnerDesktopMediaQuery();
+  return mediaQuery?.matches ? 4 : 3;
+}
+
+function renderDinnerCards() {
+  if (!aiDinnerGrid) return;
+
+  aiDinnerGrid.innerHTML = "";
+
+  const maxCards = getDinnerMaxCards();
+
+  dinnerIdeas.slice(0, maxCards).forEach((meal) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "ai-dinner-card";
+
+    const title = document.createElement("h4");
+    title.textContent = meal.title;
+    card.appendChild(title);
+
+    const desc = document.createElement("div");
+    desc.className = "modal-note";
+    desc.textContent = meal.description;
+    card.appendChild(desc);
+
+    const meta = document.createElement("div");
+    meta.className = "ai-dinner-meta";
+    meta.innerHTML =
+      `<span class="ai-dinner-pill">Dinner</span><span class="ai-dinner-pill">Prep: quick</span>`;
+    card.appendChild(meta);
+
+    card.addEventListener("click", () => openDinnerModal(meal));
+    aiDinnerGrid.appendChild(card);
+  });
+}
+
+function bindDinnerMediaQuery() {
+  const mediaQuery = getDinnerDesktopMediaQuery();
+  if (!mediaQuery || dinnerMediaQueryHandler) return;
+
+  dinnerMediaQueryHandler = () => renderDinnerCards();
+
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", dinnerMediaQueryHandler);
+  } else if (typeof mediaQuery.addListener === "function") {
+    mediaQuery.addListener(dinnerMediaQueryHandler);
+  }
+}
 
 function persistTheme(theme) {
   try {
@@ -428,31 +515,9 @@ function openDinnerModal(meal) {
 
 export function initAIDinnerCards() {
   if (!aiDinnerGrid) return;
-  aiDinnerGrid.innerHTML = "";
 
-  dinnerIdeas.forEach((meal) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "ai-dinner-card";
-
-    const title = document.createElement("h4");
-    title.textContent = meal.title;
-    card.appendChild(title);
-
-    const desc = document.createElement("div");
-    desc.className = "modal-note";
-    desc.textContent = meal.description;
-    card.appendChild(desc);
-
-    const meta = document.createElement("div");
-    meta.className = "ai-dinner-meta";
-    meta.innerHTML =
-      `<span class="ai-dinner-pill">Dinner</span><span class="ai-dinner-pill">Prep: quick</span>`;
-    card.appendChild(meta);
-
-    card.addEventListener("click", () => openDinnerModal(meal));
-    aiDinnerGrid.appendChild(card);
-  });
+  renderDinnerCards();
+  bindDinnerMediaQuery();
 }
 
 // Apply stored theme immediately
