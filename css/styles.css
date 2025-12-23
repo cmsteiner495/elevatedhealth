@@ -117,6 +117,13 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -143,6 +150,21 @@ body {
       rgba(238, 243, 246, 0.82)
     ),
     url("/img/EHbackground.png");
+}
+
+.pageContainer {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+@media (min-width: 768px) {
+  .pageContainer {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
 }
 
 .page-title {
@@ -233,16 +255,10 @@ body {
 .page-tabs,
 .page {
   width: 100%;
-  max-width: var(--content-max-width);
-  margin: 0 auto;
-  padding: 0 var(--content-padding);
 }
 
 .app-content {
   width: 100%;
-  max-width: var(--content-max-width);
-  margin: 0 auto;
-  padding: 0 var(--content-padding);
   display: grid;
   gap: var(--space-16);
 }
@@ -278,7 +294,8 @@ body {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px var(--space-12);
+  padding-top: 10px;
+  padding-bottom: 10px;
   border-radius: 16px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
