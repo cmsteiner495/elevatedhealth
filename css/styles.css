@@ -122,12 +122,27 @@ body {
 body {
   font-family: var(--font-main);
   color: var(--text-primary);
-  background:
-    radial-gradient(circle at 12% 16%, rgba(0, 154, 154, 0.22) 0, transparent 32%),
-    radial-gradient(circle at 88% 12%, rgba(0, 154, 154, 0.18) 0, transparent 32%),
-    radial-gradient(circle at 50% 100%, rgba(0, 95, 99, 0.25) 0, transparent 42%),
-    var(--bg-app);
+  background-image: linear-gradient(
+      180deg,
+      rgba(3, 28, 44, 0.82),
+      rgba(3, 28, 44, 0.82)
+    ),
+    url("/img/EHbackground.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-color: var(--bg-app);
   transition: background var(--transition-med), color var(--transition-med);
+}
+
+:root[data-theme="light"] body {
+  background-image: linear-gradient(
+      180deg,
+      rgba(238, 243, 246, 0.78),
+      rgba(238, 243, 246, 0.82)
+    ),
+    url("/img/EHbackground.png");
 }
 
 .page-title {
@@ -689,14 +704,9 @@ body {
 /* Dashboard */
 
 .dashboard-main {
-  display: grid;
-  gap: 16px;
-}
-
-@media (min-width: 900px) {
-  .dashboard-main {
-    grid-template-columns: 1.4fr 1.6fr;
-  }
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .dashboard-calories {
@@ -734,16 +744,13 @@ body {
 
 .dashboard-grid {
   display: grid;
-  gap: 16px;
+  gap: var(--space-16);
   align-items: stretch;
-  grid-template-columns: 1fr;
-  grid-auto-rows: minmax(180px, auto);
-}
-
-@media (min-width: 1024px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-auto-rows: minmax(200px, auto);
+  width: 100%;
+  max-width: calc(var(--content-max-width) + 40px);
+  margin: 0 auto;
 }
 
 .dashboard-secondary-grid {
@@ -877,7 +884,7 @@ body {
 .metric-card {
   background: var(--surface-primary);
   border-radius: 18px;
-  padding: var(--space-12);
+  padding: var(--space-16);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-soft);
 }
@@ -903,6 +910,7 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-8);
+  width: 100%;
 }
 
 .dashboard-card {
@@ -912,11 +920,42 @@ body {
   gap: var(--space-8);
   align-items: stretch;
   cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.dashboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-floating);
+  border-color: rgba(0, 163, 163, 0.42);
 }
 
 .dashboard-card:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+.dashboard-card .metric-label {
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  font-weight: 700;
+  text-align: center;
+}
+
+.dashboard-card .metric-subtext {
+  text-align: center;
+}
+
+.dashboard-card .metric-card-header {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-12);
+}
+
+.dashboard-card .metric-card-header .primary {
+  align-self: center;
+  min-width: 0;
+  width: min(240px, 100%);
 }
 
 .dashboard-preview {
@@ -962,6 +1001,16 @@ body {
 @media (min-width: 600px) {
   .progress-card {
     order: initial;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-card {
+    transition: none;
+  }
+
+  .dashboard-card:hover {
+    transform: none;
   }
 }
 
@@ -1833,16 +1882,13 @@ input[type="submit"] {
 
 .dashboard-grid {
   display: grid;
-  gap: 16px;
+  gap: var(--space-16);
   align-items: stretch;
-  grid-template-columns: 1fr;
-  grid-auto-rows: minmax(180px, auto);
-}
-
-@media (min-width: 1024px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-auto-rows: minmax(200px, auto);
+  width: 100%;
+  max-width: calc(var(--content-max-width) + 40px);
+  margin: 0 auto;
 }
 
 .dashboard-secondary-grid {
@@ -1868,7 +1914,7 @@ input[type="submit"] {
 .metric-card {
   background: var(--surface-primary);
   border-radius: 18px;
-  padding: var(--space-12);
+  padding: var(--space-16);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-soft);
 }
