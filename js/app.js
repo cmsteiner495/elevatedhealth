@@ -90,7 +90,6 @@ import { setGroceryFamilyState, getGroceryItems } from "./grocery.js";
 import { loadMeals, logMealToDiary, setMealsFamilyState } from "./meals.js";
 import {
   cacheWorkoutsLocally,
-  getStoredWorkouts,
   setWorkoutsFamilyState,
 } from "./workouts.js";
 import { setProgressFamilyState } from "./progress.js";
@@ -108,6 +107,7 @@ import {
 import { subscribe, getState as getStoreState, setMeals, setWorkouts } from "./ehStore.js";
 import { computeDashboardModel, isMealLogged, isWorkoutLogged } from "./selectors.js";
 import { formatNutritionSummary } from "./nutrition.js";
+import { computeWorkoutStreak, collectWorkoutDayKeys } from "./streak.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -579,24 +579,17 @@ function formatShortLabel(dateValue) {
   return formatWeekdayShort(date);
 }
 
-function normalizeLogDate(dateValue) {
-  return toLocalDayKey(dateValue);
-}
-
-function computeWorkoutStreakFromList(workouts = []) {
-  const workoutDates = new Set();
-  workouts.forEach((workout) => {
-    const date = normalizeLogDate(workout.workout_date || workout.date);
-    if (date) workoutDates.add(date);
-  });
-
-  let streak = 0;
-  let cursor = getTodayDate();
-  while (workoutDates.has(cursor)) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
-  return streak;
+function logStreakDiagnostics(workouts, streakValue, source = "store", now = new Date()) {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const dayKeys = collectWorkoutDayKeys(workouts).sort();
+  console.debug("[EH STREAK] source=%s user=%s family=%s", source, currentUser?.id, currentFamilyId);
+  console.debug(
+    "[EH STREAK] now=%s tz=%s days=%o streak=%d",
+    now.toString(),
+    timezone,
+    dayKeys,
+    streakValue
+  );
 }
 
 async function calculateWorkoutStreak() {
@@ -604,23 +597,28 @@ async function calculateWorkoutStreak() {
   if (!currentFamilyId) return 0;
 
   try {
-    let workouts = getStoredWorkouts(currentFamilyId);
-    if (!workouts.length) {
-      const { data, error } = await supabase
-        .from("family_workouts")
-        .select("id, workout_date")
-        .eq("family_group_id", currentFamilyId)
-        .order("workout_date", { ascending: false });
+    const now = new Date();
+    let source = "store";
+    let workouts = getStoreState().workouts || [];
 
-      if (!error && data) {
-        workouts = data;
-        cacheWorkoutsLocally(currentFamilyId, data);
-      } else if (error) {
-        console.error("Error loading workouts for streak", error);
-      }
+    const { data, error } = await supabase
+      .from("family_workouts")
+      .select("*")
+      .eq("family_group_id", currentFamilyId)
+      .order("workout_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (!error && Array.isArray(data)) {
+      workouts = data;
+      source = "supabase";
+      cacheWorkoutsLocally(currentFamilyId, data);
+      setWorkouts(data, { reason: "streak:refresh" });
+    } else if (error) {
+      console.error("Error loading workouts for streak", error);
     }
 
-    const streakValue = computeWorkoutStreakFromList(workouts);
+    const streakValue = computeWorkoutStreak(workouts, now);
+    logStreakDiagnostics(workouts, streakValue, source, now);
     if (streakCount) streakCount.textContent = String(streakValue);
     return streakValue;
   } catch (err) {
