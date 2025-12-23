@@ -895,6 +895,68 @@ body {
   margin-top: var(--space-4);
 }
 
+.metric-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.dashboard-card {
+  cursor: pointer;
+}
+
+.dashboard-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.dashboard-preview {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-8) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashboard-preview li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preview-title {
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.preview-subtext,
+.preview-meta,
+.preview-empty,
+.preview-more {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.preview-meta {
+  opacity: 0.85;
+}
+
+.preview-more {
+  opacity: 0.8;
+}
+
+.progress-card {
+  order: -1;
+}
+
+@media (min-width: 600px) {
+  .progress-card {
+    order: initial;
+  }
+}
+
 /* Log tab */
 
 .diary-shell {

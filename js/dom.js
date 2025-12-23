@@ -37,7 +37,15 @@ export const settingsInstallButton = document.getElementById(
 // Tabs
 export const tabButtons = document.querySelectorAll(".tab-button");
 export const tabPanels = document.querySelectorAll(".tab-panel");
-export const dashboardAiShortcut = document.getElementById("dashboard-ai-shortcut");
+export const dashboardMealsCard = document.getElementById("dashboard-meals-card");
+export const dashboardWorkoutsCard = document.getElementById("dashboard-workouts-card");
+export const dashboardGroceryCard = document.getElementById("dashboard-grocery-card");
+export const dashboardProgressCard = document.getElementById("dashboard-progress-card");
+export const dashboardMealsPreview = document.getElementById("dashboard-meals-preview");
+export const dashboardWorkoutsPreview = document.getElementById("dashboard-workouts-preview");
+export const dashboardGroceryPreview = document.getElementById("dashboard-grocery-preview");
+export const dashboardProgressCta = document.getElementById("dashboard-progress-cta");
+export const dashboardProgressSummary = document.getElementById("dashboard-progress-summary");
 
 // Log / diary
 export const diaryPrevDayBtn = document.getElementById("diary-prev-day");

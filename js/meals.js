@@ -26,6 +26,7 @@ import {
   upsertMeal,
   removeMealByIdOrClientId,
 } from "./ehStore.js";
+import { isMealLogged } from "./selectors.js";
 
 const LOCAL_ID_PREFIX = "local-";
 const UUID_REGEX =
@@ -248,7 +249,10 @@ export async function logMealToDiary(meal, options = {}) {
   const mealType = meal.meal_type || meal.mealType || options.mealType || "dinner";
   const notes = (meal.notes || meal.description || "").trim() || null;
   const totals = computeMealTotals(meal);
-  const tempId = meal.client_id || meal.id || `${LOCAL_ID_PREFIX}${Date.now()}`;
+  const loggedAt = new Date().toISOString();
+  const existingId = meal.id || null;
+  const existingClientId = meal.client_id || meal.clientId || null;
+  const tempId = existingClientId || existingId || `${LOCAL_ID_PREFIX}${Date.now()}`;
   const payload = {
     family_group_id: currentFamilyId,
     added_by: currentUser.id,
@@ -261,10 +265,12 @@ export async function logMealToDiary(meal, options = {}) {
     carbs: totals.carbs,
     fat: totals.fat,
     client_id: tempId,
+    logged: true,
+    logged_at: loggedAt,
   };
 
   const optimisticEntry = {
-    id: tempId,
+    id: existingId || tempId,
     client_id: tempId,
     ...payload,
     created_at: new Date().toISOString(),
@@ -284,27 +290,68 @@ export async function logMealToDiary(meal, options = {}) {
   let persistedMeal = null;
   const serverPayload = buildServerMealPayload(payload);
   console.log("[MEAL INSERT] serverPayload", serverPayload);
-  const { data, error } = await supabase
-    .from("family_meals")
-    .insert(serverPayload)
-    .select("*")
-    .single();
 
-  if (error) {
-    console.error("[MEAL INSERT ERROR]", error);
-    removeStoredMeal(currentFamilyId, tempId, tempId);
-    removeMealByIdOrClientId(tempId, {
-      reason: "logMealToDiary:rollback",
-      clientId: tempId,
-    });
+  const tryUpdateTargets = [
+    existingId ? ["id", existingId] : null,
+    !existingId && existingClientId ? ["client_id", existingClientId] : null,
+  ].filter(Boolean);
+
+  let updateError = null;
+
+  if (tryUpdateTargets.length) {
+    for (const [column, value] of tryUpdateTargets) {
+      const { data, error } = await supabase
+        .from("family_meals")
+        .update(serverPayload)
+        .eq(column, value)
+        .eq("family_group_id", currentFamilyId)
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        updateError = error;
+        continue;
+      }
+
+      if (data) {
+        persistedMeal = data;
+        updateError = null;
+        break;
+      }
+    }
+  }
+
+  if (!persistedMeal) {
+    const { data, error } = await supabase
+      .from("family_meals")
+      .insert(serverPayload)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("[MEAL INSERT ERROR]", error);
+      removeStoredMeal(currentFamilyId, tempId, tempId);
+      removeMealByIdOrClientId(tempId, {
+        reason: "logMealToDiary:rollback",
+        clientId: tempId,
+      });
+      if (!options.silent) {
+        showToast("Couldn't save meal. Try again.");
+      }
+      return;
+    }
+    persistedMeal = data;
+    updateError = null;
+  } else if (updateError) {
+    console.error("[MEAL UPDATE ERROR]", updateError);
     if (!options.silent) {
       showToast("Couldn't save meal. Try again.");
     }
+    await loadMeals();
     return;
   }
 
-  persistedMeal = data;
-  console.log("[MEAL INSERT] insertedRow", persistedMeal);
+  console.log("[MEAL UPSERT] saved row", persistedMeal);
   const reconciled = {
     ...optimisticEntry,
     ...persistedMeal,
@@ -358,6 +405,15 @@ function formatMealDateLabel(dateValue) {
     month: "short",
     day: "numeric",
   }).format(date);
+}
+
+function formatMealNutritionSummary(meal) {
+  const totals = computeMealTotals(meal);
+  const calories = Math.round(coerceNumber(totals.calories));
+  const protein = Math.round(coerceNumber(totals.protein));
+  const carbs = Math.round(coerceNumber(totals.carbs));
+  const fat = Math.round(coerceNumber(totals.fat));
+  return `Cal ${calories} • P ${protein}g • C ${carbs}g • F ${fat}g`;
 }
 
 function openMealDetailsModal(meal) {
@@ -496,7 +552,7 @@ export async function fetchMealsByDate(dateValue) {
 
   const storedMeals = getStoredMeals(currentFamilyId);
   const storedForDate = storedMeals.filter(
-    (meal) => (meal.meal_date || "") === dateValue
+    (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
   );
 
   const { data, error } = await supabase
@@ -514,7 +570,9 @@ export async function fetchMealsByDate(dateValue) {
 
   const merged = mergeMeals(data || [], storedMeals);
   persistMealsForFamily(currentFamilyId, merged);
-  return merged.filter((meal) => (meal.meal_date || "") === dateValue);
+  return merged.filter(
+    (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
+  );
 }
 
 async function logMealToToday(meal) {
@@ -527,25 +585,30 @@ async function logMealToToday(meal) {
 function renderMeals(items) {
   if (!mealsList) return;
 
-  if (!items.length) {
-    mealsList.innerHTML = "<li>No meals yet. Add one above!</li>";
+  const upcomingMeals = Array.isArray(items)
+    ? items.filter((meal) => meal && meal.logged === false)
+    : [];
+
+  if (!upcomingMeals.length) {
+    mealsList.innerHTML = "<li>No upcoming meals. Add one above!</li>";
     return;
   }
 
   mealsList.innerHTML = "";
 
-  for (const meal of items) {
+  for (const meal of upcomingMeals) {
+    const totals = computeMealTotals(meal);
     const li = document.createElement("li");
-    li.dataset.mealId = meal.id;
-    li.dataset.mealClientId = meal.client_id || meal.id;
+    li.dataset.mealId = meal.id || "";
+    li.dataset.mealClientId = meal.client_id || meal.id || "";
     li.dataset.mealType = meal.meal_type;
     li.dataset.mealTitle = meal.title;
     li.dataset.mealDate = meal.meal_date;
     li.dataset.mealNotes = meal.notes || "";
-    li.dataset.mealCalories = meal.calories ?? meal.nutrition?.calories ?? "";
-    li.dataset.mealProtein = meal.protein ?? meal.nutrition?.protein ?? "";
-    li.dataset.mealCarbs = meal.carbs ?? meal.nutrition?.carbs ?? "";
-    li.dataset.mealFat = meal.fat ?? meal.nutrition?.fat ?? "";
+    li.dataset.mealCalories = totals.calories ?? "";
+    li.dataset.mealProtein = totals.protein ?? "";
+    li.dataset.mealCarbs = totals.carbs ?? "";
+    li.dataset.mealFat = totals.fat ?? "";
     li.style.display = "flex";
     li.style.flexDirection = "column";
     li.style.gap = "0.25rem";
@@ -603,6 +666,15 @@ function renderMeals(items) {
 
     li.appendChild(topRow);
 
+    const nutritionSummary = formatMealNutritionSummary(meal);
+    if (nutritionSummary) {
+      const nutrition = document.createElement("div");
+      nutrition.textContent = nutritionSummary;
+      nutrition.style.fontSize = "0.8rem";
+      nutrition.style.opacity = "0.85";
+      li.appendChild(nutrition);
+    }
+
     if (meal.notes) {
       const notes = document.createElement("div");
       notes.textContent = meal.notes;
@@ -653,6 +725,8 @@ if (mealsForm) {
       carbs: totals.carbs,
       fat: totals.fat,
       client_id: tempId,
+      logged: false,
+      logged_at: null,
     };
     const optimisticEntry = {
       id: tempId,

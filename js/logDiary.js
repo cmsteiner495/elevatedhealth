@@ -34,6 +34,7 @@ import {
 import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
 import { deleteWorkoutById, fetchWorkoutsByDate, loadWorkouts } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
+import { isMealLogged, isWorkoutLogged } from "./selectors.js";
 
 const sectionLists = {
   breakfast: diaryBreakfastList,
@@ -479,8 +480,8 @@ async function loadDiary(dateValue) {
     fetchWorkoutsByDate(dateValue),
   ]);
 
-  currentDiaryMeals = meals || [];
-  currentDiaryWorkouts = workouts || [];
+  currentDiaryMeals = (meals || []).filter(isMealLogged);
+  currentDiaryWorkouts = (workouts || []).filter(isWorkoutLogged);
 
   const byType = groupMealsByType(currentDiaryMeals);
 

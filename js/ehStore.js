@@ -88,6 +88,15 @@ export function normalizeMeal(meal = {}) {
     meal.created_at ||
     meal.timestamp;
   const dateKey = normalizeDateKey(dateSource);
+  const logged =
+    meal.logged === true ||
+    meal.completed === true ||
+    !!meal.logged_at ||
+    !!meal.loggedAt
+      ? true
+      : meal.logged === false || meal.completed === false
+      ? false
+      : false;
 
   return {
     ...meal,
@@ -98,6 +107,7 @@ export function normalizeMeal(meal = {}) {
     carbs: parseMetricNumber(carbs),
     fat: parseMetricNumber(fat),
     dateKey,
+    logged,
   };
 }
 

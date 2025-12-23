@@ -237,55 +237,44 @@
                     </div>
                   </div>
                   <div class="dashboard-main">
-                    <div class="dashboard-calories">
-                      <div class="calories-number">Weekly Plan</div>
-                      <div class="calories-label">
-                        Meals &amp; workouts synced for this week.
-                      </div>
-                      <div class="calories-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-                        <div
-                          id="dashboard-calories-fill"
-                          class="calories-bar-fill"
-                          aria-label="Daily calories progress"
-                        ></div>
-                      </div>
-                      <button
-                        type="button"
-                        class="primary full-width"
-                        id="dashboard-ai-shortcut"
-                      >
-                        Refresh 7-Day Plan
-                      </button>
-                    </div>
-
                     <div class="dashboard-grid">
-                      <div class="metric-card">
-                        <div class="metric-label">Meals planned</div>
-                        <div class="metric-value">7 days</div>
-                        <div class="metric-subtext">
-                          Dinner covered for the whole week.
+                      <div class="metric-card dashboard-card progress-card" id="dashboard-progress-card">
+                        <div class="metric-card-header">
+                          <div>
+                            <div class="metric-label">Progress</div>
+                            <div class="metric-subtext" id="dashboard-progress-summary">
+                              Track weight, water, sleep &amp; steps.
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            class="primary"
+                            id="dashboard-progress-cta"
+                          >
+                            Log Today
+                          </button>
                         </div>
                       </div>
-                      <div class="metric-card">
-                        <div class="metric-label">Workouts scheduled</div>
-                        <div class="metric-value">7 sessions</div>
-                        <div class="metric-subtext">
-                          Check the Workouts tab for details.
-                        </div>
+                      <div class="metric-card dashboard-card" id="dashboard-meals-card">
+                        <div class="metric-label">Meals</div>
+                        <div class="metric-subtext">Upcoming meals at a glance.</div>
+                        <ul class="dashboard-preview" id="dashboard-meals-preview">
+                          <li class="preview-empty">No upcoming meals.</li>
+                        </ul>
                       </div>
-                      <div class="metric-card">
-                        <div class="metric-label">Grocery list</div>
-                        <div class="metric-value">Synced</div>
-                        <div class="metric-subtext">
-                          Items pulled from your meal plan.
-                        </div>
+                      <div class="metric-card dashboard-card" id="dashboard-workouts-card">
+                        <div class="metric-label">Workouts</div>
+                        <div class="metric-subtext">What’s scheduled next.</div>
+                        <ul class="dashboard-preview" id="dashboard-workouts-preview">
+                          <li class="preview-empty">No workouts scheduled.</li>
+                        </ul>
                       </div>
-                      <div class="metric-card">
-                        <div class="metric-label">Progress</div>
-                        <div class="metric-value">Log today</div>
-                        <div class="metric-subtext">
-                          Track weight, water, sleep &amp; steps.
-                        </div>
+                      <div class="metric-card dashboard-card" id="dashboard-grocery-card">
+                        <div class="metric-label">Grocery</div>
+                        <div class="metric-subtext">Quick peek at your list.</div>
+                        <ul class="dashboard-preview" id="dashboard-grocery-preview">
+                          <li class="preview-empty">No grocery items yet.</li>
+                        </ul>
                       </div>
                     </div>
                   </div>

@@ -23,6 +23,7 @@ import {
 import { maybeVibrate, showToast } from "./ui.js";
 import { readWorkoutsStore, saveWorkouts } from "./dataAdapter.js";
 import { setWorkouts, upsertWorkout, removeWorkout } from "./ehStore.js";
+import { isWorkoutLogged } from "./selectors.js";
 
 let workoutsCache = [];
 const LOCAL_ID_PREFIX = "local-";
@@ -208,7 +209,7 @@ export async function fetchWorkoutsByDate(dateValue) {
   const familyId = currentFamilyId;
   const storedWorkouts = getStoredWorkouts(familyId);
   const storedForDate = storedWorkouts.filter(
-    (workout) => (workout.workout_date || "") === dateValue
+    (workout) => (workout.workout_date || "") === dateValue && isWorkoutLogged(workout)
   );
 
   if (!familyId) return storedForDate;
@@ -231,7 +232,9 @@ export async function fetchWorkoutsByDate(dateValue) {
     storedWorkouts
   );
   persistWorkoutsForFamily(familyId, merged);
-  return merged.filter((workout) => (workout.workout_date || "") === dateValue);
+  return merged.filter(
+    (workout) => (workout.workout_date || "") === dateValue && isWorkoutLogged(workout)
+  );
 }
 
 async function deleteWorkoutRow(id) {
@@ -310,6 +313,7 @@ async function logWorkoutToDiary(workout) {
   if (workout.id && normalizeWorkoutDay(workout.workout_date) === targetDate) {
     const updatePayload = {
       completed: true,
+      logged_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await supabase
@@ -391,6 +395,7 @@ async function logWorkoutToDiary(workout) {
     day_key: targetDate,
     scheduled_workout_id: payload.scheduled_workout_id,
     completed: true,
+    logged_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
   };
 
@@ -425,6 +430,8 @@ async function logWorkoutToDiary(workout) {
     log_id: data?.log_id || data?.workout?.id || optimisticEntry.log_id,
     workout_date: data?.workout?.workout_date || targetDate,
     day_key: data?.workout?.day_key || targetDate,
+    completed: true,
+    logged_at: data?.workout?.logged_at || optimisticEntry.logged_at || new Date().toISOString(),
   };
 
   workoutsCache = mergeWorkouts(
@@ -604,6 +611,7 @@ if (workoutsForm) {
       difficulty,
       duration_min: durationMin,
       notes: notes || null,
+      completed: false,
     };
 
     let persistedWorkout = null;
