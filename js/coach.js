@@ -15,6 +15,7 @@ import { loadMeals, sanitizeFamilyMealPayload } from "./meals.js";
 import { loadWorkouts } from "./workouts.js";
 import { loadGroceryItems } from "./grocery.js";
 import { maybeVibrate, showToast } from "./ui.js";
+import { normalizeMealNutrition } from "./nutrition.js";
 
 function setCoachThinking(isThinking) {
   if (!coachTypingPill) return;
@@ -270,13 +271,27 @@ async function applyCoachUpdates(updates) {
             m.calories ?? m.calories_total ?? m.nutrition?.calories
           );
           const protein = coerceNumber(
-            m.protein ?? m.nutrition?.protein ?? m.protein_g
+            m.protein ?? m.nutrition?.protein ?? m.protein_g ?? m.nutrition?.protein_g
           );
-          const carbs = coerceNumber(m.carbs ?? m.nutrition?.carbs);
-          const fat = coerceNumber(m.fat ?? m.nutrition?.fat);
+          const carbs = coerceNumber(
+            m.carbs ?? m.nutrition?.carbs ?? m.carbs_g ?? m.nutrition?.carbs_g
+          );
+          const fat = coerceNumber(
+            m.fat ?? m.nutrition?.fat ?? m.fat_g ?? m.nutrition?.fat_g
+          );
           const clientId = (m.client_id || m.clientId || "")
             .toString()
             .trim();
+          const nutrition = normalizeMealNutrition({
+            calories,
+            protein,
+            carbs,
+            fat,
+            meal_type: mealType,
+            title,
+            ingredients: m.ingredients,
+            notes: m.notes,
+          });
 
           return {
             family_group_id: currentFamilyId,
@@ -285,10 +300,10 @@ async function applyCoachUpdates(updates) {
             meal_type: mealType,
             title,
             notes: m.notes ? `[Ella] ${m.notes}` : "[Ella]",
-            calories,
-            protein,
-            carbs,
-            fat,
+            calories: nutrition.calories,
+            protein: nutrition.protein,
+            carbs: nutrition.carbs,
+            fat: nutrition.fat,
             client_id:
               clientId ||
               `ella-${mealDate}-${mealType}-${title}`.slice(0, 120),

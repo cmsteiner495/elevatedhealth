@@ -27,6 +27,11 @@ import {
   removeMealByIdOrClientId,
 } from "./ehStore.js";
 import { isMealLogged } from "./selectors.js";
+import {
+  formatNutritionSummary,
+  hasIncompleteNutrition,
+  normalizeMealNutrition,
+} from "./nutrition.js";
 
 const LOCAL_ID_PREFIX = "local-";
 const UUID_REGEX =
@@ -49,6 +54,8 @@ const FAMILY_MEAL_COLUMNS = [
   "created_at",
   "updated_at",
 ];
+
+const nutritionPatchedKeys = new Set();
 
 function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
   const entries = Object.entries(payload || {});
@@ -450,12 +457,7 @@ function formatMealDateLabel(dateValue) {
 }
 
 function formatMealNutritionSummary(meal) {
-  const totals = computeMealTotals(meal);
-  const calories = Math.round(coerceNumber(totals.calories));
-  const protein = Math.round(coerceNumber(totals.protein));
-  const carbs = Math.round(coerceNumber(totals.carbs));
-  const fat = Math.round(coerceNumber(totals.fat));
-  return `Cal ${calories} • P ${protein}g • C ${carbs}g • F ${fat}g`;
+  return formatNutritionSummary(meal);
 }
 
 function openMealDetailsModal(meal) {
@@ -548,6 +550,86 @@ export function setMealsFamilyState() {
   }
 }
 
+function normalizeMealsWithNutrition(meals = [], options = {}) {
+  const normalizedMeals = [];
+  const patches = [];
+  const patchKeys = new Set(
+    Array.isArray(options.patchKeys)
+      ? options.patchKeys
+          .filter(Boolean)
+          .map(String)
+      : options.patchKeys instanceof Set
+      ? Array.from(options.patchKeys)
+      : []
+  );
+
+  meals.forEach((meal) => {
+    if (!meal) return;
+    const nutrition = normalizeMealNutrition({
+      ...meal,
+      ingredients: meal.ingredients || meal.notes,
+    });
+    const normalized = { ...meal, ...nutrition };
+    normalizedMeals.push(normalized);
+
+    const mealKey = meal.id || meal.client_id;
+    const shouldPatch =
+      hasIncompleteNutrition(meal) ||
+      (mealKey && patchKeys.has(String(mealKey)));
+
+    if (shouldPatch) {
+      patches.push({
+        meal: normalized,
+        nutrition,
+      });
+    }
+  });
+
+  return { normalizedMeals, patches };
+}
+
+async function applyNutritionBackfill(patches = []) {
+  if (!currentFamilyId || !Array.isArray(patches) || !patches.length) return;
+
+  for (const entry of patches) {
+    const meal = entry?.meal;
+    const nutrition = entry?.nutrition;
+    if (!meal || !nutrition) continue;
+
+    const matchValue = isUUID(meal.id) ? meal.id : meal.client_id;
+    if (!matchValue || nutritionPatchedKeys.has(String(matchValue))) continue;
+
+    const payload = sanitizeFamilyMealPayload(
+      {
+        calories: nutrition.calories,
+        protein: nutrition.protein,
+        carbs: nutrition.carbs,
+        fat: nutrition.fat,
+        family_group_id: currentFamilyId,
+      },
+      "family_meals:nutrition-backfill"
+    );
+
+    const matchColumn = isUUID(meal.id) ? "id" : "client_id";
+    const { error } = await supabase
+      .from("family_meals")
+      .update(payload)
+      .eq(matchColumn, matchValue)
+      .eq("family_group_id", currentFamilyId);
+
+    if (error) {
+      console.error("[MEALS] Failed to backfill nutrition", {
+        error,
+        matchValue,
+        matchColumn,
+      });
+      continue;
+    }
+
+    nutritionPatchedKeys.add(String(matchValue));
+  }
+}
+
 export async function loadMeals() {
   if (!currentFamilyId || !mealsList) return;
 
@@ -570,8 +652,10 @@ export async function loadMeals() {
     console.error("Error loading meals:", error);
     if (storedMeals.length) {
       mealsList.innerHTML = "";
-      renderMeals(storedMeals);
-      setMeals(storedMeals, { reason: "loadMeals:offline" });
+      const { normalizedMeals } = normalizeMealsWithNutrition(storedMeals);
+      renderMeals(normalizedMeals);
+      persistMealsForFamily(currentFamilyId, normalizedMeals);
+      setMeals(normalizedMeals, { reason: "loadMeals:offline" });
       if (mealsMessage) {
         mealsMessage.textContent = "Showing saved meals (offline)";
         mealsMessage.style.color = "var(--text-muted)";
@@ -583,9 +667,16 @@ export async function loadMeals() {
   } else {
     const remoteMeals = data || [];
     const merged = mergeMeals(remoteMeals, storedMeals);
-    persistMealsForFamily(currentFamilyId, merged);
-    setMeals(merged, { reason: "loadMeals" });
-    renderMeals(merged);
+    const patchKeys = remoteMeals
+      .filter((meal) => hasIncompleteNutrition(meal))
+      .map((meal) => meal.id || meal.client_id);
+    const { normalizedMeals, patches } = normalizeMealsWithNutrition(merged, {
+      patchKeys,
+    });
+    persistMealsForFamily(currentFamilyId, normalizedMeals);
+    setMeals(normalizedMeals, { reason: "loadMeals" });
+    renderMeals(normalizedMeals);
+    await applyNutritionBackfill(patches);
   }
 }
 
@@ -611,8 +702,15 @@ export async function fetchMealsByDate(dateValue) {
   }
 
   const merged = mergeMeals(data || [], storedMeals);
-  persistMealsForFamily(currentFamilyId, merged);
-  return merged.filter(
+  const patchKeys = (data || [])
+    .filter((meal) => hasIncompleteNutrition(meal))
+    .map((meal) => meal.id || meal.client_id);
+  const { normalizedMeals, patches } = normalizeMealsWithNutrition(merged, {
+    patchKeys,
+  });
+  persistMealsForFamily(currentFamilyId, normalizedMeals);
+  await applyNutritionBackfill(patches);
+  return normalizedMeals.filter(
     (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
   );
 }

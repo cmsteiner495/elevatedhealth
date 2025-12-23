@@ -106,6 +106,7 @@ import {
 } from "./ui.js";
 import { subscribe, getState as getStoreState, setMeals, setWorkouts } from "./ehStore.js";
 import { computeDashboardModel, isMealLogged, isWorkoutLogged } from "./selectors.js";
+import { formatNutritionSummary } from "./nutrition.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -925,11 +926,7 @@ function formatMealPreviewRow(meal) {
   const mealTypeValue = (meal.meal_type || "Meal").toString();
   const typeLabel =
     mealTypeValue.charAt(0).toUpperCase() + mealTypeValue.slice(1);
-  const calories = parseMetricNumber(meal.calories);
-  const protein = parseMetricNumber(meal.protein);
-  const carbs = parseMetricNumber(meal.carbs);
-  const fat = parseMetricNumber(meal.fat);
-  const macroSummary = `Cal ${calories} • P ${protein}g • C ${carbs}g • F ${fat}g`;
+  const macroSummary = formatNutritionSummary(meal);
 
   return {
     title: meal.title || "Meal",

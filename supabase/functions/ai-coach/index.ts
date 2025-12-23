@@ -79,7 +79,8 @@ async function generatePlanJSON(prompt: string) {
         `User request: ${prompt}\n\n` +
         `Today is ${dates[0]}. Create a 7-day plan covering EXACTLY these dates in order:\n` +
         `${dates.join(", ")}\n\n` +
-        "Use each date exactly once for both meals and workouts (one main dinner and one workout per day).\n\n" +
+        "Use each date exactly once for both meals and workouts (one main dinner and one workout per day).\n" +
+        "Every meal MUST include realistic nutrition estimates with non-zero values for calories, protein_g, carbs_g, and fat_g. If you are unsure, pick a sensible estimate based on the meal name.\n\n" +
         "Return a JSON object with this exact structure:\n" +
         "{\n" +
         '  \"reply\": \"Short, friendly, human-readable summary of the plan.\",\n' +
@@ -89,7 +90,11 @@ async function generatePlanJSON(prompt: string) {
         '        \"meal_date\": \"YYYY-MM-DD\",  // MUST be one of the dates above\n' +
         '        \"meal_type\": \"breakfast\" | \"lunch\" | \"dinner\",\n' +
         '        \"title\": \"Meal title\",\n' +
-        '        \"notes\": \"Optional notes about the meal\"\n' +
+        '        \"notes\": \"Optional notes about the meal\",\n' +
+        '        \"calories\": 600, // integer, > 0\n' +
+        '        \"protein_g\": 35, // integer grams, > 0\n' +
+        '        \"carbs_g\": 55, // integer grams, > 0\n' +
+        '        \"fat_g\": 18 // integer grams, > 0\n' +
         "      }\n" +
         "    ],\n" +
         '    \"workouts\": [\n' +
