@@ -82,6 +82,87 @@ function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
 
 export { sanitizeFamilyMealPayload };
 
+function isLoggedAtSchemaError(error) {
+  if (!error) return false;
+  const message = String(error?.message || error?.details || "").toLowerCase();
+  const code = String(error?.code || "");
+  return (
+    code === "PGRST204" ||
+    (message.includes("logged_at") && message.includes("could not find"))
+  );
+}
+
+async function applyMealOrdering(buildQuery, orderAttempts = []) {
+  const attempts = orderAttempts.length ? orderAttempts : [[]];
+  let lastResult = { data: null, error: null };
+
+  for (const orders of attempts) {
+    const query = buildQuery();
+    try {
+      for (const order of orders) {
+        if (order?.column) {
+          query.order(order.column, order.options || {});
+        }
+      }
+
+      const result = await query;
+      if (!result.error) {
+        return result;
+      }
+
+      lastResult = result;
+      if (!isLoggedAtSchemaError(result.error)) {
+        return result;
+      }
+
+      console.warn(
+        "[MEALS] Falling back from logged_at ordering; schema cache stale?",
+        result.error
+      );
+    } catch (err) {
+      lastResult = { data: null, error: err };
+      if (!isLoggedAtSchemaError(err)) {
+        return lastResult;
+      }
+
+      console.warn(
+        "[MEALS] Exception during logged_at ordering; retrying with fallback",
+        err
+      );
+    }
+  }
+
+  return lastResult;
+}
+
+async function insertFamilyMealWithRetry(payload) {
+  let result = await supabase
+    .from("family_meals")
+    .insert([payload])
+    .select("*")
+    .single();
+
+  if (!result.error) return result;
+
+  const loggedAtMissing = isLoggedAtSchemaError(result.error);
+  if (!loggedAtMissing) return result;
+
+  console.warn(
+    "[meals] logged_at missing in schema cache; retrying insert without logged_at",
+    result.error
+  );
+
+  const { logged_at, ...retryPayload } = payload || {};
+
+  result = await supabase
+    .from("family_meals")
+    .insert([retryPayload])
+    .select("*")
+    .single();
+
+  return result;
+}
+
 function isUUID(value) {
   return UUID_REGEX.test(String(value || ""));
 }
@@ -371,11 +452,7 @@ export async function logMealToDiary(meal, options = {}) {
   }
 
   if (!persistedMeal) {
-    const { data, error } = await supabase
-      .from("family_meals")
-      .insert(serverPayload)
-      .select("*")
-      .single();
+    const { data, error } = await insertFamilyMealWithRetry(serverPayload);
 
     if (error) {
       console.error("[MEAL INSERT ERROR]", error);
@@ -656,13 +733,31 @@ export async function loadMeals() {
   mealsList.innerHTML = "<li>Loading meals...</li>";
 
   const storedMeals = getStoredMeals(currentFamilyId);
-  const { data, error } = await supabase
-    .from("family_meals")
-    .select("*")
-    .eq("family_group_id", currentFamilyId)
-    .order("meal_date", { ascending: true })
-    .order("meal_type", { ascending: true })
-    .order("created_at", { ascending: true });
+  const { data, error } = await applyMealOrdering(
+    () =>
+      supabase
+        .from("family_meals")
+        .select("*")
+        .eq("family_group_id", currentFamilyId),
+    [
+      [
+        { column: "logged_at", options: { ascending: false, nullsLast: true } },
+        { column: "meal_date", options: { ascending: true } },
+        { column: "meal_type", options: { ascending: true } },
+        { column: "created_at", options: { ascending: true } },
+      ],
+      [
+        { column: "meal_date", options: { ascending: true } },
+        { column: "meal_type", options: { ascending: true } },
+        { column: "created_at", options: { ascending: true } },
+      ],
+      [
+        { column: "meal_date", options: { ascending: true } },
+        { column: "meal_type", options: { ascending: true } },
+        { column: "id", options: { ascending: true } },
+      ],
+    ]
+  );
 
   if (error) {
     console.error("Error loading meals:", error);
@@ -704,13 +799,29 @@ export async function fetchMealsByDate(dateValue) {
     (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
   );
 
-  const { data, error } = await supabase
-    .from("family_meals")
-    .select("*")
-    .eq("family_group_id", currentFamilyId)
-    .eq("meal_date", dateValue)
-    .order("meal_type", { ascending: true })
-    .order("created_at", { ascending: true });
+  const { data, error } = await applyMealOrdering(
+    () =>
+      supabase
+        .from("family_meals")
+        .select("*")
+        .eq("family_group_id", currentFamilyId)
+        .eq("meal_date", dateValue),
+    [
+      [
+        { column: "logged_at", options: { ascending: false, nullsLast: true } },
+        { column: "meal_type", options: { ascending: true } },
+        { column: "created_at", options: { ascending: true } },
+      ],
+      [
+        { column: "meal_type", options: { ascending: true } },
+        { column: "created_at", options: { ascending: true } },
+      ],
+      [
+        { column: "meal_type", options: { ascending: true } },
+        { column: "id", options: { ascending: true } },
+      ],
+    ]
+  );
 
   if (error) {
     console.error("Error loading meals for date:", error);
