@@ -4,9 +4,20 @@ import {
   mealsNoFamily,
   mealsHasFamily,
   mealsForm,
+  mealSearchInput,
+  mealSearchResults,
+  mealSelectedContainer,
+  mealSelectedName,
+  mealSelectedMacros,
+  mealPortionButtons,
+  mealClearSelection,
   mealDateInput,
   mealTypeInput,
   mealTitleInput,
+  mealCaloriesInput,
+  mealProteinInput,
+  mealCarbsInput,
+  mealFatInput,
   mealNotesInput,
   mealsMessage,
   mealsList,
@@ -36,6 +47,7 @@ import {
 const LOCAL_ID_PREFIX = "local-";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FOODS_DATA_URL = "/src/data/foods.json";
 
 const FAMILY_MEAL_COLUMNS = [
   "id",
@@ -56,6 +68,13 @@ const FAMILY_MEAL_COLUMNS = [
 ];
 
 const nutritionPatchedKeys = new Set();
+let foodSearchIndex = [];
+let foodSearchLoaded = false;
+let foodSearchError = null;
+let selectedFood = null;
+let selectedPortion = 1;
+let lastSearchResults = [];
+let searchDebounceId = null;
 
 function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
   const entries = Object.entries(payload || {});
@@ -81,6 +100,222 @@ function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
 }
 
 export { sanitizeFamilyMealPayload };
+
+function normalizeFoodEntry(food = {}) {
+  return {
+    ...food,
+    name: food.name || food.title || "",
+    calories: coerceNumber(
+      food.calories ?? food.calorie ?? food.calories_total ?? food.kcal ?? 0
+    ),
+    protein_g: coerceNumber(food.protein_g ?? food.protein ?? food.protein_total),
+    carbs_g: coerceNumber(food.carbs_g ?? food.carbs ?? food.carbs_total ?? food.net_carbs),
+    fat_g: coerceNumber(food.fat_g ?? food.fat ?? food.fat_total ?? food.fats),
+  };
+}
+
+async function loadFoodDatabase() {
+  if (foodSearchLoaded) return foodSearchIndex;
+  try {
+    const res = await fetch(FOODS_DATA_URL);
+    if (!res.ok) throw new Error(`Failed to load foods.json (${res.status})`);
+    const data = await res.json();
+    foodSearchIndex = Array.isArray(data) ? data.map(normalizeFoodEntry) : [];
+    foodSearchLoaded = true;
+    foodSearchError = null;
+  } catch (err) {
+    console.error("[meals] Unable to load food search database", err);
+    foodSearchError = err;
+    foodSearchIndex = [];
+  }
+  return foodSearchIndex;
+}
+
+function scoreFoodMatch(name, query) {
+  const lower = name.toLowerCase();
+  const idx = lower.indexOf(query);
+  if (idx === -1) return -1;
+  let score = 0;
+  if (idx === 0) score += 4;
+  if (idx > 0) score += 2;
+  const words = lower.split(/\s+/);
+  if (words.some((w) => w.startsWith(query))) score += 3;
+  score -= idx * 0.05;
+  return score;
+}
+
+function searchFoods(query) {
+  if (!query || query.length < 2 || !foodSearchIndex.length) return [];
+  const normalizedQuery = query.toLowerCase();
+  return foodSearchIndex
+    .map((food) => ({
+      food,
+      score: scoreFoodMatch(food.name || "", normalizedQuery),
+    }))
+    .filter((entry) => entry.score >= 0)
+    .sort((a, b) => b.score - a.score || (a.food.name || "").localeCompare(b.food.name || ""))
+    .map((entry) => entry.food)
+    .slice(0, 12);
+}
+
+function formatSelectedMacros(nutrition = {}) {
+  const calories = Math.round(coerceNumber(nutrition.calories));
+  const protein = Math.round(coerceNumber(nutrition.protein ?? nutrition.protein_g));
+  const carbs = Math.round(coerceNumber(nutrition.carbs ?? nutrition.carbs_g));
+  const fat = Math.round(coerceNumber(nutrition.fat ?? nutrition.fat_g));
+  if (calories <= 0 && protein <= 0 && carbs <= 0 && fat <= 0) return "No macros yet";
+  return `Cal ${calories} • P ${protein}g • C ${carbs}g • F ${fat}g`;
+}
+
+function applyPortionMultiplier(nutrition = {}, portion = selectedPortion) {
+  const factor = Number(portion) && Number(portion) > 0 ? Number(portion) : 1;
+  return {
+    calories: Math.round(coerceNumber(nutrition.calories) * factor),
+    protein: Math.round(coerceNumber(nutrition.protein ?? nutrition.protein_g) * factor),
+    carbs: Math.round(coerceNumber(nutrition.carbs ?? nutrition.carbs_g) * factor),
+    fat: Math.round(coerceNumber(nutrition.fat ?? nutrition.fat_g) * factor),
+  };
+}
+
+function getFoodNutrition(food) {
+  const normalized = normalizeFoodEntry(food);
+  return {
+    calories: normalized.calories,
+    protein: normalized.protein_g,
+    carbs: normalized.carbs_g,
+    fat: normalized.fat_g,
+  };
+}
+
+function setPortionSelection(value) {
+  selectedPortion = Number(value) && Number(value) > 0 ? Number(value) : 1;
+  if (mealPortionButtons && mealPortionButtons.length) {
+    mealPortionButtons.forEach((btn) => {
+      const matches = Number(btn.dataset.portion) === selectedPortion;
+      btn.classList.toggle("active", matches);
+    });
+  }
+  updateSelectedPreview();
+}
+
+function syncManualInputs(nutrition = {}) {
+  if (mealCaloriesInput) mealCaloriesInput.value = nutrition.calories ?? "";
+  if (mealProteinInput) mealProteinInput.value = nutrition.protein ?? nutrition.protein_g ?? "";
+  if (mealCarbsInput) mealCarbsInput.value = nutrition.carbs ?? nutrition.carbs_g ?? "";
+  if (mealFatInput) mealFatInput.value = nutrition.fat ?? nutrition.fat_g ?? "";
+}
+
+function getManualNutrition() {
+  return {
+    calories: coerceNumber(mealCaloriesInput?.value),
+    protein: coerceNumber(mealProteinInput?.value),
+    carbs: coerceNumber(mealCarbsInput?.value),
+    fat: coerceNumber(mealFatInput?.value),
+  };
+}
+
+function hasManualMacros() {
+  const manual = getManualNutrition();
+  return (
+    manual.calories > 0 ||
+    manual.protein > 0 ||
+    manual.carbs > 0 ||
+    manual.fat > 0
+  );
+}
+
+function clearSelection() {
+  selectedFood = null;
+  selectedPortion = 1;
+  if (mealSearchInput) mealSearchInput.value = "";
+  if (mealSelectedContainer) mealSelectedContainer.hidden = true;
+  if (mealSelectedName) mealSelectedName.textContent = "";
+  if (mealSelectedMacros) mealSelectedMacros.textContent = "";
+  if (mealPortionButtons && mealPortionButtons.length) {
+    mealPortionButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.portion === "1"));
+  }
+}
+
+function updateSelectedPreview() {
+  if (!mealSelectedContainer) return;
+  if (!selectedFood) {
+    mealSelectedContainer.hidden = true;
+    return;
+  }
+  const nutrition = applyPortionMultiplier(getFoodNutrition(selectedFood));
+  syncManualInputs(nutrition);
+  mealSelectedContainer.hidden = false;
+  if (mealSelectedName) mealSelectedName.textContent = selectedFood.name || "Food";
+  if (mealSelectedMacros) mealSelectedMacros.textContent = formatSelectedMacros(nutrition);
+}
+
+function selectFood(food) {
+  const normalized = normalizeFoodEntry(food);
+  selectedFood = normalized;
+  setPortionSelection(1);
+  if (mealTitleInput && normalized.name) {
+    mealTitleInput.value = normalized.name;
+  }
+  updateSelectedPreview();
+}
+
+function renderFoodResults(results, query) {
+  if (!mealSearchResults) return;
+  mealSearchResults.innerHTML = "";
+  if (foodSearchError) {
+    const errorNode = document.createElement("div");
+    errorNode.className = "search-hint";
+    errorNode.textContent = "Couldn't load foods. Try again later.";
+    mealSearchResults.appendChild(errorNode);
+    return;
+  }
+
+  if (!query) {
+    const hint = document.createElement("div");
+    hint.className = "search-hint";
+    hint.textContent = "Start typing to search foods.";
+    mealSearchResults.appendChild(hint);
+    return;
+  }
+
+  if (!results.length) {
+    const empty = document.createElement("div");
+    empty.className = "search-hint";
+    empty.textContent = "No foods found. Try a different keyword.";
+    mealSearchResults.appendChild(empty);
+    return;
+  }
+
+  results.forEach((food, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "meal-search-result";
+    btn.dataset.resultIndex = idx;
+
+    const name = document.createElement("div");
+    name.textContent = food.name || "Food";
+
+    const meta = document.createElement("div");
+    meta.className = "meal-search-meta";
+    meta.textContent = formatSelectedMacros(getFoodNutrition(food));
+
+    btn.appendChild(name);
+    btn.appendChild(meta);
+    mealSearchResults.appendChild(btn);
+  });
+}
+
+async function handleFoodSearch(query) {
+  await loadFoodDatabase();
+  if (!mealSearchResults) return;
+  if (!query || query.length < 2) {
+    lastSearchResults = [];
+    renderFoodResults([], "");
+    return;
+  }
+  lastSearchResults = searchFoods(query);
+  renderFoodResults(lastSearchResults, query);
+}
 
 function isLoggedAtSchemaError(error) {
   if (!error) return false;
@@ -954,6 +1189,54 @@ function renderMeals(items) {
   }
 }
 
+if (mealSearchInput) {
+  mealSearchInput.addEventListener("input", (e) => {
+    const query = (e.target.value || "").trim();
+    if (searchDebounceId) {
+      clearTimeout(searchDebounceId);
+    }
+    searchDebounceId = setTimeout(() => handleFoodSearch(query), 120);
+  });
+  mealSearchInput.addEventListener("focus", async () => {
+    if (!foodSearchLoaded && !foodSearchError) {
+      await loadFoodDatabase();
+    }
+    renderFoodResults(lastSearchResults, (mealSearchInput.value || "").trim());
+  });
+}
+
+if (mealSearchResults) {
+  mealSearchResults.addEventListener("click", (e) => {
+    const target = e.target.closest(".meal-search-result");
+    if (!target) return;
+    const idx = Number(target.dataset.resultIndex);
+    const food = lastSearchResults[idx];
+    if (food) {
+      selectFood(food);
+      if (mealSearchInput) mealSearchInput.value = food.name || "";
+    }
+  });
+}
+
+if (mealPortionButtons && mealPortionButtons.length) {
+  mealPortionButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const portion = btn.dataset.portion || "1";
+      setPortionSelection(portion);
+    });
+  });
+}
+
+if (mealClearSelection) {
+  mealClearSelection.addEventListener("click", () => {
+    clearSelection();
+    syncManualInputs({ calories: "", protein: "", carbs: "", fat: "" });
+    renderFoodResults([], "");
+  });
+}
+
+renderFoodResults([], "");
+
 // ADD MEAL
 if (mealsForm) {
   mealsForm.addEventListener("submit", async (e) => {
@@ -973,11 +1256,29 @@ if (mealsForm) {
 
     const dateValue = mealDateInput.value;
     const mealType = mealTypeInput.value;
-    const title = mealTitleInput.value.trim();
+    const title = mealTitleInput.value.trim() || selectedFood?.name?.trim();
     const notes = mealNotesInput.value.trim();
-    const totals = computeMealTotals({});
 
     if (!dateValue || !mealType || !title) return;
+
+    const nutritionSource = selectedFood ? getFoodNutrition(selectedFood) : getManualNutrition();
+    const totals = applyPortionMultiplier(nutritionSource);
+
+    if (!selectedFood && !hasManualMacros()) {
+      if (mealsMessage) {
+        mealsMessage.textContent = "Select a food or enter macros manually.";
+        mealsMessage.style.color = "red";
+      }
+      return;
+    }
+
+    if (!totals.calories || totals.calories <= 0) {
+      if (mealsMessage) {
+        mealsMessage.textContent = "Calories must be greater than zero.";
+        mealsMessage.style.color = "red";
+      }
+      return;
+    }
 
     const tempId = `${LOCAL_ID_PREFIX}${Date.now()}`;
     const payload = {
@@ -990,10 +1291,10 @@ if (mealsForm) {
       calories: totals.calories,
       protein: totals.protein,
       carbs: totals.carbs,
-    fat: totals.fat,
-    client_id: tempId,
-    logged_at: null,
-  };
+      fat: totals.fat,
+      client_id: tempId,
+      logged_at: null,
+    };
     const optimisticEntry = {
       id: tempId,
       client_id: tempId,
@@ -1059,6 +1360,10 @@ if (mealsForm) {
     }
 
     mealsForm.reset();
+    clearSelection();
+    setPortionSelection(1);
+    syncManualInputs({ calories: "", protein: "", carbs: "", fat: "" });
+    renderFoodResults([], "");
     await loadMeals();
     document.dispatchEvent(
       new CustomEvent("diary:refresh", {
