@@ -648,6 +648,75 @@
 
                   <div id="meals-has-family" style="display: none">
                     <form id="meals-form" class="form-grid">
+                      <div class="full-width">
+                        <label for="meal-search">Food search</label>
+                        <input
+                          type="text"
+                          id="meal-search"
+                          placeholder="Search 200+ foods"
+                          autocomplete="off"
+                        />
+                        <div id="meal-search-results" class="meal-search-results">
+                          <div class="search-hint">Start typing to search foods.</div>
+                        </div>
+                      </div>
+                      <div class="full-width" id="meal-selected" hidden>
+                        <div class="meal-selected-header">
+                          <div>
+                            <p class="label">Selected food</p>
+                            <div id="meal-selected-name" class="meal-selected-title"></div>
+                          </div>
+                          <button
+                            type="button"
+                            class="ghost-btn meal-clear-selection"
+                            id="meal-clear-selection"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div class="meal-selected-details">
+                          <div>
+                            <div class="label">Portion</div>
+                            <div class="chip-row" id="meal-portion-group">
+                              <button
+                                type="button"
+                                class="chip meal-portion-btn"
+                                data-portion="0.5"
+                              >
+                                0.5x
+                              </button>
+                              <button
+                                type="button"
+                                class="chip meal-portion-btn active"
+                                data-portion="1"
+                              >
+                                1x
+                              </button>
+                              <button
+                                type="button"
+                                class="chip meal-portion-btn"
+                                data-portion="1.5"
+                              >
+                                1.5x
+                              </button>
+                              <button
+                                type="button"
+                                class="chip meal-portion-btn"
+                                data-portion="2"
+                              >
+                                2x
+                              </button>
+                            </div>
+                          </div>
+                          <div class="meal-selected-macros">
+                            <div class="label">Macros</div>
+                            <div id="meal-selected-macros" class="metric-subtext"></div>
+                          </div>
+                        </div>
+                        <div class="meal-selected-hint">
+                          The search result will auto-fill the title and macros below.
+                        </div>
+                      </div>
                       <div>
                         <label for="meal-date">Date</label>
                         <input type="date" id="meal-date" required />
@@ -661,7 +730,7 @@
                           <option value="dinner" selected>Dinner</option>
                         </select>
                       </div>
-                      <div>
+                      <div class="full-width">
                         <label for="meal-title">Title</label>
                         <input
                           type="text"
@@ -670,6 +739,30 @@
                           required
                         />
                       </div>
+                      <details id="meal-manual" class="meal-manual full-width">
+                        <summary>Can't find it? Add manually</summary>
+                        <div class="meal-manual-grid">
+                          <p class="subtitle small">
+                            Enter calories and macros if you can't find a close match.
+                          </p>
+                          <div>
+                            <label for="meal-calories">Calories</label>
+                            <input type="number" id="meal-calories" inputmode="decimal" />
+                          </div>
+                          <div>
+                            <label for="meal-protein">Protein (g)</label>
+                            <input type="number" id="meal-protein" inputmode="decimal" />
+                          </div>
+                          <div>
+                            <label for="meal-carbs">Carbs (g)</label>
+                            <input type="number" id="meal-carbs" inputmode="decimal" />
+                          </div>
+                          <div>
+                            <label for="meal-fat">Fat (g)</label>
+                            <input type="number" id="meal-fat" inputmode="decimal" />
+                          </div>
+                        </div>
+                      </details>
                       <div class="full-width">
                         <label for="meal-notes">Notes (optional)</label>
                         <textarea

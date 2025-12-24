@@ -1,0 +1,1472 @@
+[
+  {
+    "name": "Grilled Chicken Breast",
+    "calories": 165,
+    "protein_g": 31,
+    "carbs_g": 0,
+    "fat_g": 4
+  },
+  {
+    "name": "Roasted Turkey",
+    "calories": 170,
+    "protein_g": 29,
+    "carbs_g": 0,
+    "fat_g": 4
+  },
+  {
+    "name": "Baked Salmon",
+    "calories": 230,
+    "protein_g": 25,
+    "carbs_g": 0,
+    "fat_g": 14
+  },
+  {
+    "name": "Seared Tuna",
+    "calories": 200,
+    "protein_g": 32,
+    "carbs_g": 0,
+    "fat_g": 6
+  },
+  {
+    "name": "Tilapia Fillet",
+    "calories": 145,
+    "protein_g": 26,
+    "carbs_g": 0,
+    "fat_g": 3
+  },
+  {
+    "name": "Shrimp Skewers",
+    "calories": 120,
+    "protein_g": 24,
+    "carbs_g": 2,
+    "fat_g": 1
+  },
+  {
+    "name": "Lean Ground Beef",
+    "calories": 250,
+    "protein_g": 26,
+    "carbs_g": 0,
+    "fat_g": 15
+  },
+  {
+    "name": "Sirloin Steak",
+    "calories": 275,
+    "protein_g": 29,
+    "carbs_g": 0,
+    "fat_g": 16
+  },
+  {
+    "name": "Pork Tenderloin",
+    "calories": 210,
+    "protein_g": 29,
+    "carbs_g": 0,
+    "fat_g": 8
+  },
+  {
+    "name": "Baked Cod",
+    "calories": 160,
+    "protein_g": 30,
+    "carbs_g": 0,
+    "fat_g": 3
+  },
+  {
+    "name": "Tofu Stir-Fry",
+    "calories": 190,
+    "protein_g": 18,
+    "carbs_g": 8,
+    "fat_g": 10
+  },
+  {
+    "name": "Tempeh Strips",
+    "calories": 210,
+    "protein_g": 20,
+    "carbs_g": 12,
+    "fat_g": 9
+  },
+  {
+    "name": "Black Bean Chili",
+    "calories": 240,
+    "protein_g": 16,
+    "carbs_g": 32,
+    "fat_g": 6
+  },
+  {
+    "name": "Lentil Soup",
+    "calories": 220,
+    "protein_g": 15,
+    "carbs_g": 32,
+    "fat_g": 3
+  },
+  {
+    "name": "Chickpea Curry",
+    "calories": 260,
+    "protein_g": 13,
+    "carbs_g": 34,
+    "fat_g": 8
+  },
+  {
+    "name": "Egg Omelette",
+    "calories": 210,
+    "protein_g": 18,
+    "carbs_g": 2,
+    "fat_g": 14
+  },
+  {
+    "name": "Greek Yogurt Bowl",
+    "calories": 180,
+    "protein_g": 17,
+    "carbs_g": 18,
+    "fat_g": 4
+  },
+  {
+    "name": "Overnight Oats",
+    "calories": 320,
+    "protein_g": 12,
+    "carbs_g": 52,
+    "fat_g": 8
+  },
+  {
+    "name": "Avocado Toast",
+    "calories": 290,
+    "protein_g": 8,
+    "carbs_g": 32,
+    "fat_g": 14
+  },
+  {
+    "name": "Turkey Sandwich",
+    "calories": 340,
+    "protein_g": 28,
+    "carbs_g": 36,
+    "fat_g": 9
+  },
+  {
+    "name": "Chicken Caesar Salad",
+    "calories": 360,
+    "protein_g": 33,
+    "carbs_g": 20,
+    "fat_g": 15
+  },
+  {
+    "name": "Quinoa Salad",
+    "calories": 310,
+    "protein_g": 12,
+    "carbs_g": 42,
+    "fat_g": 10
+  },
+  {
+    "name": "Cobb Salad",
+    "calories": 420,
+    "protein_g": 30,
+    "carbs_g": 18,
+    "fat_g": 26
+  },
+  {
+    "name": "Veggie Burrito",
+    "calories": 430,
+    "protein_g": 16,
+    "carbs_g": 62,
+    "fat_g": 12
+  },
+  {
+    "name": "Chicken Burrito",
+    "calories": 520,
+    "protein_g": 32,
+    "carbs_g": 58,
+    "fat_g": 18
+  },
+  {
+    "name": "Beef Burrito",
+    "calories": 560,
+    "protein_g": 34,
+    "carbs_g": 60,
+    "fat_g": 22
+  },
+  {
+    "name": "Fish Tacos",
+    "calories": 420,
+    "protein_g": 28,
+    "carbs_g": 38,
+    "fat_g": 16
+  },
+  {
+    "name": "Chicken Tacos",
+    "calories": 390,
+    "protein_g": 30,
+    "carbs_g": 34,
+    "fat_g": 14
+  },
+  {
+    "name": "Beef Tacos",
+    "calories": 440,
+    "protein_g": 29,
+    "carbs_g": 36,
+    "fat_g": 20
+  },
+  {
+    "name": "Turkey Chili",
+    "calories": 330,
+    "protein_g": 28,
+    "carbs_g": 32,
+    "fat_g": 12
+  },
+  {
+    "name": "Pasta with Marinara",
+    "calories": 420,
+    "protein_g": 16,
+    "carbs_g": 68,
+    "fat_g": 8
+  },
+  {
+    "name": "Spaghetti Bolognese",
+    "calories": 520,
+    "protein_g": 27,
+    "carbs_g": 64,
+    "fat_g": 18
+  },
+  {
+    "name": "Pesto Chicken Pasta",
+    "calories": 540,
+    "protein_g": 32,
+    "carbs_g": 60,
+    "fat_g": 20
+  },
+  {
+    "name": "Shrimp Alfredo",
+    "calories": 590,
+    "protein_g": 30,
+    "carbs_g": 54,
+    "fat_g": 28
+  },
+  {
+    "name": "Sushi Roll",
+    "calories": 320,
+    "protein_g": 18,
+    "carbs_g": 46,
+    "fat_g": 8
+  },
+  {
+    "name": "California Roll",
+    "calories": 310,
+    "protein_g": 12,
+    "carbs_g": 50,
+    "fat_g": 7
+  },
+  {
+    "name": "Salmon Poke Bowl",
+    "calories": 520,
+    "protein_g": 32,
+    "carbs_g": 58,
+    "fat_g": 18
+  },
+  {
+    "name": "Chicken Fried Rice",
+    "calories": 550,
+    "protein_g": 30,
+    "carbs_g": 66,
+    "fat_g": 18
+  },
+  {
+    "name": "Veggie Fried Rice",
+    "calories": 480,
+    "protein_g": 16,
+    "carbs_g": 72,
+    "fat_g": 14
+  },
+  {
+    "name": "Steak Fajitas",
+    "calories": 510,
+    "protein_g": 33,
+    "carbs_g": 42,
+    "fat_g": 22
+  },
+  {
+    "name": "Chicken Fajitas",
+    "calories": 470,
+    "protein_g": 32,
+    "carbs_g": 40,
+    "fat_g": 18
+  },
+  {
+    "name": "Tofu Fajitas",
+    "calories": 420,
+    "protein_g": 24,
+    "carbs_g": 46,
+    "fat_g": 14
+  },
+  {
+    "name": "BBQ Chicken",
+    "calories": 410,
+    "protein_g": 36,
+    "carbs_g": 24,
+    "fat_g": 16
+  },
+  {
+    "name": "Pulled Pork",
+    "calories": 450,
+    "protein_g": 32,
+    "carbs_g": 28,
+    "fat_g": 22
+  },
+  {
+    "name": "Grilled Bratwurst",
+    "calories": 360,
+    "protein_g": 18,
+    "carbs_g": 6,
+    "fat_g": 28
+  },
+  {
+    "name": "Veggie Burger",
+    "calories": 350,
+    "protein_g": 21,
+    "carbs_g": 36,
+    "fat_g": 12
+  },
+  {
+    "name": "Beef Burger",
+    "calories": 520,
+    "protein_g": 32,
+    "carbs_g": 38,
+    "fat_g": 26
+  },
+  {
+    "name": "Turkey Burger",
+    "calories": 430,
+    "protein_g": 30,
+    "carbs_g": 36,
+    "fat_g": 16
+  },
+  {
+    "name": "Salmon Burger",
+    "calories": 410,
+    "protein_g": 28,
+    "carbs_g": 32,
+    "fat_g": 18
+  },
+  {
+    "name": "Chicken Burger",
+    "calories": 420,
+    "protein_g": 32,
+    "carbs_g": 34,
+    "fat_g": 15
+  },
+  {
+    "name": "BBQ Tofu Sandwich",
+    "calories": 360,
+    "protein_g": 22,
+    "carbs_g": 42,
+    "fat_g": 10
+  },
+  {
+    "name": "Caprese Panini",
+    "calories": 430,
+    "protein_g": 20,
+    "carbs_g": 44,
+    "fat_g": 18
+  },
+  {
+    "name": "Grilled Cheese",
+    "calories": 430,
+    "protein_g": 16,
+    "carbs_g": 42,
+    "fat_g": 22
+  },
+  {
+    "name": "Margherita Pizza",
+    "calories": 460,
+    "protein_g": 20,
+    "carbs_g": 54,
+    "fat_g": 18
+  },
+  {
+    "name": "Pepperoni Pizza",
+    "calories": 520,
+    "protein_g": 23,
+    "carbs_g": 48,
+    "fat_g": 24
+  },
+  {
+    "name": "Veggie Pizza",
+    "calories": 480,
+    "protein_g": 21,
+    "carbs_g": 54,
+    "fat_g": 18
+  },
+  {
+    "name": "BBQ Chicken Pizza",
+    "calories": 540,
+    "protein_g": 28,
+    "carbs_g": 52,
+    "fat_g": 22
+  },
+  {
+    "name": "Chicken Noodle Soup",
+    "calories": 280,
+    "protein_g": 22,
+    "carbs_g": 34,
+    "fat_g": 8
+  },
+  {
+    "name": "Tomato Soup",
+    "calories": 230,
+    "protein_g": 7,
+    "carbs_g": 30,
+    "fat_g": 8
+  },
+  {
+    "name": "Minestrone Soup",
+    "calories": 260,
+    "protein_g": 10,
+    "carbs_g": 38,
+    "fat_g": 6
+  },
+  {
+    "name": "Beef Stew",
+    "calories": 420,
+    "protein_g": 28,
+    "carbs_g": 34,
+    "fat_g": 18
+  },
+  {
+    "name": "Chicken Pot Pie",
+    "calories": 540,
+    "protein_g": 28,
+    "carbs_g": 44,
+    "fat_g": 28
+  },
+  {
+    "name": "Shepherd's Pie",
+    "calories": 520,
+    "protein_g": 29,
+    "carbs_g": 52,
+    "fat_g": 20
+  },
+  {
+    "name": "Vegetable Stir-Fry",
+    "calories": 320,
+    "protein_g": 10,
+    "carbs_g": 48,
+    "fat_g": 10
+  },
+  {
+    "name": "Chicken Stir-Fry",
+    "calories": 430,
+    "protein_g": 32,
+    "carbs_g": 46,
+    "fat_g": 14
+  },
+  {
+    "name": "Beef Stir-Fry",
+    "calories": 480,
+    "protein_g": 30,
+    "carbs_g": 44,
+    "fat_g": 18
+  },
+  {
+    "name": "Tofu Stir-Fry with Rice",
+    "calories": 460,
+    "protein_g": 22,
+    "carbs_g": 64,
+    "fat_g": 14
+  },
+  {
+    "name": "Chicken Shawarma Bowl",
+    "calories": 520,
+    "protein_g": 34,
+    "carbs_g": 52,
+    "fat_g": 18
+  },
+  {
+    "name": "Falafel Bowl",
+    "calories": 480,
+    "protein_g": 18,
+    "carbs_g": 58,
+    "fat_g": 18
+  },
+  {
+    "name": "Gyro Plate",
+    "calories": 540,
+    "protein_g": 30,
+    "carbs_g": 48,
+    "fat_g": 22
+  },
+  {
+    "name": "Hummus Plate",
+    "calories": 420,
+    "protein_g": 14,
+    "carbs_g": 42,
+    "fat_g": 18
+  },
+  {
+    "name": "Stuffed Peppers",
+    "calories": 440,
+    "protein_g": 28,
+    "carbs_g": 46,
+    "fat_g": 14
+  },
+  {
+    "name": "Chicken Enchiladas",
+    "calories": 520,
+    "protein_g": 34,
+    "carbs_g": 48,
+    "fat_g": 20
+  },
+  {
+    "name": "Beef Enchiladas",
+    "calories": 560,
+    "protein_g": 32,
+    "carbs_g": 46,
+    "fat_g": 24
+  },
+  {
+    "name": "Veggie Enchiladas",
+    "calories": 480,
+    "protein_g": 18,
+    "carbs_g": 54,
+    "fat_g": 16
+  },
+  {
+    "name": "Chicken Quesadilla",
+    "calories": 520,
+    "protein_g": 32,
+    "carbs_g": 46,
+    "fat_g": 22
+  },
+  {
+    "name": "Steak Quesadilla",
+    "calories": 560,
+    "protein_g": 34,
+    "carbs_g": 44,
+    "fat_g": 24
+  },
+  {
+    "name": "Black Bean Quesadilla",
+    "calories": 480,
+    "protein_g": 20,
+    "carbs_g": 52,
+    "fat_g": 18
+  },
+  {
+    "name": "Chicken Tikka Masala",
+    "calories": 560,
+    "protein_g": 36,
+    "carbs_g": 44,
+    "fat_g": 26
+  },
+  {
+    "name": "Paneer Tikka",
+    "calories": 520,
+    "protein_g": 26,
+    "carbs_g": 38,
+    "fat_g": 26
+  },
+  {
+    "name": "Butter Chicken",
+    "calories": 610,
+    "protein_g": 35,
+    "carbs_g": 38,
+    "fat_g": 32
+  },
+  {
+    "name": "Dal with Rice",
+    "calories": 430,
+    "protein_g": 18,
+    "carbs_g": 62,
+    "fat_g": 10
+  },
+  {
+    "name": "Palak Paneer",
+    "calories": 480,
+    "protein_g": 24,
+    "carbs_g": 28,
+    "fat_g": 28
+  },
+  {
+    "name": "Samosa Plate",
+    "calories": 520,
+    "protein_g": 14,
+    "carbs_g": 62,
+    "fat_g": 24
+  },
+  {
+    "name": "Pho with Chicken",
+    "calories": 480,
+    "protein_g": 32,
+    "carbs_g": 62,
+    "fat_g": 12
+  },
+  {
+    "name": "Pho with Beef",
+    "calories": 520,
+    "protein_g": 34,
+    "carbs_g": 60,
+    "fat_g": 16
+  },
+  {
+    "name": "Ramen with Pork",
+    "calories": 620,
+    "protein_g": 30,
+    "carbs_g": 68,
+    "fat_g": 26
+  },
+  {
+    "name": "Miso Ramen",
+    "calories": 540,
+    "protein_g": 20,
+    "carbs_g": 72,
+    "fat_g": 18
+  },
+  {
+    "name": "Pad Thai with Chicken",
+    "calories": 640,
+    "protein_g": 34,
+    "carbs_g": 86,
+    "fat_g": 20
+  },
+  {
+    "name": "Pad Thai with Tofu",
+    "calories": 610,
+    "protein_g": 28,
+    "carbs_g": 90,
+    "fat_g": 18
+  },
+  {
+    "name": "Pad See Ew",
+    "calories": 620,
+    "protein_g": 28,
+    "carbs_g": 88,
+    "fat_g": 20
+  },
+  {
+    "name": "Bibimbap",
+    "calories": 590,
+    "protein_g": 28,
+    "carbs_g": 82,
+    "fat_g": 18
+  },
+  {
+    "name": "Kimchi Fried Rice",
+    "calories": 560,
+    "protein_g": 18,
+    "carbs_g": 82,
+    "fat_g": 16
+  },
+  {
+    "name": "Bulgogi Bowl",
+    "calories": 610,
+    "protein_g": 32,
+    "carbs_g": 74,
+    "fat_g": 22
+  },
+  {
+    "name": "Pork Banh Mi",
+    "calories": 520,
+    "protein_g": 24,
+    "carbs_g": 58,
+    "fat_g": 18
+  },
+  {
+    "name": "Tofu Banh Mi",
+    "calories": 480,
+    "protein_g": 20,
+    "carbs_g": 62,
+    "fat_g": 14
+  },
+  {
+    "name": "Chicken Banh Mi",
+    "calories": 500,
+    "protein_g": 26,
+    "carbs_g": 60,
+    "fat_g": 16
+  },
+  {
+    "name": "Chicken Wrap",
+    "calories": 430,
+    "protein_g": 30,
+    "carbs_g": 42,
+    "fat_g": 14
+  },
+  {
+    "name": "Buffalo Chicken Wrap",
+    "calories": 480,
+    "protein_g": 32,
+    "carbs_g": 44,
+    "fat_g": 18
+  },
+  {
+    "name": "Veggie Wrap",
+    "calories": 380,
+    "protein_g": 14,
+    "carbs_g": 46,
+    "fat_g": 12
+  },
+  {
+    "name": "Mediterranean Wrap",
+    "calories": 430,
+    "protein_g": 20,
+    "carbs_g": 48,
+    "fat_g": 16
+  },
+  {
+    "name": "Protein Smoothie",
+    "calories": 320,
+    "protein_g": 28,
+    "carbs_g": 36,
+    "fat_g": 6
+  },
+  {
+    "name": "Berry Smoothie",
+    "calories": 270,
+    "protein_g": 10,
+    "carbs_g": 52,
+    "fat_g": 4
+  },
+  {
+    "name": "Peanut Butter Smoothie",
+    "calories": 420,
+    "protein_g": 22,
+    "carbs_g": 42,
+    "fat_g": 16
+  },
+  {
+    "name": "Chocolate Protein Shake",
+    "calories": 280,
+    "protein_g": 30,
+    "carbs_g": 18,
+    "fat_g": 6
+  },
+  {
+    "name": "Banana",
+    "calories": 105,
+    "protein_g": 1,
+    "carbs_g": 27,
+    "fat_g": 0
+  },
+  {
+    "name": "Apple",
+    "calories": 95,
+    "protein_g": 0,
+    "carbs_g": 25,
+    "fat_g": 0
+  },
+  {
+    "name": "Orange",
+    "calories": 80,
+    "protein_g": 2,
+    "carbs_g": 19,
+    "fat_g": 0
+  },
+  {
+    "name": "Blueberries",
+    "calories": 85,
+    "protein_g": 1,
+    "carbs_g": 21,
+    "fat_g": 0
+  },
+  {
+    "name": "Strawberries",
+    "calories": 65,
+    "protein_g": 1,
+    "carbs_g": 16,
+    "fat_g": 0
+  },
+  {
+    "name": "Trail Mix",
+    "calories": 220,
+    "protein_g": 6,
+    "carbs_g": 18,
+    "fat_g": 14
+  },
+  {
+    "name": "Protein Bar",
+    "calories": 220,
+    "protein_g": 20,
+    "carbs_g": 24,
+    "fat_g": 8
+  },
+  {
+    "name": "Granola Bar",
+    "calories": 190,
+    "protein_g": 6,
+    "carbs_g": 28,
+    "fat_g": 6
+  },
+  {
+    "name": "Almonds",
+    "calories": 170,
+    "protein_g": 6,
+    "carbs_g": 6,
+    "fat_g": 15
+  },
+  {
+    "name": "Cashews",
+    "calories": 160,
+    "protein_g": 5,
+    "carbs_g": 9,
+    "fat_g": 13
+  },
+  {
+    "name": "Peanut Butter",
+    "calories": 190,
+    "protein_g": 7,
+    "carbs_g": 6,
+    "fat_g": 16
+  },
+  {
+    "name": "Hard-Boiled Eggs",
+    "calories": 140,
+    "protein_g": 12,
+    "carbs_g": 1,
+    "fat_g": 10
+  },
+  {
+    "name": "String Cheese",
+    "calories": 80,
+    "protein_g": 7,
+    "carbs_g": 1,
+    "fat_g": 5
+  },
+  {
+    "name": "Hummus and Veggies",
+    "calories": 200,
+    "protein_g": 6,
+    "carbs_g": 22,
+    "fat_g": 10
+  },
+  {
+    "name": "Cottage Cheese",
+    "calories": 180,
+    "protein_g": 24,
+    "carbs_g": 8,
+    "fat_g": 5
+  },
+  {
+    "name": "Mixed Nuts",
+    "calories": 200,
+    "protein_g": 6,
+    "carbs_g": 8,
+    "fat_g": 18
+  },
+  {
+    "name": "Beef Jerky",
+    "calories": 100,
+    "protein_g": 16,
+    "carbs_g": 5,
+    "fat_g": 2
+  },
+  {
+    "name": "Edamame",
+    "calories": 190,
+    "protein_g": 18,
+    "carbs_g": 14,
+    "fat_g": 8
+  },
+  {
+    "name": "Popcorn",
+    "calories": 160,
+    "protein_g": 4,
+    "carbs_g": 26,
+    "fat_g": 6
+  },
+  {
+    "name": "Greek Yogurt",
+    "calories": 150,
+    "protein_g": 15,
+    "carbs_g": 12,
+    "fat_g": 4
+  },
+  {
+    "name": "Chia Pudding",
+    "calories": 240,
+    "protein_g": 10,
+    "carbs_g": 24,
+    "fat_g": 12
+  },
+  {
+    "name": "Steel-Cut Oats",
+    "calories": 290,
+    "protein_g": 10,
+    "carbs_g": 52,
+    "fat_g": 6
+  },
+  {
+    "name": "Pancakes",
+    "calories": 520,
+    "protein_g": 12,
+    "carbs_g": 82,
+    "fat_g": 14
+  },
+  {
+    "name": "French Toast",
+    "calories": 450,
+    "protein_g": 16,
+    "carbs_g": 62,
+    "fat_g": 16
+  },
+  {
+    "name": "Breakfast Burrito",
+    "calories": 560,
+    "protein_g": 28,
+    "carbs_g": 52,
+    "fat_g": 24
+  },
+  {
+    "name": "Breakfast Sandwich",
+    "calories": 480,
+    "protein_g": 24,
+    "carbs_g": 40,
+    "fat_g": 22
+  },
+  {
+    "name": "Bagel with Cream Cheese",
+    "calories": 420,
+    "protein_g": 12,
+    "carbs_g": 60,
+    "fat_g": 12
+  },
+  {
+    "name": "Turkey Bacon",
+    "calories": 120,
+    "protein_g": 10,
+    "carbs_g": 0,
+    "fat_g": 8
+  },
+  {
+    "name": "Sausage Links",
+    "calories": 280,
+    "protein_g": 16,
+    "carbs_g": 2,
+    "fat_g": 22
+  },
+  {
+    "name": "Hash Browns",
+    "calories": 320,
+    "protein_g": 4,
+    "carbs_g": 40,
+    "fat_g": 16
+  },
+  {
+    "name": "Protein Waffles",
+    "calories": 380,
+    "protein_g": 22,
+    "carbs_g": 42,
+    "fat_g": 12
+  },
+  {
+    "name": "Chicken Paella",
+    "calories": 560,
+    "protein_g": 32,
+    "carbs_g": 72,
+    "fat_g": 16
+  },
+  {
+    "name": "Seafood Paella",
+    "calories": 590,
+    "protein_g": 34,
+    "carbs_g": 74,
+    "fat_g": 18
+  },
+  {
+    "name": "Stuffed Shells",
+    "calories": 540,
+    "protein_g": 28,
+    "carbs_g": 62,
+    "fat_g": 20
+  },
+  {
+    "name": "Eggplant Parmesan",
+    "calories": 520,
+    "protein_g": 20,
+    "carbs_g": 52,
+    "fat_g": 24
+  },
+  {
+    "name": "Shakshuka",
+    "calories": 380,
+    "protein_g": 18,
+    "carbs_g": 32,
+    "fat_g": 18
+  },
+  {
+    "name": "Quiche Lorraine",
+    "calories": 520,
+    "protein_g": 20,
+    "carbs_g": 32,
+    "fat_g": 32
+  },
+  {
+    "name": "Veggie Quiche",
+    "calories": 480,
+    "protein_g": 18,
+    "carbs_g": 34,
+    "fat_g": 26
+  },
+  {
+    "name": "Chicken Satay",
+    "calories": 430,
+    "protein_g": 36,
+    "carbs_g": 20,
+    "fat_g": 20
+  },
+  {
+    "name": "Beef Satay",
+    "calories": 460,
+    "protein_g": 32,
+    "carbs_g": 18,
+    "fat_g": 24
+  },
+  {
+    "name": "Gado Gado",
+    "calories": 520,
+    "protein_g": 20,
+    "carbs_g": 56,
+    "fat_g": 24
+  },
+  {
+    "name": "Chicken Gyro Pita",
+    "calories": 470,
+    "protein_g": 32,
+    "carbs_g": 46,
+    "fat_g": 16
+  },
+  {
+    "name": "Falafel Pita",
+    "calories": 420,
+    "protein_g": 18,
+    "carbs_g": 52,
+    "fat_g": 14
+  },
+  {
+    "name": "Chicken Souvlaki",
+    "calories": 420,
+    "protein_g": 34,
+    "carbs_g": 26,
+    "fat_g": 16
+  },
+  {
+    "name": "Spinach Pie",
+    "calories": 450,
+    "protein_g": 16,
+    "carbs_g": 42,
+    "fat_g": 24
+  },
+  {
+    "name": "Grilled Chicken with Brown Rice",
+    "calories": 390,
+    "protein_g": 37,
+    "carbs_g": 44,
+    "fat_g": 6
+  },
+  {
+    "name": "Grilled Chicken with Quinoa",
+    "calories": 400,
+    "protein_g": 40,
+    "carbs_g": 40,
+    "fat_g": 7
+  },
+  {
+    "name": "Grilled Chicken with Roasted Vegetables",
+    "calories": 300,
+    "protein_g": 35,
+    "carbs_g": 18,
+    "fat_g": 9
+  },
+  {
+    "name": "Grilled Chicken with Mixed Greens",
+    "calories": 250,
+    "protein_g": 35,
+    "carbs_g": 8,
+    "fat_g": 7
+  },
+  {
+    "name": "Grilled Chicken with Sweet Potato",
+    "calories": 330,
+    "protein_g": 35,
+    "carbs_g": 32,
+    "fat_g": 6
+  },
+  {
+    "name": "Grilled Chicken with Whole Wheat Pasta",
+    "calories": 360,
+    "protein_g": 39,
+    "carbs_g": 38,
+    "fat_g": 6
+  },
+  {
+    "name": "Grilled Chicken with Couscous",
+    "calories": 370,
+    "protein_g": 38,
+    "carbs_g": 38,
+    "fat_g": 6
+  },
+  {
+    "name": "Grilled Chicken with Black Beans",
+    "calories": 360,
+    "protein_g": 43,
+    "carbs_g": 32,
+    "fat_g": 6
+  },
+  {
+    "name": "Grilled Chicken with Chickpeas",
+    "calories": 370,
+    "protein_g": 42,
+    "carbs_g": 30,
+    "fat_g": 8
+  },
+  {
+    "name": "Baked Salmon with Brown Rice",
+    "calories": 440,
+    "protein_g": 30,
+    "carbs_g": 44,
+    "fat_g": 16
+  },
+  {
+    "name": "Baked Salmon with Quinoa",
+    "calories": 450,
+    "protein_g": 33,
+    "carbs_g": 40,
+    "fat_g": 17
+  },
+  {
+    "name": "Baked Salmon with Roasted Vegetables",
+    "calories": 350,
+    "protein_g": 28,
+    "carbs_g": 18,
+    "fat_g": 19
+  },
+  {
+    "name": "Baked Salmon with Mixed Greens",
+    "calories": 300,
+    "protein_g": 28,
+    "carbs_g": 8,
+    "fat_g": 17
+  },
+  {
+    "name": "Baked Salmon with Sweet Potato",
+    "calories": 380,
+    "protein_g": 28,
+    "carbs_g": 32,
+    "fat_g": 16
+  },
+  {
+    "name": "Baked Salmon with Whole Wheat Pasta",
+    "calories": 410,
+    "protein_g": 32,
+    "carbs_g": 38,
+    "fat_g": 16
+  },
+  {
+    "name": "Baked Salmon with Couscous",
+    "calories": 420,
+    "protein_g": 31,
+    "carbs_g": 38,
+    "fat_g": 16
+  },
+  {
+    "name": "Baked Salmon with Black Beans",
+    "calories": 410,
+    "protein_g": 36,
+    "carbs_g": 32,
+    "fat_g": 16
+  },
+  {
+    "name": "Baked Salmon with Chickpeas",
+    "calories": 420,
+    "protein_g": 35,
+    "carbs_g": 30,
+    "fat_g": 18
+  },
+  {
+    "name": "Tofu with Brown Rice",
+    "calories": 400,
+    "protein_g": 23,
+    "carbs_g": 52,
+    "fat_g": 12
+  },
+  {
+    "name": "Tofu with Quinoa",
+    "calories": 410,
+    "protein_g": 26,
+    "carbs_g": 48,
+    "fat_g": 13
+  },
+  {
+    "name": "Tofu with Roasted Vegetables",
+    "calories": 310,
+    "protein_g": 21,
+    "carbs_g": 26,
+    "fat_g": 15
+  },
+  {
+    "name": "Tofu with Mixed Greens",
+    "calories": 260,
+    "protein_g": 21,
+    "carbs_g": 16,
+    "fat_g": 13
+  },
+  {
+    "name": "Tofu with Sweet Potato",
+    "calories": 340,
+    "protein_g": 21,
+    "carbs_g": 40,
+    "fat_g": 12
+  },
+  {
+    "name": "Tofu with Whole Wheat Pasta",
+    "calories": 370,
+    "protein_g": 25,
+    "carbs_g": 46,
+    "fat_g": 12
+  },
+  {
+    "name": "Tofu with Couscous",
+    "calories": 380,
+    "protein_g": 24,
+    "carbs_g": 46,
+    "fat_g": 12
+  },
+  {
+    "name": "Tofu with Black Beans",
+    "calories": 370,
+    "protein_g": 29,
+    "carbs_g": 40,
+    "fat_g": 12
+  },
+  {
+    "name": "Tofu with Chickpeas",
+    "calories": 380,
+    "protein_g": 28,
+    "carbs_g": 38,
+    "fat_g": 14
+  },
+  {
+    "name": "Shrimp with Brown Rice",
+    "calories": 330,
+    "protein_g": 29,
+    "carbs_g": 46,
+    "fat_g": 3
+  },
+  {
+    "name": "Shrimp with Quinoa",
+    "calories": 340,
+    "protein_g": 32,
+    "carbs_g": 42,
+    "fat_g": 4
+  },
+  {
+    "name": "Shrimp with Roasted Vegetables",
+    "calories": 240,
+    "protein_g": 27,
+    "carbs_g": 20,
+    "fat_g": 6
+  },
+  {
+    "name": "Shrimp with Mixed Greens",
+    "calories": 190,
+    "protein_g": 27,
+    "carbs_g": 10,
+    "fat_g": 4
+  },
+  {
+    "name": "Shrimp with Sweet Potato",
+    "calories": 270,
+    "protein_g": 27,
+    "carbs_g": 34,
+    "fat_g": 3
+  },
+  {
+    "name": "Shrimp with Whole Wheat Pasta",
+    "calories": 300,
+    "protein_g": 31,
+    "carbs_g": 40,
+    "fat_g": 3
+  },
+  {
+    "name": "Shrimp with Couscous",
+    "calories": 310,
+    "protein_g": 30,
+    "carbs_g": 40,
+    "fat_g": 3
+  },
+  {
+    "name": "Shrimp with Black Beans",
+    "calories": 300,
+    "protein_g": 35,
+    "carbs_g": 34,
+    "fat_g": 3
+  },
+  {
+    "name": "Shrimp with Chickpeas",
+    "calories": 310,
+    "protein_g": 34,
+    "carbs_g": 32,
+    "fat_g": 5
+  },
+  {
+    "name": "Lean Beef with Brown Rice",
+    "calories": 450,
+    "protein_g": 31,
+    "carbs_g": 44,
+    "fat_g": 16
+  },
+  {
+    "name": "Lean Beef with Quinoa",
+    "calories": 460,
+    "protein_g": 34,
+    "carbs_g": 40,
+    "fat_g": 17
+  },
+  {
+    "name": "Lean Beef with Roasted Vegetables",
+    "calories": 360,
+    "protein_g": 29,
+    "carbs_g": 18,
+    "fat_g": 19
+  },
+  {
+    "name": "Lean Beef with Mixed Greens",
+    "calories": 310,
+    "protein_g": 29,
+    "carbs_g": 8,
+    "fat_g": 17
+  },
+  {
+    "name": "Lean Beef with Sweet Potato",
+    "calories": 390,
+    "protein_g": 29,
+    "carbs_g": 32,
+    "fat_g": 16
+  },
+  {
+    "name": "Lean Beef with Whole Wheat Pasta",
+    "calories": 420,
+    "protein_g": 33,
+    "carbs_g": 38,
+    "fat_g": 16
+  },
+  {
+    "name": "Lean Beef with Couscous",
+    "calories": 430,
+    "protein_g": 32,
+    "carbs_g": 38,
+    "fat_g": 16
+  },
+  {
+    "name": "Lean Beef with Black Beans",
+    "calories": 420,
+    "protein_g": 37,
+    "carbs_g": 32,
+    "fat_g": 16
+  },
+  {
+    "name": "Lean Beef with Chickpeas",
+    "calories": 430,
+    "protein_g": 36,
+    "carbs_g": 30,
+    "fat_g": 18
+  },
+  {
+    "name": "Southwest Chicken Bowl",
+    "calories": 520,
+    "protein_g": 36,
+    "carbs_g": 54,
+    "fat_g": 16
+  },
+  {
+    "name": "Mediterranean Grain Bowl",
+    "calories": 480,
+    "protein_g": 22,
+    "carbs_g": 62,
+    "fat_g": 14
+  },
+  {
+    "name": "Teriyaki Salmon Bowl",
+    "calories": 560,
+    "protein_g": 34,
+    "carbs_g": 64,
+    "fat_g": 18
+  },
+  {
+    "name": "Veggie Power Bowl",
+    "calories": 430,
+    "protein_g": 18,
+    "carbs_g": 62,
+    "fat_g": 12
+  },
+  {
+    "name": "BBQ Tofu Bowl",
+    "calories": 450,
+    "protein_g": 24,
+    "carbs_g": 58,
+    "fat_g": 14
+  },
+  {
+    "name": "Kale Chicken Salad",
+    "calories": 410,
+    "protein_g": 34,
+    "carbs_g": 24,
+    "fat_g": 16
+  },
+  {
+    "name": "Asian Sesame Salad",
+    "calories": 380,
+    "protein_g": 20,
+    "carbs_g": 32,
+    "fat_g": 16
+  },
+  {
+    "name": "Berry Spinach Salad",
+    "calories": 320,
+    "protein_g": 14,
+    "carbs_g": 36,
+    "fat_g": 12
+  },
+  {
+    "name": "Roasted Beet Salad",
+    "calories": 340,
+    "protein_g": 12,
+    "carbs_g": 42,
+    "fat_g": 12
+  },
+  {
+    "name": "Greek Salad",
+    "calories": 360,
+    "protein_g": 16,
+    "carbs_g": 26,
+    "fat_g": 20
+  },
+  {
+    "name": "Chicken Pesto Bowl",
+    "calories": 510,
+    "protein_g": 34,
+    "carbs_g": 52,
+    "fat_g": 18
+  },
+  {
+    "name": "Smoked Salmon Bagel",
+    "calories": 460,
+    "protein_g": 24,
+    "carbs_g": 52,
+    "fat_g": 18
+  },
+  {
+    "name": "Breakfast Parfait",
+    "calories": 320,
+    "protein_g": 18,
+    "carbs_g": 42,
+    "fat_g": 10
+  },
+  {
+    "name": "Turkey Meatballs with Pasta",
+    "calories": 560,
+    "protein_g": 36,
+    "carbs_g": 64,
+    "fat_g": 18
+  },
+  {
+    "name": "Zoodle Marinara",
+    "calories": 260,
+    "protein_g": 14,
+    "carbs_g": 28,
+    "fat_g": 10
+  }
+]

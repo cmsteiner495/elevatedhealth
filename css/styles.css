@@ -1514,6 +1514,119 @@ textarea {
   min-height: 70px;
 }
 
+.meal-search-results {
+  margin-top: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card-soft);
+  border-radius: var(--radius-md);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.meal-search-results .search-hint {
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.meal-search-result {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.meal-search-result:last-child {
+  border-bottom: none;
+}
+
+.meal-search-result:hover,
+.meal-search-result:focus-visible {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.meal-search-meta {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.meal-selected-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  margin-bottom: 6px;
+}
+
+.meal-selected-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.meal-selected-details {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  align-items: center;
+}
+
+.meal-selected-macros {
+  text-align: right;
+}
+
+.meal-selected-hint {
+  margin-top: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+#meal-selected {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card-soft);
+  padding: 12px;
+  border-radius: var(--radius-md);
+}
+
+.meal-manual summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.meal-manual-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.meal-manual-grid .subtitle {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 599px) {
+  .meal-selected-details {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .meal-selected-macros {
+    text-align: left;
+  }
+
+  .meal-manual-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Buttons */
 
 button,
