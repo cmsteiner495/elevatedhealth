@@ -40,6 +40,39 @@ function normalizeWorkoutDay(value) {
   return toLocalDayKey(value) || "";
 }
 
+function getWorkoutDayKey(workout) {
+  if (!workout) return "";
+  return (
+    normalizeWorkoutDay(workout.workout_date || workout.day_key || workout.date) || ""
+  );
+}
+
+function isWorkoutLoggedAtSchemaError(error) {
+  if (!error) return false;
+  const message = String(error?.message || error?.details || "").toLowerCase();
+  const code = String(error?.code || "");
+  return code === "PGRST204" || (message.includes("logged_at") && message.includes("could not find"));
+}
+
+async function updateWorkoutLoggedState(workoutId, payload) {
+  const buildQuery = (body) =>
+    supabase.from("family_workouts").update(body).eq("id", workoutId).select().single();
+
+  let result = await buildQuery(payload);
+
+  if (!result.error || !isWorkoutLoggedAtSchemaError(result.error)) {
+    return result;
+  }
+
+  console.warn(
+    "[EH WORKOUT] logged_at missing in schema cache; retrying without logged_at. Restart Supabase API / wait for schema cache refresh.",
+    result.error
+  );
+
+  const { logged_at, ...retryPayload } = payload || {};
+  return buildQuery(retryPayload);
+}
+
 function parseDuration(value) {
   if (value == null) return null;
   const num = Number(value);
@@ -209,7 +242,7 @@ export async function fetchWorkoutsByDate(dateValue) {
   const familyId = currentFamilyId;
   const storedWorkouts = getStoredWorkouts(familyId);
   const storedForDate = storedWorkouts.filter(
-    (workout) => (workout.workout_date || "") === dateValue && isWorkoutLogged(workout)
+    (workout) => getWorkoutDayKey(workout) === dateValue && isWorkoutLogged(workout)
   );
 
   if (!familyId) return storedForDate;
@@ -233,7 +266,7 @@ export async function fetchWorkoutsByDate(dateValue) {
   );
   persistWorkoutsForFamily(familyId, merged);
   return merged.filter(
-    (workout) => (workout.workout_date || "") === dateValue && isWorkoutLogged(workout)
+    (workout) => getWorkoutDayKey(workout) === dateValue && isWorkoutLogged(workout)
   );
 }
 
@@ -291,7 +324,7 @@ async function logWorkoutToDiary(workout) {
     return;
   }
 
-  const targetDate = normalizeWorkoutDay(workout.workout_date || getTodayDayKey());
+  const targetDate = getWorkoutDayKey(workout) || getTodayDayKey();
   const todayKey = getTodayDayKey();
   if (!targetDate) {
     showToast("Couldn't determine the workout date.");
@@ -310,18 +343,14 @@ async function logWorkoutToDiary(workout) {
 
   // If this scheduled workout already exists for today, mark it complete instead of
   // creating a duplicate row.
-  if (workout.id && normalizeWorkoutDay(workout.workout_date) === targetDate) {
+  const scheduledRowId = workout.id || workout.log_id;
+  if (scheduledRowId && getWorkoutDayKey(workout) === targetDate) {
     const updatePayload = {
       completed: true,
       logged_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    const { data, error } = await supabase
-      .from("family_workouts")
-      .update(updatePayload)
-      .eq("id", workout.id)
-      .select()
-      .single();
+    const { data, error } = await updateWorkoutLoggedState(scheduledRowId, updatePayload);
 
     if (error) {
       console.error("Error logging scheduled workout:", error);
@@ -348,12 +377,11 @@ async function logWorkoutToDiary(workout) {
     return;
   }
 
-  const scheduledId =
-    workout.scheduled_workout_id || workout.source_scheduled_id || workout.id || null;
+    const scheduledId =
+      workout.scheduled_workout_id || workout.source_scheduled_id || workout.id || null;
   const stored = getStoredWorkouts(currentFamilyId);
   const duplicate = stored.find((entry) => {
-    const entryDay =
-      normalizeWorkoutDay(entry.day_key || entry.workout_date) || entry.workout_date || "";
+    const entryDay = getWorkoutDayKey(entry) || entry.workout_date || "";
     if (entryDay !== targetDate) return false;
     const scheduledMatch =
       scheduledId &&
@@ -411,6 +439,7 @@ async function logWorkoutToDiary(workout) {
 
   if (error || !data?.ok) {
     const details = error?.message || data?.error || "Unknown error";
+    console.error("[EH WORKOUT] add failed", error || data);
     console.error("Error adding workout to log via edge function:", error || data);
     workoutsCache = workoutsCache.filter((item) => item.id !== tempId);
     persistWorkoutsForFamily(currentFamilyId, workoutsCache);
@@ -441,6 +470,10 @@ async function logWorkoutToDiary(workout) {
   persistWorkoutsForFamily(currentFamilyId, workoutsCache);
   upsertWorkout(persisted, { reason: "logWorkout:reconcile" });
   renderWorkouts();
+  console.log("[EH WORKOUT] add success", {
+    id: persisted.id,
+    day: persisted.day_key || persisted.workout_date,
+  });
 
   document.dispatchEvent(
     new CustomEvent("diary:refresh", {
@@ -470,7 +503,7 @@ function renderWorkouts(items = workoutsCache) {
 
   for (const w of items) {
     const li = document.createElement("li");
-    li.dataset.workoutId = w.id;
+    li.dataset.workoutId = w.id || w.log_id;
     li.style.display = "flex";
     li.style.flexDirection = "column";
     li.style.gap = "0.25rem";
@@ -497,7 +530,7 @@ function renderWorkouts(items = workoutsCache) {
     meta.style.fontSize = "0.8rem";
     meta.style.opacity = "0.8";
 
-    const dateStr = w.workout_date;
+    const dateStr = getWorkoutDayKey(w) || w.workout_date;
     const typeLabel = w.workout_type
       ? w.workout_type.charAt(0).toUpperCase() + w.workout_type.slice(1)
       : "Workout";
@@ -523,7 +556,7 @@ function renderWorkouts(items = workoutsCache) {
     right.style.gap = "0.5rem";
 
     const canLogToday =
-      normalizeWorkoutDay(w.workout_date) === today && !w.completed && currentFamilyId;
+      getWorkoutDayKey(w) === today && !w.completed && currentFamilyId;
 
     const completedCheckbox = document.createElement("input");
     completedCheckbox.type = "checkbox";
@@ -690,7 +723,8 @@ if (workoutsList) {
       btn.disabled = true;
       btn.setAttribute("aria-busy", "true");
       const workout = workoutsCache.find(
-        (item) => String(item.id) === String(workoutId)
+        (item) =>
+          String(item.id) === String(workoutId) || String(item.log_id || "") === String(workoutId)
       );
       await logWorkoutToDiary(workout || { id: workoutId });
       btn.disabled = false;

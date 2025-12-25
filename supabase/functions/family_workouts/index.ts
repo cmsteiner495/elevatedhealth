@@ -209,6 +209,7 @@ Deno.serve(async (req: Request) => {
         day_key: dayKey,
         workout_date: dayKey,
         completed: true,
+        logged_at: new Date().toISOString(),
       };
 
       try {

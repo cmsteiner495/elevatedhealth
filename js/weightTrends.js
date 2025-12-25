@@ -89,6 +89,10 @@ function renderWeightChart(canvas, emptyState, chartInstance, entries) {
     return resetChart(chartInstance);
   }
 
+  if (chartInstance) {
+    chartInstance = resetChart(chartInstance);
+  }
+
   const labels = normalized.map((item) => formatDateLabel(item.dateKey));
   const data = normalized.map((item) => item.weight);
   const accent = getCssVar("--accent", "#00a3a3");
