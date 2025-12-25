@@ -2036,14 +2036,16 @@ window.EH_DEBUG = {
 };
 
 document.addEventListener("diary:add", (event) => {
-  const { section, date } = event.detail || {};
+  const { section, date, targetTab } = event.detail || {};
   const normalizedSection = (section || "").toString().trim().toLowerCase();
   if (!normalizedSection) return;
 
   const targetDate = toLocalDayKey(date || getTodayDate()) || getTodayDate();
 
-  if (normalizedSection === "exercise") {
-    activateTab("workouts-tab");
+  const destinationTab = targetTab || (normalizedSection === "exercise" ? "workouts-tab" : null);
+
+  if (normalizedSection === "exercise" || destinationTab === "workouts-tab") {
+    activateTab(destinationTab || "workouts-tab");
     if (workoutDateInput) workoutDateInput.value = targetDate;
     return;
   }

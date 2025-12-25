@@ -318,27 +318,29 @@ export async function deleteWorkoutById(workoutId, options = {}) {
 }
 
 async function logWorkoutToDiary(workout) {
-  if (!workout) return;
+  if (!workout) {
+    return { ok: false, error: new Error("Missing workout") };
+  }
   if (!currentUser || !currentFamilyId) {
     showToast("Join a family to log workouts.");
-    return;
+    return { ok: false, error: new Error("Missing auth or family") };
   }
 
   const targetDate = getWorkoutDayKey(workout) || getTodayDayKey();
   const todayKey = getTodayDayKey();
   if (!targetDate) {
     showToast("Couldn't determine the workout date.");
-    return;
+    return { ok: false, error: new Error("Missing workout date") };
   }
   if (targetDate !== todayKey) {
     showToast("You can only add today's scheduled workouts to the log.");
-    return;
+    return { ok: false, error: new Error("Not eligible for today") };
   }
 
   const title = (workout.title || "").trim();
   if (!title) {
     showToast("Workout is missing a title.");
-    return;
+    return { ok: false, error: new Error("Missing title") };
   }
 
   // If this scheduled workout already exists for today, mark it complete instead of
@@ -355,7 +357,7 @@ async function logWorkoutToDiary(workout) {
     if (error) {
       console.error("Error logging scheduled workout:", error);
       showToast("Couldn't add workout. Try again.");
-      return;
+      return { ok: false, error };
     }
 
     const mergedRow = { ...workout, ...updatePayload, ...(data || {}) };
@@ -374,11 +376,15 @@ async function logWorkoutToDiary(workout) {
     announceDataChange("workouts", targetDate);
     maybeVibrate([12]);
     showToast("Added to log");
-    return;
+    console.log("[EH WORKOUT] schedule add success", {
+      id: mergedRow.id || scheduledRowId,
+      day: targetDate,
+    });
+    return { ok: true, workout: mergedRow };
   }
 
-    const scheduledId =
-      workout.scheduled_workout_id || workout.source_scheduled_id || workout.id || null;
+  const scheduledId =
+    workout.scheduled_workout_id || workout.source_scheduled_id || workout.id || null;
   const stored = getStoredWorkouts(currentFamilyId);
   const duplicate = stored.find((entry) => {
     const entryDay = getWorkoutDayKey(entry) || entry.workout_date || "";
@@ -394,7 +400,7 @@ async function logWorkoutToDiary(workout) {
   });
   if (duplicate) {
     showToast("Already logged for this day.");
-    return;
+    return { ok: false, error: new Error("Already logged") };
   }
 
   const duration = parseDuration(workout.duration_min ?? workout.duration);
@@ -432,7 +438,6 @@ async function logWorkoutToDiary(workout) {
   upsertWorkout(optimisticEntry, { reason: "logWorkout:optimistic" });
   renderWorkouts();
 
-  // Edge Function endpoint: /functions/v1/family_workouts
   const { data, error } = await supabase.functions.invoke("family_workouts", {
     body: payload,
   });
@@ -449,7 +454,8 @@ async function logWorkoutToDiary(workout) {
     if (details) {
       console.warn("family_workouts error:", details);
     }
-    return;
+    console.warn("[EH WORKOUT] schedule add failed", details);
+    return { ok: false, error: new Error(details) };
   }
 
   const persisted = {
@@ -470,7 +476,7 @@ async function logWorkoutToDiary(workout) {
   persistWorkoutsForFamily(currentFamilyId, workoutsCache);
   upsertWorkout(persisted, { reason: "logWorkout:reconcile" });
   renderWorkouts();
-  console.log("[EH WORKOUT] add success", {
+  console.log("[EH WORKOUT] schedule add success", {
     id: persisted.id,
     day: persisted.day_key || persisted.workout_date,
   });
@@ -488,6 +494,7 @@ async function logWorkoutToDiary(workout) {
   }
   maybeVibrate([12]);
   showToast("Added to log");
+  return { ok: true, workout: persisted };
 }
 
 function renderWorkouts(items = workoutsCache) {
@@ -555,13 +562,22 @@ function renderWorkouts(items = workoutsCache) {
     right.style.alignItems = "center";
     right.style.gap = "0.5rem";
 
-    const canLogToday =
-      getWorkoutDayKey(w) === today && !w.completed && currentFamilyId;
+    const canLogToday = getWorkoutDayKey(w) === today && currentFamilyId;
+    const isLogged = isWorkoutLogged(w);
 
-    const completedCheckbox = document.createElement("input");
-    completedCheckbox.type = "checkbox";
-    completedCheckbox.checked = w.completed || false;
-    completedCheckbox.classList.add("workout-completed-checkbox");
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.classList.add("ghost-btn", "workout-add-log");
+    addBtn.textContent = isLogged ? "Added ✓" : "Add";
+    addBtn.title = isLogged
+      ? "Already added to log"
+      : "Add this workout to today's log";
+    if (!canLogToday || isLogged) {
+      addBtn.disabled = true;
+      if (!isLogged && getWorkoutDayKey(w) !== today) {
+        addBtn.title = "You can only add today's scheduled workouts to the log.";
+      }
+    }
 
     const delBtn = document.createElement("button");
     delBtn.textContent = "✕";
@@ -569,16 +585,7 @@ function renderWorkouts(items = workoutsCache) {
     delBtn.classList.add("workout-delete");
     delBtn.style.paddingInline = "0.6rem";
 
-    if (canLogToday) {
-      const addBtn = document.createElement("button");
-      addBtn.type = "button";
-      addBtn.classList.add("ghost-btn", "workout-add-log");
-      addBtn.textContent = "Add to Log";
-      addBtn.title = "Add this workout to today's log";
-      right.appendChild(addBtn);
-    }
-
-    right.appendChild(completedCheckbox);
+    right.appendChild(addBtn);
     right.appendChild(delBtn);
 
     topRow.appendChild(left);
@@ -720,44 +727,27 @@ if (workoutsList) {
 
     if (e.target.classList.contains("workout-add-log")) {
       const btn = e.target;
+      if (btn.disabled) return;
       btn.disabled = true;
       btn.setAttribute("aria-busy", "true");
       const workout = workoutsCache.find(
         (item) =>
           String(item.id) === String(workoutId) || String(item.log_id || "") === String(workoutId)
       );
-      await logWorkoutToDiary(workout || { id: workoutId });
-      btn.disabled = false;
-      btn.removeAttribute("aria-busy");
-      return;
-    }
-
-    if (e.target.classList.contains("workout-completed-checkbox")) {
-      const completed = e.target.checked;
-      const updated = workoutsCache.map((workout) =>
-        workout.id === workoutId ? { ...workout, completed } : workout
-      );
-      workoutsCache = updated;
-      renderWorkouts();
-      const { error } = await supabase
-        .from("family_workouts")
-        .update({ completed, updated_at: new Date().toISOString() })
-        .eq("id", workoutId);
-
-      if (error) {
-        console.error("Error updating workout:", error);
-        workoutsCache = workoutsCache.map((workout) =>
-          workout.id === workoutId ? { ...workout, completed: !completed } : workout
-        );
-        renderWorkouts();
-        return;
+      console.log("[EH WORKOUT] schedule add clicked", {
+        workoutId,
+        day: getWorkoutDayKey(workout) || workout?.workout_date,
+      });
+      const result = await logWorkoutToDiary(workout || { id: workoutId });
+      if (result?.ok) {
+        btn.textContent = "Added ✓";
+        btn.title = "Already added to log";
+        btn.classList.add("is-added");
+      } else {
+        console.warn("[EH WORKOUT] schedule add failed", result?.error || "Unknown error");
+        btn.disabled = false;
       }
-      persistWorkoutsForFamily(currentFamilyId, workoutsCache);
-      setWorkouts(workoutsCache, { reason: "toggleWorkout" });
-      document.dispatchEvent(
-        new CustomEvent("diary:refresh", { detail: { entity: "exercise" } })
-      );
-      announceDataChange("workouts");
+      btn.removeAttribute("aria-busy");
       return;
     }
 
