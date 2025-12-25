@@ -62,7 +62,6 @@ const FAMILY_MEAL_COLUMNS = [
   "carbs",
   "fat",
   "client_id",
-  "logged_at",
   "created_at",
   "updated_at",
 ];
@@ -317,85 +316,18 @@ async function handleFoodSearch(query) {
   renderFoodResults(lastSearchResults, query);
 }
 
-function isLoggedAtSchemaError(error) {
-  if (!error) return false;
-  const message = String(error?.message || error?.details || "").toLowerCase();
-  const code = String(error?.code || "");
-  return (
-    code === "PGRST204" ||
-    (message.includes("logged_at") && message.includes("could not find"))
-  );
-}
+const MEAL_ORDERING = [
+  { column: "meal_date", options: { ascending: true } },
+  { column: "meal_type", options: { ascending: true } },
+  { column: "created_at", options: { ascending: true } },
+  { column: "id", options: { ascending: true } },
+];
 
-async function applyMealOrdering(buildQuery, orderAttempts = []) {
-  const attempts = orderAttempts.length ? orderAttempts : [[]];
-  let lastResult = { data: null, error: null };
-
-  for (const orders of attempts) {
-    const query = buildQuery();
-    try {
-      for (const order of orders) {
-        if (order?.column) {
-          query.order(order.column, order.options || {});
-        }
-      }
-
-      const result = await query;
-      if (!result.error) {
-        return result;
-      }
-
-      lastResult = result;
-      if (!isLoggedAtSchemaError(result.error)) {
-        return result;
-      }
-
-      console.warn(
-        "[MEALS] Falling back from logged_at ordering; schema cache stale?",
-        result.error
-      );
-    } catch (err) {
-      lastResult = { data: null, error: err };
-      if (!isLoggedAtSchemaError(err)) {
-        return lastResult;
-      }
-
-      console.warn(
-        "[MEALS] Exception during logged_at ordering; retrying with fallback",
-        err
-      );
-    }
-  }
-
-  return lastResult;
-}
-
-async function insertFamilyMealWithRetry(payload) {
-  let result = await supabase
-    .from("family_meals")
-    .insert([payload])
-    .select("*")
-    .single();
-
-  if (!result.error) return result;
-
-  const loggedAtMissing = isLoggedAtSchemaError(result.error);
-  if (!loggedAtMissing) return result;
-
-  console.warn(
-    "[meals] logged_at missing in schema cache; retrying insert without logged_at",
-    result.error
-  );
-
-  const { logged_at, ...retryPayload } = payload || {};
-
-  result = await supabase
-    .from("family_meals")
-    .insert([retryPayload])
-    .select("*")
-    .single();
-
-  return result;
+function applyMealOrdering(query) {
+  MEAL_ORDERING.forEach((order) => {
+    query.order(order.column, order.options || {});
+  });
+  return query;
 }
 
 function isUUID(value) {
@@ -653,7 +585,8 @@ export async function logMealToDiary(meal, options = {}) {
   });
 
   let persistedMeal = null;
-  const serverPayload = buildServerMealPayload(payload);
+  const { logged_at: _omitLoggedAt, ...serverPayloadInput } = payload;
+  const serverPayload = buildServerMealPayload(serverPayloadInput);
   console.log("[MEAL INSERT] serverPayload", serverPayload);
 
   const tryUpdateTargets = [
@@ -687,7 +620,11 @@ export async function logMealToDiary(meal, options = {}) {
   }
 
   if (!persistedMeal) {
-    const { data, error } = await insertFamilyMealWithRetry(serverPayload);
+    const { data, error } = await supabase
+      .from("family_meals")
+      .insert([serverPayload])
+      .select("*")
+      .single();
 
     if (error) {
       console.error("[MEAL INSERT ERROR]", error);
@@ -969,33 +906,15 @@ export async function loadMeals() {
 
   const storedMeals = getStoredMeals(currentFamilyId);
   const { data, error } = await applyMealOrdering(
-    () =>
-      supabase
-        .from("family_meals")
-        .select("*")
-        .eq("family_group_id", currentFamilyId),
-    [
-      [
-        { column: "logged_at", options: { ascending: false, nullsLast: true } },
-        { column: "meal_date", options: { ascending: true } },
-        { column: "meal_type", options: { ascending: true } },
-        { column: "created_at", options: { ascending: true } },
-      ],
-      [
-        { column: "meal_date", options: { ascending: true } },
-        { column: "meal_type", options: { ascending: true } },
-        { column: "created_at", options: { ascending: true } },
-      ],
-      [
-        { column: "meal_date", options: { ascending: true } },
-        { column: "meal_type", options: { ascending: true } },
-        { column: "id", options: { ascending: true } },
-      ],
-    ]
+    supabase
+      .from("family_meals")
+      .select("*")
+      .eq("family_group_id", currentFamilyId)
   );
 
   if (error) {
     console.error("Error loading meals:", error);
+    console.warn("[EH MEALS] load failed", error);
     if (storedMeals.length) {
       mealsList.innerHTML = "";
       const { normalizedMeals } = normalizeMealsWithNutrition(storedMeals);
@@ -1022,6 +941,11 @@ export async function loadMeals() {
     persistMealsForFamily(currentFamilyId, normalizedMeals);
     setMeals(normalizedMeals, { reason: "loadMeals" });
     renderMeals(normalizedMeals);
+    console.log("[EH MEALS] load success", {
+      remote: remoteMeals.length,
+      stored: storedMeals.length,
+      normalized: normalizedMeals.length,
+    });
     await applyNutritionBackfill(patches);
   }
 }
@@ -1035,27 +959,11 @@ export async function fetchMealsByDate(dateValue) {
   );
 
   const { data, error } = await applyMealOrdering(
-    () =>
-      supabase
-        .from("family_meals")
-        .select("*")
-        .eq("family_group_id", currentFamilyId)
-        .eq("meal_date", dateValue),
-    [
-      [
-        { column: "logged_at", options: { ascending: false, nullsLast: true } },
-        { column: "meal_type", options: { ascending: true } },
-        { column: "created_at", options: { ascending: true } },
-      ],
-      [
-        { column: "meal_type", options: { ascending: true } },
-        { column: "created_at", options: { ascending: true } },
-      ],
-      [
-        { column: "meal_type", options: { ascending: true } },
-        { column: "id", options: { ascending: true } },
-      ],
-    ]
+    supabase
+      .from("family_meals")
+      .select("*")
+      .eq("family_group_id", currentFamilyId)
+      .eq("meal_date", dateValue)
   );
 
   if (error) {
@@ -1148,7 +1056,7 @@ function renderMeals(items) {
     right.style.gap = "0.5rem";
 
     const logBtn = document.createElement("button");
-    logBtn.textContent = "Add to log";
+    logBtn.textContent = "Add";
     logBtn.type = "button";
     logBtn.classList.add("ghost-btn", "meal-log-btn");
     logBtn.style.paddingInline = "0.6rem";
@@ -1293,7 +1201,6 @@ if (mealsForm) {
       carbs: totals.carbs,
       fat: totals.fat,
       client_id: tempId,
-      logged_at: null,
     };
     const optimisticEntry = {
       id: tempId,
