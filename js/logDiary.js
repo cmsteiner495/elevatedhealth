@@ -505,7 +505,8 @@ function handleAddButtons() {
       const target = btn.dataset.diaryAdd;
       const dateValue = toLocalDayKey(selectedDate) || toLocalDayKey(new Date());
       if (!target) return;
-      const targetTab = target === "exercise" ? "workouts-tab" : "meals-tab";
+      const isExercise = (target || "").toLowerCase() === "exercise";
+      const targetTab = isExercise ? "workouts-tab" : "meals-tab";
       document.dispatchEvent(
         new CustomEvent("diary:add", {
           detail: { section: target, date: dateValue, targetTab },
