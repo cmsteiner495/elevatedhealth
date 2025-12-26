@@ -48,6 +48,7 @@ const LOCAL_ID_PREFIX = "local-";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FOODS_DATA_URL = "/src/data/foods.json";
+const DELETED_MEALS_KEY = "eh:deleted-meals";
 
 const FAMILY_MEAL_COLUMNS = [
   "id",
@@ -74,6 +75,95 @@ let selectedFood = null;
 let selectedPortion = 1;
 let lastSearchResults = [];
 let searchDebounceId = null;
+
+function readDeletedMealsMap() {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(DELETED_MEALS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    console.warn("[MEALS] Could not read deleted meals", err);
+    return {};
+  }
+}
+
+function writeDeletedMealsMap(map) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(DELETED_MEALS_KEY, JSON.stringify(map || {}));
+  } catch (err) {
+    console.warn("[MEALS] Could not persist deleted meals", err);
+  }
+}
+
+function updateDeletedMeals(familyId, updater) {
+  if (!familyId || typeof updater !== "function") return;
+  const familyKey = String(familyId);
+  const map = readDeletedMealsMap();
+  const existing = map[familyKey] || { ids: [], client_ids: [] };
+  const next = updater({
+    ids: new Set((existing.ids || []).map(String)),
+    clientIds: new Set((existing.client_ids || []).map(String)),
+  });
+  if (!next) return;
+  map[familyKey] = {
+    ids: Array.from(next.ids),
+    client_ids: Array.from(next.clientIds),
+  };
+  writeDeletedMealsMap(map);
+}
+
+function markMealDeletedForFamily(familyId, identifiers = []) {
+  updateDeletedMeals(familyId, (entry) => {
+    identifiers
+      .filter(Boolean)
+      .map(String)
+      .forEach((id) => {
+        entry.ids.add(id);
+        entry.clientIds.add(id);
+      });
+    return entry;
+  });
+}
+
+function clearDeletedMealMarkers(familyId, identifiers = []) {
+  if (!familyId || !identifiers.length) return;
+  updateDeletedMeals(familyId, (entry) => {
+    identifiers
+      .filter(Boolean)
+      .map(String)
+      .forEach((id) => {
+        entry.ids.delete(id);
+        entry.clientIds.delete(id);
+      });
+    return entry;
+  });
+}
+
+function getDeletedMealsForFamily(familyId) {
+  if (!familyId) return { ids: new Set(), clientIds: new Set() };
+  const map = readDeletedMealsMap();
+  const entry = map[String(familyId)] || { ids: [], client_ids: [] };
+  return {
+    ids: new Set((entry.ids || []).map(String)),
+    clientIds: new Set((entry.client_ids || []).map(String)),
+  };
+}
+
+function filterDeletedMeals(familyId, meals = []) {
+  if (!familyId) return meals;
+  const { ids, clientIds } = getDeletedMealsForFamily(familyId);
+  if (!ids.size && !clientIds.size) return meals;
+  return meals.filter((meal) => {
+    const candidates = [
+      meal?.id != null ? String(meal.id) : null,
+      meal?.client_id != null ? String(meal.client_id) : null,
+    ].filter(Boolean);
+    return candidates.every((id) => !ids.has(id) && !clientIds.has(id));
+  });
+}
 
 function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
   const entries = Object.entries(payload || {});
@@ -571,6 +661,7 @@ export async function deleteMealById(mealId, options = {}) {
       clientId,
       reason: options.reason || "deleteMeal",
     });
+    markMealDeletedForFamily(currentFamilyId, [normalizedId, clientId]);
     announceDataChange("meals", options.date || options.meal_date);
   }
 
@@ -614,6 +705,8 @@ export async function logMealToDiary(meal, options = {}) {
     client_id: tempId,
     logged_at: loggedAt,
   };
+
+  clearDeletedMealMarkers(currentFamilyId, [existingId, existingClientId, tempId]);
 
   const optimisticEntry = {
     id: existingId || tempId,
@@ -953,7 +1046,7 @@ export async function loadMeals() {
   }
   mealsList.innerHTML = "<li>Loading meals...</li>";
 
-  const storedMeals = getStoredMeals(currentFamilyId);
+  const storedMeals = filterDeletedMeals(currentFamilyId, getStoredMeals(currentFamilyId));
   const { data, error } = await applyMealOrdering(
     supabase
       .from("family_meals")
@@ -987,13 +1080,15 @@ export async function loadMeals() {
     const { normalizedMeals, patches } = normalizeMealsWithNutrition(merged, {
       patchKeys,
     });
-    persistMealsForFamily(currentFamilyId, normalizedMeals);
-    setMeals(normalizedMeals, { reason: "loadMeals" });
-    renderMeals(normalizedMeals);
+    const visibleMeals = filterDeletedMeals(currentFamilyId, normalizedMeals);
+    persistMealsForFamily(currentFamilyId, visibleMeals);
+    setMeals(visibleMeals, { reason: "loadMeals" });
+    renderMeals(visibleMeals);
     console.log("[EH MEALS] load success", {
       remote: remoteMeals.length,
       stored: storedMeals.length,
       normalized: normalizedMeals.length,
+      visible: visibleMeals.length,
     });
     await applyNutritionBackfill(patches);
   }
@@ -1002,7 +1097,7 @@ export async function loadMeals() {
 export async function fetchMealsByDate(dateValue) {
   if (!currentFamilyId || !dateValue) return [];
 
-  const storedMeals = getStoredMeals(currentFamilyId);
+  const storedMeals = filterDeletedMeals(currentFamilyId, getStoredMeals(currentFamilyId));
   const storedForDate = storedMeals.filter(
     (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
   );
@@ -1027,9 +1122,10 @@ export async function fetchMealsByDate(dateValue) {
   const { normalizedMeals, patches } = normalizeMealsWithNutrition(merged, {
     patchKeys,
   });
-  persistMealsForFamily(currentFamilyId, normalizedMeals);
+  const visibleMeals = filterDeletedMeals(currentFamilyId, normalizedMeals);
+  persistMealsForFamily(currentFamilyId, visibleMeals);
   await applyNutritionBackfill(patches);
-  return normalizedMeals.filter(
+  return visibleMeals.filter(
     (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
   );
 }
@@ -1276,6 +1372,7 @@ if (mealsForm) {
       completed: true,
       logged_at: loggedAt,
     };
+    clearDeletedMealMarkers(currentFamilyId, [tempId]);
     const optimisticEntry = {
       id: tempId,
       client_id: tempId,
