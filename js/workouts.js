@@ -642,16 +642,19 @@ if (workoutsForm) {
       return;
     }
 
+    const loggedAt = new Date().toISOString();
     const payload = {
       family_group_id: currentFamilyId || null,
       added_by: currentUser?.id || null,
       workout_date: dateValue,
+      day_key: toLocalDayKey(dateValue) || dateValue,
       title,
       workout_type: workoutType,
       difficulty,
       duration_min: durationMin,
       notes: notes || null,
-      completed: false,
+      completed: true,
+      logged_at: loggedAt,
     };
 
     let persistedWorkout = null;
@@ -676,15 +679,17 @@ if (workoutsForm) {
           workoutsMessage.style.color = "var(--text-muted)";
         }
       } else {
-        persistedWorkout = data;
+        persistedWorkout = { ...data, log_id: data?.log_id || data?.id };
       }
     }
 
+    const tempId = `local-${Date.now()}`;
     const localWorkout =
       persistedWorkout ||
       {
         ...payload,
-        id: `local-${Date.now()}`,
+        id: tempId,
+        log_id: tempId,
         created_at: new Date().toISOString(),
       };
 

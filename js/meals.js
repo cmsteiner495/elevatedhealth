@@ -186,6 +186,14 @@ function getFoodNutrition(food) {
   };
 }
 
+function getSelectedMealDate() {
+  return mealDateInput?.value || selectedDate || getTodayDate();
+}
+
+function getSelectedMealType() {
+  return mealTypeInput?.value || "dinner";
+}
+
 function setPortionSelection(value) {
   selectedPortion = Number(value) && Number(value) > 0 ? Number(value) : 1;
   if (mealPortionButtons && mealPortionButtons.length) {
@@ -286,10 +294,14 @@ function renderFoodResults(results, query) {
   }
 
   results.forEach((food, idx) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "meal-search-result";
-    btn.dataset.resultIndex = idx;
+    const row = document.createElement("div");
+    row.className = "meal-search-result";
+    row.dataset.resultIndex = idx;
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+
+    const copy = document.createElement("div");
+    copy.className = "meal-search-copy";
 
     const name = document.createElement("div");
     name.textContent = food.name || "Food";
@@ -298,10 +310,47 @@ function renderFoodResults(results, query) {
     meta.className = "meal-search-meta";
     meta.textContent = formatSelectedMacros(getFoodNutrition(food));
 
-    btn.appendChild(name);
-    btn.appendChild(meta);
-    mealSearchResults.appendChild(btn);
+    copy.appendChild(name);
+    copy.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "meal-search-actions";
+
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.classList.add("ghost-btn", "meal-search-add");
+    addBtn.textContent = "Add";
+    addBtn.dataset.resultIndex = idx;
+
+    actions.appendChild(addBtn);
+
+    row.appendChild(copy);
+    row.appendChild(actions);
+    mealSearchResults.appendChild(row);
   });
+}
+
+async function addFoodResultToLog(food) {
+  if (!food) return;
+  const targetDate = getSelectedMealDate();
+  const mealType = getSelectedMealType();
+  const title = food.name || "Food";
+  const nutrition = applyPortionMultiplier(getFoodNutrition(food));
+  const notes = mealNotesInput?.value?.trim() || null;
+
+  await logMealToDiary(
+    {
+      title,
+      meal_type: mealType,
+      notes,
+      calories: nutrition.calories,
+      protein: nutrition.protein,
+      carbs: nutrition.carbs,
+      fat: nutrition.fat,
+      nutrition,
+    },
+    { date: targetDate }
+  );
 }
 
 async function handleFoodSearch(query) {
@@ -1115,8 +1164,30 @@ if (mealSearchInput) {
 
 if (mealSearchResults) {
   mealSearchResults.addEventListener("click", (e) => {
+    const addBtn = e.target.closest(".meal-search-add");
+    if (addBtn) {
+      const idx = Number(addBtn.dataset.resultIndex);
+      const food = lastSearchResults[idx];
+      if (food) {
+        addFoodResultToLog(food);
+      }
+      return;
+    }
     const target = e.target.closest(".meal-search-result");
     if (!target) return;
+    const idx = Number(target.dataset.resultIndex);
+    const food = lastSearchResults[idx];
+    if (food) {
+      selectFood(food);
+      if (mealSearchInput) mealSearchInput.value = food.name || "";
+    }
+  });
+  mealSearchResults.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (e.target.closest(".meal-search-add")) return;
+    const target = e.target.closest(".meal-search-result");
+    if (!target) return;
+    e.preventDefault();
     const idx = Number(target.dataset.resultIndex);
     const food = lastSearchResults[idx];
     if (food) {
@@ -1189,6 +1260,7 @@ if (mealsForm) {
     }
 
     const tempId = `${LOCAL_ID_PREFIX}${Date.now()}`;
+    const loggedAt = new Date().toISOString();
     const payload = {
       family_group_id: currentFamilyId,
       added_by: currentUser.id,
@@ -1201,6 +1273,8 @@ if (mealsForm) {
       carbs: totals.carbs,
       fat: totals.fat,
       client_id: tempId,
+      completed: true,
+      logged_at: loggedAt,
     };
     const optimisticEntry = {
       id: tempId,
@@ -1208,6 +1282,7 @@ if (mealsForm) {
       ...payload,
       added_by: currentUser?.id || null,
       created_at: new Date().toISOString(),
+      logged: true,
     };
     upsertStoredMeal(currentFamilyId, optimisticEntry);
     upsertMeal(optimisticEntry, {
@@ -1288,7 +1363,9 @@ if (mealsList) {
     if (!li) return;
 
     const mealId = li.dataset.mealId;
-    if (!mealId) return;
+    const mealClientId = li.dataset.mealClientId;
+    const identifier = mealId || mealClientId;
+    if (!identifier) return;
 
     const logBtn = e.target.closest(".meal-log-btn");
     const deleteBtn = e.target.closest(".meal-delete");
@@ -1315,9 +1392,9 @@ if (mealsList) {
       deleteBtn.disabled = true;
       deleteBtn.setAttribute("aria-busy", "true");
       li.classList.add("list-removing");
-      const { error } = await deleteMealById(mealId, {
+      const { error } = await deleteMealById(identifier, {
         date: li.dataset.mealDate,
-        client_id: li.dataset.mealClientId,
+        client_id: mealClientId,
         reason: "deleteMeal:planner",
       });
 
@@ -1333,6 +1410,7 @@ if (mealsList) {
       const removeNode = () => li.remove();
       li.addEventListener("transitionend", removeNode, { once: true });
       setTimeout(removeNode, 220);
+      await loadMeals();
       document.dispatchEvent(
         new CustomEvent("diary:refresh", { detail: { entity: "meal" } })
       );
