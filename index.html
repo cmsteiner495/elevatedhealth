@@ -717,34 +717,34 @@
                           The search result will auto-fill the title and macros below.
                         </div>
                       </div>
-                      <div>
-                        <label for="meal-date">Date</label>
-                        <input type="date" id="meal-date" required />
-                      </div>
-                      <div>
-                        <label for="meal-type">Meal type</label>
-                        <select id="meal-type" required>
-                          <option value="breakfast">Breakfast</option>
-                          <option value="lunch">Lunch</option>
-                          <option value="snacks">Snacks</option>
-                          <option value="dinner" selected>Dinner</option>
-                        </select>
-                      </div>
-                      <div class="full-width">
-                        <label for="meal-title">Title</label>
-                        <input
-                          type="text"
-                          id="meal-title"
-                          placeholder="Chicken stir-fry"
-                          required
-                        />
-                      </div>
                       <details id="meal-manual" class="meal-manual full-width">
                         <summary>Can't find it? Add manually</summary>
                         <div class="meal-manual-grid">
                           <p class="subtitle small">
                             Enter calories and macros if you can't find a close match.
                           </p>
+                          <div>
+                            <label for="meal-date">Date</label>
+                            <input type="date" id="meal-date" required />
+                          </div>
+                          <div>
+                            <label for="meal-type">Meal type</label>
+                            <select id="meal-type" required>
+                              <option value="breakfast">Breakfast</option>
+                              <option value="lunch">Lunch</option>
+                              <option value="snacks">Snacks</option>
+                              <option value="dinner" selected>Dinner</option>
+                            </select>
+                          </div>
+                          <div class="full-width">
+                            <label for="meal-title">Title</label>
+                            <input
+                              type="text"
+                              id="meal-title"
+                              placeholder="Chicken stir-fry"
+                              required
+                            />
+                          </div>
                           <div>
                             <label for="meal-calories">Calories</label>
                             <input type="number" id="meal-calories" inputmode="decimal" />
@@ -761,15 +761,15 @@
                             <label for="meal-fat">Fat (g)</label>
                             <input type="number" id="meal-fat" inputmode="decimal" />
                           </div>
+                          <div class="full-width">
+                            <label for="meal-notes">Notes (optional)</label>
+                            <textarea
+                              id="meal-notes"
+                              placeholder="Prep veggies night before"
+                            ></textarea>
+                          </div>
                         </div>
                       </details>
-                      <div class="full-width">
-                        <label for="meal-notes">Notes (optional)</label>
-                        <textarea
-                          id="meal-notes"
-                          placeholder="Prep veggies night before"
-                        ></textarea>
-                      </div>
                       <div class="full-width">
                         <button type="submit" class="primary full-width">
                           Add Meal

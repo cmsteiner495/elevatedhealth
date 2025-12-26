@@ -1536,8 +1536,9 @@ textarea {
   border: none;
   background: transparent;
   color: var(--text-primary);
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
   border-bottom: 1px solid var(--border-subtle);
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -1553,9 +1554,24 @@ textarea {
   color: var(--text-primary);
 }
 
+.meal-search-copy {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+}
+
 .meal-search-meta {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
+}
+
+.meal-search-actions {
+  margin-left: auto;
+}
+
+.meal-search-add {
+  padding-inline: 0.75rem;
+  white-space: nowrap;
 }
 
 .meal-selected-header {
@@ -1610,6 +1626,10 @@ textarea {
 .meal-manual-grid .subtitle {
   grid-column: 1 / -1;
   margin: 0;
+}
+
+.meal-manual-grid .full-width {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 599px) {
