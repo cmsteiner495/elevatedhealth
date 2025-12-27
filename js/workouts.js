@@ -29,6 +29,16 @@ import { isWorkoutLogged } from "./selectors.js";
 
 let workoutsCache = [];
 const LOCAL_ID_PREFIX = "local-";
+const isDevWorkoutsEnv =
+  typeof window !== "undefined" &&
+  window.location &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+function debugWorkouts(...args) {
+  if (isDevWorkoutsEnv) {
+    console.debug(...args);
+  }
+}
 
 function getTodayDayKey() {
   return getTodayDate ? getTodayDate() : toLocalDayKey(new Date());
@@ -90,13 +100,6 @@ function normalizeWorkoutRow(workout = {}) {
   return normalized;
 }
 
-function isWorkoutLoggedAtSchemaError(error) {
-  if (!error) return false;
-  const message = String(error?.message || error?.details || "").toLowerCase();
-  const code = String(error?.code || "");
-  return code === "PGRST204" || (message.includes("logged_at") && message.includes("could not find"));
-}
-
 async function updateWorkoutLoggedState(workoutId, payload) {
   if (!currentFamilyId) {
     guardMutation({
@@ -123,19 +126,7 @@ async function updateWorkoutLoggedState(workoutId, payload) {
     return query;
   };
 
-  let result = await buildQuery(payload);
-
-  if (!result.error || !isWorkoutLoggedAtSchemaError(result.error)) {
-    return result;
-  }
-
-  console.warn(
-    "[EH WORKOUT] logged_at missing in schema cache; retrying without logged_at. Restart Supabase API / wait for schema cache refresh.",
-    result.error
-  );
-
-  const { logged_at, ...retryPayload } = payload || {};
-  return buildQuery(retryPayload);
+  return buildQuery(payload);
 }
 
 function parseDuration(value) {
@@ -514,7 +505,6 @@ async function logWorkoutToDiary(workout) {
   if (scheduledRowId && getWorkoutDayKey(workout) === targetDate) {
     const updatePayload = {
       completed: true,
-      logged_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await updateWorkoutLoggedState(scheduledRowId, updatePayload);
@@ -588,7 +578,7 @@ async function logWorkoutToDiary(workout) {
     notes: workout.notes || null,
     scheduled_workout_id: scheduledId ? String(scheduledId) : null,
   };
-  console.debug("[WORKOUT INSERT]", payload);
+  debugWorkouts("[WORKOUT INSERT payload]", payload);
 
   const tempId = `${LOCAL_ID_PREFIX}${Date.now()}`;
   const optimisticEntry = {
@@ -602,7 +592,6 @@ async function logWorkoutToDiary(workout) {
     workout_date: targetDate,
     scheduled_workout_id: payload.scheduled_workout_id,
     completed: true,
-    logged_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
   };
 
@@ -615,7 +604,7 @@ async function logWorkoutToDiary(workout) {
     body: payload,
   });
 
-  console.debug("[WORKOUT INSERT RESULT]", { data, error });
+  debugWorkouts("[WORKOUT INSERT result]", { data, error });
 
   if (error || !data?.ok) {
     const details = error?.message || data?.error || "Unknown error";
@@ -640,8 +629,6 @@ async function logWorkoutToDiary(workout) {
     log_id: data?.log_id || data?.workout?.id || optimisticEntry.log_id,
     workout_date: data?.workout?.workout_date || targetDate,
     completed: true,
-    logged_at:
-      data?.workout?.logged_at || optimisticEntry.logged_at || new Date().toISOString(),
     source,
   });
 
@@ -819,7 +806,6 @@ if (workoutsForm) {
       return;
     }
 
-    const loggedAt = new Date().toISOString();
     const dayKey = toLocalDayKey(dateValue) || dateValue;
     const payload = {
       family_group_id: currentFamilyId || null,
@@ -831,9 +817,8 @@ if (workoutsForm) {
       duration_min: durationMin,
       notes: notes || null,
       completed: true,
-      logged_at: loggedAt,
     };
-    console.debug("[WORKOUT INSERT]", payload);
+    debugWorkouts("[WORKOUT INSERT payload]", payload);
 
     if (!currentFamilyId || !currentUser) {
       if (workoutsMessage) {
@@ -850,7 +835,7 @@ if (workoutsForm) {
       .insert(payload)
       .select()
       .single();
-    console.debug("[WORKOUT INSERT RESULT]", { data, error });
+    debugWorkouts("[WORKOUT INSERT result]", { data, error });
 
     if (error) {
       console.error("Error adding workout:", error);

@@ -108,8 +108,7 @@
           "path": "js/workouts.js:99-115",
           "function": "updateWorkoutLoggedState",
           "filters": ["id eq workoutId"],
-          "columns": ["completed", "logged_at", "updated_at", "duration_min?"],
-          "notes": "Retries without logged_at if schema cache missing"
+          "columns": ["completed", "updated_at", "duration_min?"]
         },
         {
           "operation": "select",
@@ -148,7 +147,7 @@
           "path": "js/workouts.js:575-577",
           "function": "logWorkoutToDiary (edge invoke)",
           "filters": ["family_group_id set in payload"],
-          "columns": ["family_group_id", "added_by", "workout_date", "title/workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "completed", "logged_at"],
+          "columns": ["family_group_id", "added_by", "workout_date", "title/workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "completed"],
           "notes": "Calls Supabase edge function family_workouts"
         },
         {
@@ -156,7 +155,8 @@
           "path": "js/workouts.js:802-806",
           "function": "workoutsForm submit",
           "filters": ["family_group_id set in payload"],
-          "columns": ["family_group_id", "added_by", "workout_date", "title", "workout_type", "difficulty", "duration_min", "notes", "completed", "logged_at"]
+          "columns": ["family_group_id", "added_by", "workout_date", "title", "workout_type", "difficulty", "duration_min", "notes", "completed"],
+          "notes": "Direct insert; relies on table defaults for timestamps"
         },
         {
           "operation": "delete",
@@ -393,7 +393,7 @@
           "operation": "insert",
           "line": "199-233",
           "filters": ["family_group_id required", "added_by set to auth user"],
-          "columns": ["family_group_id", "added_by", "title", "workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "workout_date", "completed", "logged_at"],
+          "columns": ["family_group_id", "added_by", "title", "workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "workout_date", "completed"],
           "date_columns": ["workout_date (YYYY-MM-DD)"]
         }
       ]

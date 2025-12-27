@@ -17,9 +17,8 @@ export function isWorkoutLogged(workout) {
   if (!workout) return false;
   if (workout.completed === true) return true;
   if (workout.completed === false) return false;
-  if (workout.logged_at) return true;
-  if (workout.loggedAt) return true;
-  return workout.logged === true;
+  if (workout.logged === true) return true;
+  return workout.status === "completed";
 }
 
 function buildDateWindow() {
