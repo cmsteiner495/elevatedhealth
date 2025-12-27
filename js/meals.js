@@ -69,13 +69,19 @@ const FAMILY_MEAL_COLUMNS = [
 ];
 
 const nutritionPatchedKeys = new Set();
+const foodDetailCache = new Map();
 let foodSearchIndex = [];
 let foodSearchLoaded = false;
 let foodSearchError = null;
+let nutritionSearchError = null;
+let nutritionSearchLoading = false;
 let selectedFood = null;
 let selectedPortion = 1;
 let lastSearchResults = [];
+let lastQuickResults = [];
 let searchDebounceId = null;
+let lastSearchToken = 0;
+let selectionToken = 0;
 
 function readDeletedMealsMap() {
   if (typeof localStorage === "undefined") return {};
@@ -192,15 +198,28 @@ function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
 export { sanitizeFamilyMealPayload };
 
 function normalizeFoodEntry(food = {}) {
+  const servingQty = coerceNumber(food.serving_qty ?? food.servingQty);
+  const servingGrams = coerceNumber(
+    food.serving_grams ?? food.servingGrams ?? food.serving_weight_grams
+  );
+  const sourceItemId = food.sourceItemId || food.source_item_id || food.nix_item_id || null;
+  const source = food.source || (sourceItemId ? "nutritionix" : "local");
   return {
     ...food,
-    name: food.name || food.title || "",
+    source,
+    sourceItemId,
+    brandName: food.brandName || food.brand || food.brand_name || null,
+    name: food.name || food.title || food.food_name || "",
     calories: coerceNumber(
       food.calories ?? food.calorie ?? food.calories_total ?? food.kcal ?? 0
     ),
     protein_g: coerceNumber(food.protein_g ?? food.protein ?? food.protein_total),
     carbs_g: coerceNumber(food.carbs_g ?? food.carbs ?? food.carbs_total ?? food.net_carbs),
     fat_g: coerceNumber(food.fat_g ?? food.fat ?? food.fat_total ?? food.fats),
+    serving_qty: servingQty || null,
+    serving_unit: food.serving_unit || food.servingUnit || null,
+    serving_grams: servingGrams || null,
+    raw: food.raw || food.raw_json,
   };
 }
 
@@ -234,7 +253,7 @@ function scoreFoodMatch(name, query) {
   return score;
 }
 
-function searchFoods(query) {
+function searchLocalFoods(query) {
   if (!query || query.length < 2 || !foodSearchIndex.length) return [];
   const normalizedQuery = query.toLowerCase();
   return foodSearchIndex
@@ -248,6 +267,81 @@ function searchFoods(query) {
     .slice(0, 12);
 }
 
+function formatServingLabel(food = {}) {
+  const normalized = normalizeFoodEntry(food);
+  const qty = coerceNumber(normalized.serving_qty);
+  const unit = normalized.serving_unit;
+  if (!qty || !unit) return "";
+  const roundedQty = Math.round(qty * 100) / 100;
+  const grams = coerceNumber(normalized.serving_grams);
+  const gramsLabel = grams ? ` (${Math.round(grams)} g)` : "";
+  return `${roundedQty} ${unit}${gramsLabel}`;
+}
+
+function formatSearchMeta(food = {}) {
+  const nutrition = getFoodNutrition(food);
+  const calories = Math.round(coerceNumber(nutrition.calories));
+  const caloriesText = calories > 0 ? `${calories} cal` : "Macros pending";
+  const servingText = formatServingLabel(food);
+  return servingText ? `${caloriesText} • ${servingText}` : caloriesText;
+}
+
+function getFoodCacheKey(food = {}) {
+  const normalized = normalizeFoodEntry(food);
+  if (normalized.sourceItemId) return String(normalized.sourceItemId);
+  if (normalized.name) {
+    return `${normalized.source || "nutritionix"}:${normalized.name.toLowerCase()}:${
+      normalized.brandName || ""
+    }`;
+  }
+  return null;
+}
+
+function hasNutritionBasics(food = {}) {
+  const nutrition = getFoodNutrition(food);
+  return coerceNumber(nutrition.calories) > 0;
+}
+
+async function hydrateFoodDetails(food = {}) {
+  const normalized = normalizeFoodEntry(food);
+  const cacheKey = getFoodCacheKey(normalized);
+  if (cacheKey && foodDetailCache.has(cacheKey)) {
+    return foodDetailCache.get(cacheKey);
+  }
+
+  if (hasNutritionBasics(normalized) && normalized.serving_unit) {
+    if (cacheKey) {
+      foodDetailCache.set(cacheKey, normalized);
+    }
+    return normalized;
+  }
+
+  try {
+    const payload = {
+      sourceItemId: normalized.sourceItemId || undefined,
+      foodName: normalized.name || undefined,
+      brandName: normalized.brandName || undefined,
+      serving_qty: normalized.serving_qty || undefined,
+      serving_unit: normalized.serving_unit || undefined,
+    };
+    const { data, error } = await supabase.functions.invoke("nutrition-item", {
+      body: payload,
+    });
+    if (error) throw error;
+
+    const detail = data?.food || data;
+    const hydrated = detail ? normalizeFoodEntry(detail) : normalized;
+    if (cacheKey) foodDetailCache.set(cacheKey, hydrated);
+    return hydrated;
+  } catch (err) {
+    console.warn("[meals] Failed to hydrate food details", err);
+    if (cacheKey && !foodDetailCache.has(cacheKey)) {
+      foodDetailCache.set(cacheKey, normalized);
+    }
+    return normalized;
+  }
+}
+
 function formatSelectedMacros(nutrition = {}) {
   const calories = Math.round(coerceNumber(nutrition.calories));
   const protein = Math.round(coerceNumber(nutrition.protein ?? nutrition.protein_g));
@@ -259,12 +353,42 @@ function formatSelectedMacros(nutrition = {}) {
 
 function applyPortionMultiplier(nutrition = {}, portion = selectedPortion) {
   const factor = Number(portion) && Number(portion) > 0 ? Number(portion) : 1;
+  const servingQty = coerceNumber(nutrition.serving_qty);
+  const servingGrams = coerceNumber(nutrition.serving_grams);
   return {
     calories: Math.round(coerceNumber(nutrition.calories) * factor),
     protein: Math.round(coerceNumber(nutrition.protein ?? nutrition.protein_g) * factor),
     carbs: Math.round(coerceNumber(nutrition.carbs ?? nutrition.carbs_g) * factor),
     fat: Math.round(coerceNumber(nutrition.fat ?? nutrition.fat_g) * factor),
+    serving_qty: servingQty ? servingQty * factor : null,
+    serving_unit: nutrition.serving_unit || null,
+    serving_grams: servingGrams ? Math.round(servingGrams * factor) : null,
+    name: nutrition.name,
+    brandName: nutrition.brandName || null,
+    sourceItemId: nutrition.sourceItemId || null,
+    source: nutrition.source || null,
+    raw: nutrition.raw,
   };
+}
+
+function buildServingNote(nutrition = {}, portion = selectedPortion) {
+  const qty = coerceNumber(nutrition.serving_qty);
+  const unit = nutrition.serving_unit;
+  if (!qty || !unit) return "";
+  const scaledQty = Math.round(qty * portion * 100) / 100;
+  const grams = coerceNumber(nutrition.serving_grams);
+  const gramsLabel = grams ? ` (~${Math.round(grams * portion)} g)` : "";
+  const brandLabel = nutrition.brandName ? ` • ${nutrition.brandName}` : "";
+  const sourceLabel =
+    nutrition.source === "nutritionix" || !nutrition.source ? " (Nutritionix)" : "";
+  return `Serving: ${scaledQty} ${unit}${gramsLabel}${brandLabel}${sourceLabel}`;
+}
+
+function mergeNotesWithServing(notes, nutrition = {}, portion = selectedPortion) {
+  const servingNote = buildServingNote(nutrition, portion);
+  if (!servingNote) return notes || null;
+  if (notes && notes.includes(servingNote)) return notes;
+  return notes ? `${notes}\n${servingNote}` : servingNote;
 }
 
 function getFoodNutrition(food) {
@@ -274,6 +398,14 @@ function getFoodNutrition(food) {
     protein: normalized.protein_g,
     carbs: normalized.carbs_g,
     fat: normalized.fat_g,
+    serving_qty: normalized.serving_qty,
+    serving_unit: normalized.serving_unit,
+    serving_grams: normalized.serving_grams,
+    name: normalized.name,
+    brandName: normalized.brandName || null,
+    sourceItemId: normalized.sourceItemId || null,
+    source: normalized.source || null,
+    raw: normalized.raw,
   };
 }
 
@@ -324,6 +456,7 @@ function hasManualMacros() {
 
 function clearSelection() {
   selectedFood = null;
+  selectionToken++;
   selectedPortion = 1;
   if (mealSearchInput) mealSearchInput.value = "";
   if (mealSelectedContainer) mealSelectedContainer.hidden = true;
@@ -343,30 +476,39 @@ function updateSelectedPreview() {
   const nutrition = applyPortionMultiplier(getFoodNutrition(selectedFood));
   syncManualInputs(nutrition);
   mealSelectedContainer.hidden = false;
-  if (mealSelectedName) mealSelectedName.textContent = selectedFood.name || "Food";
+  if (mealSelectedName) {
+    const label = selectedFood.brandName
+      ? `${selectedFood.brandName} — ${selectedFood.name || "Food"}`
+      : selectedFood.name || "Food";
+    mealSelectedName.textContent = label;
+  }
   if (mealSelectedMacros) mealSelectedMacros.textContent = formatSelectedMacros(nutrition);
 }
 
-function selectFood(food) {
+async function selectFood(food) {
   const normalized = normalizeFoodEntry(food);
   selectedFood = normalized;
+  const currentToken = ++selectionToken;
   setPortionSelection(1);
   if (mealTitleInput && normalized.name) {
     mealTitleInput.value = normalized.name;
   }
   updateSelectedPreview();
+  if (mealSelectedMacros) {
+    mealSelectedMacros.textContent = "Loading nutrition…";
+  }
+  const hydrated = await hydrateFoodDetails(normalized);
+  if (currentToken !== selectionToken) return;
+  selectedFood = hydrated;
+  updateSelectedPreview();
 }
 
-function renderFoodResults(results, query) {
+function renderFoodResults(results, query, options = {}) {
+  const { quickResults = lastQuickResults, loading = false } = options;
   if (!mealSearchResults) return;
   mealSearchResults.innerHTML = "";
-  if (foodSearchError) {
-    const errorNode = document.createElement("div");
-    errorNode.className = "search-hint";
-    errorNode.textContent = "Couldn't load foods. Try again later.";
-    mealSearchResults.appendChild(errorNode);
-    return;
-  }
+
+  const shouldShowLoading = loading || nutritionSearchLoading;
 
   if (!query) {
     const hint = document.createElement("div");
@@ -376,18 +518,23 @@ function renderFoodResults(results, query) {
     return;
   }
 
-  if (!results.length) {
-    const empty = document.createElement("div");
-    empty.className = "search-hint";
-    empty.textContent = "No foods found. Try a different keyword.";
-    mealSearchResults.appendChild(empty);
-    return;
+  if (nutritionSearchError) {
+    const errorNode = document.createElement("div");
+    errorNode.className = "search-hint";
+    errorNode.textContent = "Couldn't search foods right now. Showing quick picks.";
+    mealSearchResults.appendChild(errorNode);
+  } else if (shouldShowLoading) {
+    const loadingNode = document.createElement("div");
+    loadingNode.className = "search-hint";
+    loadingNode.textContent = "Searching foods…";
+    mealSearchResults.appendChild(loadingNode);
   }
 
-  results.forEach((food, idx) => {
+  const renderRow = (food, idx, source = "remote") => {
     const row = document.createElement("div");
     row.className = "meal-search-result";
     row.dataset.resultIndex = idx;
+    row.dataset.resultSource = source;
     row.tabIndex = 0;
     row.setAttribute("role", "button");
 
@@ -395,11 +542,11 @@ function renderFoodResults(results, query) {
     copy.className = "meal-search-copy";
 
     const name = document.createElement("div");
-    name.textContent = food.name || "Food";
+    name.textContent = food.brandName ? `${food.brandName} — ${food.name || "Food"}` : food.name || "Food";
 
     const meta = document.createElement("div");
     meta.className = "meal-search-meta";
-    meta.textContent = formatSelectedMacros(getFoodNutrition(food));
+    meta.textContent = formatSearchMeta(food);
 
     copy.appendChild(name);
     copy.appendChild(meta);
@@ -412,22 +559,50 @@ function renderFoodResults(results, query) {
     addBtn.classList.add("ghost-btn", "meal-search-add");
     addBtn.textContent = "Add";
     addBtn.dataset.resultIndex = idx;
+    addBtn.dataset.resultSource = source;
 
     actions.appendChild(addBtn);
 
     row.appendChild(copy);
     row.appendChild(actions);
     mealSearchResults.appendChild(row);
-  });
+  };
+
+  if (Array.isArray(results) && results.length) {
+    results.forEach((food, idx) => renderRow(food, idx, "remote"));
+  } else if (!shouldShowLoading && !nutritionSearchError) {
+    const empty = document.createElement("div");
+    empty.className = "search-hint";
+    empty.textContent = "No foods found. Try a different keyword.";
+    mealSearchResults.appendChild(empty);
+  }
+
+  if (quickResults.length) {
+    const quickHeader = document.createElement("div");
+    quickHeader.className = "search-hint";
+    quickHeader.textContent = "Quick picks (local)";
+    mealSearchResults.appendChild(quickHeader);
+    quickResults.forEach((food, idx) => renderRow(food, idx, "local"));
+  } else if (foodSearchError && !results.length && !shouldShowLoading && !nutritionSearchError) {
+    const quickError = document.createElement("div");
+    quickError.className = "search-hint";
+    quickError.textContent = "Local quick picks unavailable.";
+    mealSearchResults.appendChild(quickError);
+  }
 }
 
 async function addFoodResultToLog(food) {
   if (!food) return;
+  const detailed = await hydrateFoodDetails(food);
+  selectedFood = detailed;
   const targetDate = getSelectedMealDate();
   const mealType = getSelectedMealType();
-  const title = food.name || "Food";
-  const nutrition = applyPortionMultiplier(getFoodNutrition(food));
-  const notes = mealNotesInput?.value?.trim() || null;
+  const title = detailed.name || food.name || "Food";
+  const portion = selectedPortion || 1;
+  const nutritionSource = getFoodNutrition(detailed);
+  const nutrition = applyPortionMultiplier(nutritionSource, portion);
+  const baseNotes = mealNotesInput?.value?.trim() || null;
+  const notes = mergeNotesWithServing(baseNotes, nutritionSource, portion);
 
   await logMealToDiary(
     {
@@ -445,15 +620,55 @@ async function addFoodResultToLog(food) {
 }
 
 async function handleFoodSearch(query) {
-  await loadFoodDatabase();
   if (!mealSearchResults) return;
-  if (!query || query.length < 2) {
+  const trimmed = (query || "").trim();
+  if (!trimmed || trimmed.length < 2) {
     lastSearchResults = [];
+    lastQuickResults = [];
+    nutritionSearchError = null;
+    nutritionSearchLoading = false;
     renderFoodResults([], "");
     return;
   }
-  lastSearchResults = searchFoods(query);
-  renderFoodResults(lastSearchResults, query);
+
+  const token = ++lastSearchToken;
+  nutritionSearchLoading = true;
+  nutritionSearchError = null;
+  renderFoodResults([], trimmed, { loading: true, quickResults: [] });
+
+  const quickResultsPromise = loadFoodDatabase()
+    .then(() => searchLocalFoods(trimmed))
+    .catch((err) => {
+      console.warn("[meals] local food search unavailable", err);
+      return [];
+    });
+
+  let remoteResults = [];
+  try {
+    const { data, error } = await supabase.functions.invoke("nutrition-search", {
+      body: { query: trimmed },
+    });
+    if (error) throw error;
+    const payloadResults =
+      (data?.ok && Array.isArray(data.results) && data.results) ||
+      (Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : []);
+    remoteResults = Array.isArray(payloadResults)
+      ? payloadResults.map(normalizeFoodEntry)
+      : [];
+  } catch (err) {
+    console.error("[meals] nutrition-search failed", err);
+    nutritionSearchError = err;
+    remoteResults = [];
+  }
+
+  const quickMatches = await quickResultsPromise;
+  nutritionSearchLoading = false;
+
+  if (token !== lastSearchToken) return;
+
+  lastSearchResults = remoteResults;
+  lastQuickResults = quickMatches;
+  renderFoodResults(lastSearchResults, trimmed, { quickResults: lastQuickResults });
 }
 
 const MEAL_ORDERING = [
@@ -1277,7 +1492,7 @@ if (mealSearchInput) {
     if (searchDebounceId) {
       clearTimeout(searchDebounceId);
     }
-    searchDebounceId = setTimeout(() => handleFoodSearch(query), 120);
+    searchDebounceId = setTimeout(() => handleFoodSearch(query), 300);
   });
   mealSearchInput.addEventListener("focus", async () => {
     if (!foodSearchLoaded && !foodSearchError) {
@@ -1292,7 +1507,8 @@ if (mealSearchResults) {
     const addBtn = e.target.closest(".meal-search-add");
     if (addBtn) {
       const idx = Number(addBtn.dataset.resultIndex);
-      const food = lastSearchResults[idx];
+      const source = addBtn.dataset.resultSource || "remote";
+      const food = source === "local" ? lastQuickResults[idx] : lastSearchResults[idx];
       if (food) {
         addFoodResultToLog(food);
       }
@@ -1301,7 +1517,8 @@ if (mealSearchResults) {
     const target = e.target.closest(".meal-search-result");
     if (!target) return;
     const idx = Number(target.dataset.resultIndex);
-    const food = lastSearchResults[idx];
+    const source = target.dataset.resultSource || "remote";
+    const food = source === "local" ? lastQuickResults[idx] : lastSearchResults[idx];
     if (food) {
       selectFood(food);
       if (mealSearchInput) mealSearchInput.value = food.name || "";
@@ -1314,7 +1531,8 @@ if (mealSearchResults) {
     if (!target) return;
     e.preventDefault();
     const idx = Number(target.dataset.resultIndex);
-    const food = lastSearchResults[idx];
+    const source = target.dataset.resultSource || "remote";
+    const food = source === "local" ? lastQuickResults[idx] : lastSearchResults[idx];
     if (food) {
       selectFood(food);
       if (mealSearchInput) mealSearchInput.value = food.name || "";
@@ -1361,14 +1579,23 @@ if (mealsForm) {
     const dateValue = mealDateInput.value;
     const mealType = mealTypeInput.value;
     const title = mealTitleInput.value.trim() || selectedFood?.name?.trim();
-    const notes = mealNotesInput.value.trim();
+    const notesRaw = mealNotesInput.value.trim();
 
     if (!dateValue || !mealType || !title) return;
 
-    const nutritionSource = selectedFood ? getFoodNutrition(selectedFood) : getManualNutrition();
-    const totals = applyPortionMultiplier(nutritionSource);
+    let preparedFood = selectedFood;
+    if (preparedFood) {
+      preparedFood = await hydrateFoodDetails(preparedFood);
+      selectedFood = preparedFood;
+    }
+    const portion = selectedPortion || 1;
+    const nutritionSource = preparedFood ? getFoodNutrition(preparedFood) : getManualNutrition();
+    const totals = applyPortionMultiplier(nutritionSource, portion);
+    const notesWithServing = preparedFood
+      ? mergeNotesWithServing(notesRaw, nutritionSource, portion)
+      : notesRaw || null;
 
-    if (!selectedFood && !hasManualMacros()) {
+    if (!preparedFood && !hasManualMacros()) {
       if (mealsMessage) {
         mealsMessage.textContent = "Select a food or enter macros manually.";
         mealsMessage.style.color = "red";
@@ -1392,7 +1619,7 @@ if (mealsForm) {
       meal_date: dateValue,
       meal_type: mealType,
       title,
-      notes: notes || null,
+      notes: notesWithServing,
       calories: totals.calories,
       protein: totals.protein,
       carbs: totals.carbs,
@@ -1472,7 +1699,7 @@ if (mealsForm) {
 
     if (shouldMirrorToLog) {
       await logMealToDiary(
-        { title, meal_type: guidedMealType, notes: notes || null },
+        { title, meal_type: guidedMealType, notes: notesWithServing },
         { date: guidedDate, silent: true, skipReload: true }
       );
     }
