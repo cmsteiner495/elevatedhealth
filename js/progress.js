@@ -15,6 +15,7 @@ import {
   progressList,
 } from "./dom.js";
 import { currentUser, currentFamilyId } from "./state.js";
+import { guardMutation } from "./debug/mutationGuard.js";
 import { maybeVibrate, showToast } from "./ui.js";
 import {
   getState as getStoreState,
@@ -246,10 +247,25 @@ if (progressList) {
     if (!progressId) return;
 
     if (e.target.classList.contains("progress-delete")) {
+      if (!currentFamilyId) {
+        guardMutation({
+          table: "progress_logs",
+          operation: "delete",
+          filters: { id: progressId },
+        });
+        console.warn("[PROGRESS] Missing family id for delete");
+        return;
+      }
+      guardMutation({
+        table: "progress_logs",
+        operation: "delete",
+        filters: { id: progressId, family_group_id: currentFamilyId },
+      });
       const { error } = await supabase
         .from("progress_logs")
         .delete()
-        .eq("id", progressId);
+        .eq("id", progressId)
+        .eq("family_group_id", currentFamilyId);
 
       if (error) {
         console.error("Error deleting progress entry:", error);

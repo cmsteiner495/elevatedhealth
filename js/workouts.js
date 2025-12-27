@@ -21,6 +21,7 @@ import {
   addDays,
   getTodayDate,
 } from "./state.js";
+import { guardMutation } from "./debug/mutationGuard.js";
 import { maybeVibrate, showToast } from "./ui.js";
 import { readWorkoutsStore, saveWorkouts } from "./dataAdapter.js";
 import { setWorkouts, upsertWorkout, removeWorkout } from "./ehStore.js";
@@ -97,8 +98,30 @@ function isWorkoutLoggedAtSchemaError(error) {
 }
 
 async function updateWorkoutLoggedState(workoutId, payload) {
-  const buildQuery = (body) =>
-    supabase.from("family_workouts").update(body).eq("id", workoutId).select().single();
+  if (!currentFamilyId) {
+    guardMutation({
+      table: "family_workouts",
+      operation: "update",
+      filters: { id: workoutId },
+    });
+    return { data: null, error: new Error("Missing family id for workout update") };
+  }
+
+  const buildQuery = (body) => {
+    const query = supabase
+      .from("family_workouts")
+      .update(body)
+      .eq("id", workoutId)
+      .eq("family_group_id", currentFamilyId)
+      .select()
+      .single();
+    guardMutation({
+      table: "family_workouts",
+      operation: "update",
+      filters: { id: workoutId, family_group_id: currentFamilyId },
+    });
+    return query;
+  };
 
   let result = await buildQuery(payload);
 
@@ -397,7 +420,16 @@ function findLoggedScheduledMatch(workout, workouts = []) {
 }
 
 async function deleteWorkoutRow(id) {
-  const { error } = await supabase.from("family_workouts").delete().eq("id", id);
+  guardMutation({
+    table: "family_workouts",
+    operation: "delete",
+    filters: { id, family_group_id: currentFamilyId },
+  });
+  const { error } = await supabase
+    .from("family_workouts")
+    .delete()
+    .eq("id", id)
+    .eq("family_group_id", currentFamilyId);
   if (error) throw error;
 }
 
@@ -409,7 +441,14 @@ export async function deleteWorkoutById(workoutId, options = {}) {
 
   let deleteError = null;
 
-  if (!shouldForceLocalRemoval && currentUser?.id) {
+  if (!shouldForceLocalRemoval && !currentFamilyId) {
+    guardMutation({
+      table: "family_workouts",
+      operation: "delete",
+      filters: { id: normalizedId },
+    });
+    deleteError = new Error("Missing family id");
+  } else if (!shouldForceLocalRemoval && currentUser?.id) {
     try {
       await deleteWorkoutRow(normalizedId);
     } catch (err) {
@@ -796,67 +835,48 @@ if (workoutsForm) {
     };
     console.debug("[WORKOUT INSERT]", payload);
 
-    let persistedWorkout = null;
-
-    if (currentFamilyId && currentUser) {
-      const { data, error } = await supabase
-        .from("family_workouts")
-        .insert(payload)
-        .select()
-        .single();
-      console.debug("[WORKOUT INSERT RESULT]", { data, error });
-
-      if (error) {
-        console.error("Error adding workout:", error);
-        if (error?.message) console.error("Workout API message:", error.message);
-        if (error?.details)
-          console.error("Workout API details:", error.details);
-        if (error?.hint) console.error("Workout API hint:", error.hint);
-        if (error?.status) console.error("Workout API status:", error.status);
-
-        if (workoutsMessage) {
-          workoutsMessage.textContent = "Saved locally (sync coming soon).";
-          workoutsMessage.style.color = "var(--text-muted)";
-        }
-      } else {
-        persistedWorkout = normalizeWorkoutRow({
-          ...data,
-          log_id: data?.log_id || data?.id,
-          source: "manual",
-        });
+    if (!currentFamilyId || !currentUser) {
+      if (workoutsMessage) {
+        workoutsMessage.textContent = "Join a family to log workouts.";
+        workoutsMessage.style.color = "red";
       }
+      showToast("Join a family to log workouts.");
+      return;
     }
 
-    const tempId = `local-${Date.now()}`;
-    const localWorkout =
-      persistedWorkout ||
-      {
-        ...normalizeWorkoutRow({
-          ...payload,
-          id: tempId,
-          log_id: tempId,
-          source: "manual",
-        }),
-        created_at: new Date().toISOString(),
-      };
+    let persistedWorkout = null;
+    const { data, error } = await supabase
+      .from("family_workouts")
+      .insert(payload)
+      .select()
+      .single();
+    console.debug("[WORKOUT INSERT RESULT]", { data, error });
 
-    workoutsCache = mergeWorkouts(workoutsCache, [localWorkout]);
-    upsertStoredWorkout(localWorkout);
-    upsertWorkout(localWorkout, { reason: "addWorkout" });
+    if (error) {
+      console.error("Error adding workout:", error);
+      if (workoutsMessage) {
+        workoutsMessage.textContent = "Couldn't save workout. Check your connection and retry.";
+        workoutsMessage.style.color = "red";
+      }
+      showToast("Couldn't save workout. Try again.");
+      return;
+    }
+
+    persistedWorkout = normalizeWorkoutRow({
+      ...data,
+      log_id: data?.log_id || data?.id,
+      source: "manual",
+    });
+
+    workoutsCache = mergeWorkouts(workoutsCache, [persistedWorkout]);
+    upsertStoredWorkout(persistedWorkout);
+    upsertWorkout(persistedWorkout, { reason: "addWorkout" });
     console.log("[EH WORKOUT] saved + store upsert");
     renderWorkouts();
     workoutsForm.reset();
 
-    if (persistedWorkout) {
-      await loadWorkouts();
-      showToast("Exercise logged");
-    } else {
-      showToast("Saved locally (sync coming soon)");
-      if (workoutsMessage) {
-        workoutsMessage.textContent = "Saved locally (sync coming soon).";
-        workoutsMessage.style.color = "var(--text-muted)";
-      }
-    }
+    await loadWorkouts();
+    showToast("Exercise logged");
 
     document.dispatchEvent(
       new CustomEvent("diary:refresh", {

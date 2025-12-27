@@ -88,7 +88,7 @@ import {
   formatWeekdayShort,
 } from "./state.js";
 import { setGroceryFamilyState, getGroceryItems } from "./grocery.js";
-import { loadMeals, logMealToDiary, setMealsFamilyState } from "./meals.js";
+import { deleteMealById, loadMeals, logMealToDiary, setMealsFamilyState } from "./meals.js";
 import {
   cacheWorkoutsLocally,
   setWorkoutsFamilyState,
@@ -1869,6 +1869,9 @@ function bindMealsListRemoveButtons() {
       const li = e.target.closest("li");
       if (!li) return;
 
+      const mealId = li.dataset.mealId;
+      const mealClientId = li.dataset.mealClientId || li.dataset.mealClientid;
+
       if (logBtn) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -1878,21 +1881,30 @@ function bindMealsListRemoveButtons() {
         return;
       }
 
-      if (!li.dataset.mealId) return;
+      if (!mealId) return;
       e.preventDefault();
       e.stopImmediatePropagation();
       li.classList.add("list-removing");
       const removeAfter = () => {
         setTimeout(async () => {
-          const { error } = await supabase
-            .from("family_meals")
-            .delete()
-            .eq("id", li.dataset.mealId);
+          const { error, fallback } = await deleteMealById(mealId, {
+            client_id: mealClientId,
+            meal_date: li.dataset.mealDate,
+            reason: "deleteMeal:list",
+          });
 
           if (error) {
             console.error("Error deleting meal", error);
             li.classList.remove("list-removing");
+            showToast("Couldn't delete meal. Try again.");
             return;
+          }
+
+          if (fallback) {
+            console.warn("[MEAL DELETE] Local-only delete applied for list item", {
+              mealId,
+              mealClientId,
+            });
           }
 
           await loadMeals();

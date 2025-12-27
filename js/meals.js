@@ -29,6 +29,7 @@ import {
   selectedDate,
   setSelectedDate,
 } from "./state.js";
+import { guardMutation } from "./debug/mutationGuard.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
 import { readMealsStore, saveMeals } from "./dataAdapter.js";
 import {
@@ -611,13 +612,20 @@ export function removeStoredMeal(familyId, identifier, clientId) {
 
 export async function deleteMealById(mealId, options = {}) {
   if (!mealId) return { error: new Error("Missing meal id") };
-  if (!currentFamilyId) return { error: new Error("Missing family id") };
+  if (!currentFamilyId) {
+    guardMutation({
+      table: "family_meals",
+      operation: "delete",
+      filters: { id: mealId },
+    });
+    return { error: new Error("Missing family id") };
+  }
 
   const normalizedId = String(mealId);
   const clientId = options.client_id || options.clientId || normalizedId;
   const shouldForceLocalRemoval =
     !isUUID(normalizedId) || String(clientId || "").startsWith(LOCAL_ID_PREFIX);
-  const allowLocalFallback = options.allowLocalFallback !== false;
+  const allowLocalFallback = options.allowLocalFallback === true;
   console.log("[MEAL DELETE] Attempting removal", {
     serverId: normalizedId,
     clientId,
@@ -652,20 +660,6 @@ export async function deleteMealById(mealId, options = {}) {
     await attemptDelete("client_id", clientId);
   }
 
-  if (deleteError && shouldForceLocalRemoval) {
-    console.warn("[MEAL DELETE] Local removal despite error", deleteError);
-    deleteError = null;
-    usedLocalFallback = true;
-  } else if (deleteError && allowLocalFallback) {
-    console.warn("[MEAL DELETE] Falling back to local deletion", {
-      error: deleteError,
-      clientId,
-      normalizedId,
-    });
-    deleteError = null;
-    usedLocalFallback = true;
-  }
-
   if (!deleteError) {
     removeStoredMeal(currentFamilyId, normalizedId, clientId);
     removeMealByIdOrClientId(normalizedId, {
@@ -674,6 +668,17 @@ export async function deleteMealById(mealId, options = {}) {
     });
     markMealDeletedForFamily(currentFamilyId, [normalizedId, clientId]);
     announceDataChange("meals", options.date || options.meal_date);
+  } else if (deleteError && allowLocalFallback && shouldForceLocalRemoval) {
+    console.warn("[MEAL DELETE] Local removal despite server error", deleteError);
+    removeStoredMeal(currentFamilyId, normalizedId, clientId);
+    removeMealByIdOrClientId(normalizedId, {
+      clientId,
+      reason: options.reason || "deleteMeal:fallback",
+    });
+    markMealDeletedForFamily(currentFamilyId, [normalizedId, clientId]);
+    announceDataChange("meals", options.date || options.meal_date);
+    usedLocalFallback = true;
+    deleteError = null;
   }
 
   return { error: deleteError, fallback: usedLocalFallback };
