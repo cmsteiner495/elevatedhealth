@@ -328,7 +328,6 @@ async function applyCoachUpdates(updates) {
             family_group_id: currentFamilyId,
             added_by: currentUser.id,
             workout_date: workoutDate,
-            day_key: workoutDate,
             title,
             workout_type: safeType || SAFE_WORKOUT_TYPE,
             duration_min:

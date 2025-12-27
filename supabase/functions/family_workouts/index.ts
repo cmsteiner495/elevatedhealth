@@ -37,7 +37,6 @@ type ActionPayload = {
   calories_burned?: number | null;
   notes?: string | null;
   scheduled_workout_id?: string | number | null;
-  day_key?: string | null;
 };
 
 function parseNumber(value: unknown) {
@@ -181,8 +180,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "add") {
       const familyGroupId = String(body.family_group_id || "").trim();
-      const workoutDate = String(body.workout_date || body.day_key || body.diary_date || "")
-        .trim();
+      const workoutDate = String(body.workout_date || body.diary_date || "").trim();
       const workoutName = String(body.workout_name || body.title || "").trim();
       const workoutType = String(body.workout_type || "workout").trim();
       const durationMin =
@@ -224,7 +222,6 @@ Deno.serve(async (req: Request) => {
         notes,
         scheduled_workout_id: scheduledWorkoutId,
         workout_date: workoutDate,
-        day_key: workoutDate,
         calories_burned: caloriesBurned,
         completed: true,
       };
