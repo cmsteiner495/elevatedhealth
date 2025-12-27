@@ -240,6 +240,27 @@ async function loadFoodDatabase() {
   return foodSearchIndex;
 }
 
+async function fetchNutritionSearchResults(query) {
+  try {
+    const { data, error } = await supabase.functions.invoke("nutrition-search", {
+      body: { query },
+    });
+    if (error) throw error;
+    const payloadResults =
+      (data?.ok && Array.isArray(data.results) && data.results) ||
+      (Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : []);
+    return {
+      results: Array.isArray(payloadResults)
+        ? payloadResults.map((entry) => normalizeFoodEntry(entry))
+        : [],
+      error: null,
+    };
+  } catch (err) {
+    console.error("[meals] nutrition-search failed", err);
+    return { results: [], error: err };
+  }
+}
+
 function scoreFoodMatch(name, query) {
   const lower = name.toLowerCase();
   const idx = lower.indexOf(query);
@@ -645,16 +666,9 @@ async function handleFoodSearch(query) {
 
   let remoteResults = [];
   try {
-    const { data, error } = await supabase.functions.invoke("nutrition-search", {
-      body: { query: trimmed },
-    });
+    const { results, error } = await fetchNutritionSearchResults(trimmed);
     if (error) throw error;
-    const payloadResults =
-      (data?.ok && Array.isArray(data.results) && data.results) ||
-      (Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : []);
-    remoteResults = Array.isArray(payloadResults)
-      ? payloadResults.map(normalizeFoodEntry)
-      : [];
+    remoteResults = results;
   } catch (err) {
     console.error("[meals] nutrition-search failed", err);
     nutritionSearchError = err;
