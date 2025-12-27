@@ -137,8 +137,6 @@ export const workoutsForm = document.getElementById("workouts-form");
 export const workoutDateInput = document.getElementById("workout-date");
 export const workoutTitleInput = document.getElementById("workout-title");
 export const workoutTypeInput = document.getElementById("workout-type");
-export const workoutDifficultyInput =
-  document.getElementById("workout-difficulty");
 export const workoutDurationInput =
   document.getElementById("workout-duration");
 export const workoutNotesInput = document.getElementById("workout-notes");

@@ -3,7 +3,6 @@
 
 import { supabase } from "../supabaseClient.js";
 import { currentFamilyId, currentUser, toLocalDayKey } from "../state.js";
-import { normalizeWorkoutDifficulty } from "../workoutDifficulty.js";
 
 const UPCOMING_DELETE_PREFIX = "eh_upcoming_deleted:";
 let cachedUpcomingStrategy = null;
@@ -171,10 +170,10 @@ async function insertWorkout(payload = {}) {
   const basePayload = {
     title: payload.title || payload.workout_name || "Workout",
     workout_type: payload.workout_type || payload.workoutType || "workout",
-    difficulty: normalizeWorkoutDifficulty(payload.difficulty),
     duration_min: toNumber(payload.duration_min ?? payload.duration) ?? null,
     notes: payload.notes ?? null,
     workout_date: targetDate,
+    calories_burned: toNumber(payload.calories_burned) ?? null,
   };
 
   const userColumns = ["added_by", "user_id"];

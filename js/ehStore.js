@@ -82,6 +82,28 @@ export function normalizeMeal(meal = {}) {
   };
 }
 
+function normalizeWorkout(workout = {}) {
+  if (!workout || typeof workout !== "object") return null;
+  const dateSource =
+    workout.day_key ||
+    workout.dayKey ||
+    workout.workout_date ||
+    workout.date ||
+    workout.logged_at ||
+    workout.created_at;
+  const dayKey = toLocalDayKey(dateSource);
+  const duration = parseMetricNumber(workout.duration_min ?? workout.duration);
+  const calories = parseMetricNumber(workout.calories_burned ?? workout.calories);
+  return {
+    ...workout,
+    day_key: workout.day_key || dayKey || null,
+    workout_date: workout.workout_date || dayKey || null,
+    dateKey: dayKey,
+    duration_min: Number.isFinite(duration) ? duration : null,
+    calories_burned: calories,
+  };
+}
+
 function freezeList(list = []) {
   return Object.freeze(
     list.map((item) => Object.freeze({ ...(item || {}) }))
@@ -140,7 +162,10 @@ export function setMeals(meals, options = {}) {
 
 export function setWorkouts(workouts, options = {}) {
   const nextWorkouts = Array.isArray(workouts)
-    ? workouts.map((workout) => ({ ...(workout || {}) }))
+    ? workouts
+        .map((workout) => normalizeWorkout(workout))
+        .filter(Boolean)
+        .map((workout) => ({ ...(workout || {}) }))
     : [];
   state.workouts = nextWorkouts;
   if (options.hydrated !== false) {

@@ -33,42 +33,20 @@ type ActionPayload = {
   workout_name?: string | null;
   title?: string | null;
   workout_type?: string | null;
-  difficulty?: string | null;
   duration_min?: number | null;
+  calories_burned?: number | null;
   notes?: string | null;
   scheduled_workout_id?: string | number | null;
+  day_key?: string | null;
 };
 
-const WORKOUT_DIFFICULTIES = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
-const WORKOUT_DIFFICULTY_MAP: Record<string, string> = {
-  easy: "BEGINNER",
-  beginner: "BEGINNER",
-  low: "BEGINNER",
-  medium: "INTERMEDIATE",
-  moderate: "INTERMEDIATE",
-  intermediate: "INTERMEDIATE",
-  hard: "ADVANCED",
-  intense: "ADVANCED",
-  advanced: "ADVANCED",
-};
-
-function isEmptyDifficulty(value: string | null | undefined) {
-  if (!value) return true;
-  const trimmed = value.toString().trim();
-  if (!trimmed) return true;
-  const lower = trimmed.toLowerCase();
-  return lower === "select…" || lower === "select..." || lower === "select";
-}
-
-function normalizeDifficulty(value: string | null | undefined) {
-  if (isEmptyDifficulty(value)) return null;
-  const key = value.toString().trim().toLowerCase();
-  const mapped = WORKOUT_DIFFICULTY_MAP[key];
-  if (mapped) return mapped;
-  const canonical = WORKOUT_DIFFICULTIES.find(
-    (item) => item.toLowerCase() === key || item === value
-  );
-  return canonical ?? null;
+function parseNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function json(body: unknown, status = 200, cors: Record<string, string>) {
@@ -199,15 +177,13 @@ Deno.serve(async (req: Request) => {
         .trim();
       const workoutName = String(body.workout_name || body.title || "").trim();
       const workoutType = String(body.workout_type || "workout").trim();
-      const rawDifficulty = body.difficulty ? String(body.difficulty) : null;
-      const difficulty = normalizeDifficulty(rawDifficulty);
-      console.debug("[WORKOUT] difficulty raw:", rawDifficulty, "normalized:", difficulty);
       const durationMin =
         typeof body.duration_min === "number"
           ? body.duration_min
           : body.duration_min
           ? Number(body.duration_min)
           : null;
+      const caloriesBurned = parseNumber(body.calories_burned);
       const notes = body.notes ? String(body.notes) : null;
       const scheduledWorkoutId = body.scheduled_workout_id
         ? String(body.scheduled_workout_id)
@@ -240,12 +216,10 @@ Deno.serve(async (req: Request) => {
         notes,
         scheduled_workout_id: scheduledWorkoutId,
         workout_date: workoutDate,
+        day_key: workoutDate,
+        calories_burned: caloriesBurned,
         completed: true,
       };
-
-      if (difficulty !== null) {
-        insertPayload.difficulty = difficulty;
-      }
 
       try {
         console.debug("[WORKOUT INSERT]", insertPayload);

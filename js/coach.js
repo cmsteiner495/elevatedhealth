@@ -8,7 +8,6 @@ import {
   coachStatus,
   coachTypingPill,
   workoutTypeInput,
-  workoutDifficultyInput,
 } from "./dom.js";
 import { currentUser, currentFamilyId, toLocalDayKey } from "./state.js";
 import { loadMeals, sanitizeFamilyMealPayload } from "./meals.js";
@@ -104,7 +103,7 @@ async function logCoachMessage(role, content, mode = "chat") {
   }
 }
 
-// Workout / difficulty normalizers
+// Workout type normalizers
 const UI_WORKOUT_TYPES = workoutTypeInput
   ? Array.from(workoutTypeInput.options)
       .map((opt) => opt.value)
@@ -166,43 +165,6 @@ function normalizeWorkoutType(raw) {
   }
 
   return DEFAULT_WORKOUT_TYPE;
-}
-
-const UI_DIFFICULTIES = workoutDifficultyInput
-  ? Array.from(workoutDifficultyInput.options)
-      .map((opt) => opt.value)
-      .filter((v) => v && v.trim().length > 0)
-  : [];
-
-function normalizeDifficulty(raw) {
-  if (!raw || !UI_DIFFICULTIES.length) return null;
-  const v = String(raw).toLowerCase().trim();
-
-  const direct = UI_DIFFICULTIES.find((opt) => opt.toLowerCase() === v);
-  if (direct) return direct;
-
-  const lowerOpts = UI_DIFFICULTIES.map((d) => d.toLowerCase());
-  const pickBy = (predicate) => {
-    const idx = lowerOpts.findIndex(predicate);
-    return idx !== -1 ? UI_DIFFICULTIES[idx] : null;
-  };
-
-  if (v.includes("easy") || v.includes("light")) {
-    const easy = pickBy((d) => d.includes("easy"));
-    if (easy) return easy;
-  }
-
-  if (v.includes("medium") || v.includes("moderate")) {
-    const med = pickBy((d) => d.includes("medium") || d.includes("moderate"));
-    if (med) return med;
-  }
-
-  if (v.includes("hard") || v.includes("intense") || v.includes("heavy")) {
-    const hard = pickBy((d) => d.includes("hard"));
-    if (hard) return hard;
-  }
-
-  return null;
 }
 
 // APPLY COACH UPDATES
@@ -360,14 +322,13 @@ async function applyCoachUpdates(updates) {
           const title = w.title;
           if (!workoutDate || !title) return null;
 
-          // Normalize type, but intentionally do NOT send difficulty
-          // to avoid violating the Supabase difficulty check constraint.
           const safeType = normalizeWorkoutType(w.workout_type || w.type);
 
           const row = {
             family_group_id: currentFamilyId,
             added_by: currentUser.id,
             workout_date: workoutDate,
+            day_key: workoutDate,
             title,
             workout_type: safeType || SAFE_WORKOUT_TYPE,
             duration_min:
@@ -376,18 +337,11 @@ async function applyCoachUpdates(updates) {
             completed: false,
           };
 
-          // If you later sync this with your DB constraint, you can
-          // set a default difficulty here, e.g.:
-          // row.difficulty = "medium";
-
           return row;
         })
         .filter(Boolean);
 
-      console.log(
-        "Workout rows for AI coach (difficulty omitted):",
-        workoutRows
-      );
+      console.log("Workout rows for AI coach:", workoutRows);
 
       if (workoutRows.length > 0) {
         const { error } = await supabase

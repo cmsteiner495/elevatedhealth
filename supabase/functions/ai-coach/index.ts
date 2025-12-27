@@ -101,7 +101,6 @@ async function generatePlanJSON(prompt: string) {
         "      {\n" +
         '        \"workout_date\": \"YYYY-MM-DD\",  // MUST be one of the dates above\n' +
         '        \"title\": \"Workout title\",\n' +
-        '        \"difficulty\": \"easy\" | \"medium\" | \"hard\",\n' +
         '        \"duration_min\": 30,\n' +
         '        \"notes\": \"Optional workout notes\"\n' +
         "      }\n" +
