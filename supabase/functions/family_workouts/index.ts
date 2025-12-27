@@ -68,6 +68,14 @@ function jsonError(
   return json({ ok: false, code, ...extra }, status, cors);
 }
 
+function isCaloriesSchemaCacheError(error: { code?: string; message?: string } | null) {
+  const code = error?.code || "";
+  const message = error?.message || "";
+  return code === "PGRST204" || message.includes("Could not find the 'calories_burned' column");
+}
+
+let addActionCaloriesFallbackLogged = false;
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   const cors = buildCors(origin);
@@ -223,11 +231,22 @@ Deno.serve(async (req: Request) => {
 
       try {
         console.debug("[WORKOUT INSERT]", insertPayload);
-        const { data: inserted, error: insertError } = await supabase
-          .from("family_workouts")
-          .insert(insertPayload)
-          .select()
-          .maybeSingle();
+        const attemptInsert = (payload: Record<string, unknown>) =>
+          supabase.from("family_workouts").insert(payload).select().maybeSingle();
+
+        let { data: inserted, error: insertError } = await attemptInsert(insertPayload);
+
+        if (insertError && isCaloriesSchemaCacheError(insertError)) {
+          const fallbackPayload = { ...insertPayload };
+          delete fallbackPayload.calories_burned;
+          if (!addActionCaloriesFallbackLogged) {
+            console.info(
+              "[WORKOUT INSERT] Retrying without calories_burned (schema cache mismatch)"
+            );
+            addActionCaloriesFallbackLogged = true;
+          }
+          ({ data: inserted, error: insertError } = await attemptInsert(fallbackPayload));
+        }
 
         if (insertError) {
           console.error("Insert failed", insertError);
