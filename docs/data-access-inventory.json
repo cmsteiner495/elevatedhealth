@@ -1,0 +1,420 @@
+{
+  "generated_at": "2025-12-27T00:31:02+00:00",
+  "tables": [
+    {
+      "name": "family_meals",
+      "operations": [
+        {
+          "operation": "delete",
+          "path": "js/meals.js:612-679",
+          "function": "deleteMealById",
+          "filters": ["family_group_id eq currentFamilyId", "id/client_id eq target"],
+          "columns": ["id", "client_id"],
+          "notes": "selects id, client_id on delete for reconciliation"
+        },
+        {
+          "operation": "update",
+          "path": "js/meals.js:754-773",
+          "function": "logMealToDiary",
+          "filters": ["family_group_id eq currentFamilyId", "id or client_id eq existing"],
+          "columns": ["meal_date", "meal_type", "title", "notes", "calories", "protein", "carbs", "fat", "client_id", "added_by"],
+          "date_columns": ["meal_date (YYYY-MM-DD)"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/meals.js:775-804",
+          "function": "logMealToDiary",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "meal_date", "meal_type", "title", "notes", "calories", "protein", "carbs", "fat", "client_id", "logged_at"],
+          "date_columns": ["meal_date (YYYY-MM-DD)"]
+        },
+        {
+          "operation": "update",
+          "path": "js/meals.js:1025-1030",
+          "function": "applyNutritionBackfill",
+          "filters": ["family_group_id eq currentFamilyId", "id or client_id eq matchValue"],
+          "columns": ["calories", "protein", "carbs", "fat"]
+        },
+        {
+          "operation": "select",
+          "path": "js/meals.js:1062-1066",
+          "function": "loadMeals",
+          "filters": ["family_group_id eq currentFamilyId"],
+          "columns": ["*"],
+          "ordering": ["meal_date asc", "meal_type asc", "created_at asc", "id asc"]
+        },
+        {
+          "operation": "select",
+          "path": "js/meals.js:1117-1122",
+          "function": "fetchMealsByDate",
+          "filters": ["family_group_id eq currentFamilyId", "meal_date eq dateValue"],
+          "columns": ["*"],
+          "ordering": ["meal_date asc", "meal_type asc", "created_at asc", "id asc"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/meals.js:1403-1407",
+          "function": "mealsForm submit",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "meal_date", "meal_type", "title", "notes", "calories", "protein", "carbs", "fat", "client_id", "completed", "logged_at"]
+        },
+        {
+          "operation": "delete",
+          "path": "js/app.js:1887-1891",
+          "function": "bindMealsListRemoveButtons",
+          "filters": ["id eq li.dataset.mealId"],
+          "columns": ["id"],
+          "notes": "No family_group_id filter applied"
+        },
+        {
+          "operation": "insert",
+          "path": "js/coach.js:325-336",
+          "function": "applyCoachUpdates",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "meal_date", "meal_type", "title", "notes", "calories", "protein", "carbs", "fat", "client_id", "logged_at"],
+          "notes": "Meals seeded by AI coach; assumes macros present"
+        },
+        {
+          "operation": "dev-select",
+          "path": "js/debug/dbSanity.js:260-300",
+          "function": "listMeals",
+          "filters": ["family_group_id eq ctx.familyGroupId or added_by/user_id eq ctx.userId", "meal_date/date eq target day"],
+          "columns": ["*"],
+          "ordering": ["meal_date/date desc", "created_at desc"]
+        },
+        {
+          "operation": "dev-insert",
+          "path": "js/debug/dbSanity.js:302-352",
+          "function": "insertMeal",
+          "filters": ["family_group_id or added_by/user_id set"],
+          "columns": ["title", "meal_type", "meal_date", "calories", "protein", "carbs", "fat", "notes", "family_group_id", "added_by/user_id"],
+          "date_columns": ["meal_date (YYYY-MM-DD)"]
+        },
+        {
+          "operation": "dev-probe",
+          "path": "js/debug/dbSanity.js:355-430",
+          "function": "detectUpcomingMealsStrategy",
+          "filters": ["probes family_upcoming_meals and family_meals"],
+          "columns": ["meal_date", "logged", "logged_at", "is_upcoming?"],
+          "notes": "Determines whether upcoming meals live in family_upcoming_meals or family_meals flags"
+        }
+      ]
+    },
+    {
+      "name": "family_workouts",
+      "operations": [
+        {
+          "operation": "update",
+          "path": "js/workouts.js:99-115",
+          "function": "updateWorkoutLoggedState",
+          "filters": ["id eq workoutId"],
+          "columns": ["completed", "logged_at", "updated_at", "duration_min?"],
+          "notes": "Retries without logged_at if schema cache missing"
+        },
+        {
+          "operation": "select",
+          "path": "js/app.js:613-618",
+          "function": "calculateWorkoutStreak",
+          "filters": ["family_group_id eq currentFamilyId"],
+          "columns": ["*"],
+          "ordering": ["workout_date desc", "created_at desc"]
+        },
+        {
+          "operation": "select",
+          "path": "js/workouts.js:248-255",
+          "function": "loadWorkouts",
+          "filters": ["family_group_id eq familyId"],
+          "columns": ["*"],
+          "ordering": ["workout_date asc", "created_at asc"]
+        },
+        {
+          "operation": "select",
+          "path": "js/workouts.js:323-335",
+          "function": "fetchWorkoutsByDate",
+          "filters": ["family_group_id eq familyId", "workout_date eq targetDay or gte/lt range"],
+          "columns": ["*"],
+          "ordering": ["workout_date asc", "created_at asc"]
+        },
+        {
+          "operation": "delete",
+          "path": "js/workouts.js:399-401",
+          "function": "deleteWorkoutRow",
+          "filters": ["id eq workoutId"],
+          "columns": ["id"],
+          "notes": "No family_group_id filter"
+        },
+        {
+          "operation": "insert",
+          "path": "js/workouts.js:575-577",
+          "function": "logWorkoutToDiary (edge invoke)",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "workout_date", "title/workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "completed", "logged_at"],
+          "notes": "Calls Supabase edge function family_workouts"
+        },
+        {
+          "operation": "insert",
+          "path": "js/workouts.js:802-806",
+          "function": "workoutsForm submit",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "workout_date", "title", "workout_type", "difficulty", "duration_min", "notes", "completed", "logged_at"]
+        },
+        {
+          "operation": "delete",
+          "path": "js/workouts.js:400-444",
+          "function": "deleteWorkoutById",
+          "filters": ["id eq workoutId"],
+          "columns": ["id"],
+          "notes": "Relies on RLS; no family filter"
+        },
+        {
+          "operation": "bulk-delete",
+          "path": "js/coach.js:340-346",
+          "function": "applyCoachUpdates",
+          "filters": ["family_group_id eq currentFamilyId", "workout_date in generated dates"],
+          "columns": ["id"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/coach.js:392-396",
+          "function": "applyCoachUpdates",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "workout_date", "title", "workout_type", "duration_min", "notes", "completed"],
+          "notes": "AI coach seeds plan rows with completed=false"
+        },
+        {
+          "operation": "dev-select",
+          "path": "js/debug/dbSanity.js:130-176",
+          "function": "listWorkouts",
+          "filters": ["family_group_id eq ctx.familyGroupId or added_by/user_id eq ctx.userId", "workout_date/date eq target day"],
+          "columns": ["*"],
+          "ordering": ["workout_date/date desc", "created_at desc"]
+        },
+        {
+          "operation": "dev-insert",
+          "path": "js/debug/dbSanity.js:178-214",
+          "function": "insertWorkout",
+          "filters": ["family_group_id or added_by/user_id set"],
+          "columns": ["title", "workout_type", "difficulty", "duration_min", "notes", "workout_date", "family_group_id", "added_by/user_id"]
+        },
+        {
+          "operation": "dev-delete",
+          "path": "js/debug/dbSanity.js:216-258",
+          "function": "deleteWorkout",
+          "filters": ["id eq target", "family_group_id eq ctx.familyGroupId or added_by/user_id eq ctx.userId"],
+          "columns": ["id"]
+        }
+      ]
+    },
+    {
+      "name": "progress_logs",
+      "operations": [
+        {
+          "operation": "select",
+          "path": "js/progress.js:66-71",
+          "function": "loadProgressLogs",
+          "filters": ["family_group_id eq currentFamilyId"],
+          "columns": ["*"],
+          "ordering": ["log_date asc", "created_at asc"],
+          "date_columns": ["log_date (YYYY-MM-DD)"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/progress.js:207-221",
+          "function": "progressForm submit",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "user_id", "log_date", "weight_lb", "water_oz", "sleep_hours", "steps", "mood", "notes"],
+          "date_columns": ["log_date (YYYY-MM-DD)"]
+        },
+        {
+          "operation": "delete",
+          "path": "js/progress.js:249-252",
+          "function": "progressList handler",
+          "filters": ["id eq progressId"],
+          "columns": ["id"],
+          "notes": "No family_group_id filter"
+        }
+      ]
+    },
+    {
+      "name": "grocery_list_items",
+      "operations": [
+        {
+          "operation": "select",
+          "path": "js/grocery.js:57-61",
+          "function": "loadGroceryItems",
+          "filters": ["family_group_id eq currentFamilyId"],
+          "columns": ["*"],
+          "ordering": ["created_at asc"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/grocery.js:162-168",
+          "function": "groceryForm submit",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "name", "quantity", "category"]
+        },
+        {
+          "operation": "update",
+          "path": "js/grocery.js:204-207",
+          "function": "toggle checked",
+          "filters": ["id eq itemId"],
+          "columns": ["checked", "updated_at"],
+          "notes": "No family filter on mutation"
+        },
+        {
+          "operation": "delete",
+          "path": "js/grocery.js:225-227",
+          "function": "delete item",
+          "filters": ["id eq itemId"],
+          "columns": ["id"],
+          "notes": "No family filter on mutation"
+        },
+        {
+          "operation": "bulk-delete",
+          "path": "js/coach.js:409-413",
+          "function": "applyCoachUpdates",
+          "filters": ["family_group_id eq currentFamilyId"],
+          "columns": ["id"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/coach.js:434-436",
+          "function": "applyCoachUpdates",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "added_by", "name", "quantity", "category"],
+          "notes": "Bulk seed from AI coach"
+        }
+      ]
+    },
+    {
+      "name": "ai_coach_messages",
+      "operations": [
+        {
+          "operation": "select",
+          "path": "js/coach.js:60-65",
+          "function": "loadCoachHistory",
+          "filters": ["family_group_id eq currentFamilyId"],
+          "columns": ["role", "content"],
+          "ordering": ["created_at asc"],
+          "limit": 50
+        },
+        {
+          "operation": "insert",
+          "path": "js/coach.js:95-101",
+          "function": "logCoachMessage",
+          "filters": ["family_group_id set in payload"],
+          "columns": ["family_group_id", "user_id", "role", "mode", "content"]
+        }
+      ]
+    },
+    {
+      "name": "family_members",
+      "operations": [
+        {
+          "operation": "select",
+          "path": "js/family.js:31-34",
+          "function": "loadFamilyState",
+          "filters": ["user_id eq user.id"],
+          "columns": ["id", "role", "family_group_id", "family_groups(name)"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/family.js:125-129",
+          "function": "handleCreateFamily",
+          "filters": ["family_group_id set from created group"],
+          "columns": ["family_group_id", "user_id", "role"]
+        },
+        {
+          "operation": "dev-select",
+          "path": "js/debug/dbSanity.js:70-75",
+          "function": "loadFamilyGroupId",
+          "filters": ["user_id eq ctx.userId", "limit 1"],
+          "columns": ["family_group_id"]
+        }
+      ]
+    },
+    {
+      "name": "family_groups",
+      "operations": [
+        {
+          "operation": "insert",
+          "path": "js/family.js:110-117",
+          "function": "handleCreateFamily",
+          "filters": ["created_by set to user.id"],
+          "columns": ["name", "created_by"]
+        }
+      ]
+    },
+    {
+      "name": "profiles",
+      "operations": [
+        {
+          "operation": "select",
+          "path": "js/app.js:1351-1356",
+          "function": "loadUserProfile",
+          "filters": ["user_id eq user.id"],
+          "columns": ["*"]
+        },
+        {
+          "operation": "insert",
+          "path": "js/app.js:1373-1380",
+          "function": "loadUserProfile",
+          "filters": ["user_id set in payload"],
+          "columns": ["user_id", "display_name"]
+        }
+      ]
+    },
+    {
+      "name": "family_upcoming_meals",
+      "operations": [
+        {
+          "operation": "dev-probe",
+          "path": "js/debug/dbSanity.js:358-372",
+          "function": "detectUpcomingMealsStrategy",
+          "filters": ["limit 1"],
+          "columns": ["id", "meal_date", "title"]
+        }
+      ]
+    }
+  ],
+  "edge_functions": [
+    {
+      "name": "family_workouts",
+      "path": "supabase/functions/family_workouts/index.ts",
+      "operations": [
+        {
+          "operation": "delete",
+          "line": "132-147",
+          "filters": ["id eq workoutId", "added_by eq auth user"],
+          "columns": ["id"],
+          "notes": "Ensures caller owns row"
+        },
+        {
+          "operation": "insert",
+          "line": "199-233",
+          "filters": ["family_group_id required", "added_by set to auth user"],
+          "columns": ["family_group_id", "added_by", "title", "workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "workout_date", "completed", "logged_at"],
+          "date_columns": ["workout_date (YYYY-MM-DD)"]
+        }
+      ]
+    }
+  ],
+  "auth_calls": [
+    {
+      "path": "js/app.js:1424-1432",
+      "operation": "auth.getSession"
+    },
+    {
+      "path": "js/app.js:1933-1937",
+      "operation": "auth.signUp"
+    },
+    {
+      "path": "js/app.js:1969-1973",
+      "operation": "auth.signInWithPassword"
+    },
+    {
+      "path": "js/debug/dbSanity.js:61-75",
+      "operation": "auth.getUser"
+    }
+  ]
+}
