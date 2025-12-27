@@ -131,6 +131,10 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { status: 200, headers: cors });
   }
 
+  if (req.method === "GET") {
+    return jsonResponse({ ok: true, fn: "nutrition-search" }, 200, cors);
+  }
+
   if (req.method !== "POST") {
     return jsonResponse({ ok: false, code: "method_not_allowed" }, 405, cors);
   }
