@@ -59,6 +59,7 @@ This contract documents the current sources of truth, schema expectations, and c
    - Ownership: `family_group_id` required for synced rows; `added_by` user ID captured on inserts.
    - Date column: `workout_date` (`YYYY-MM-DD` local). Optional `scheduled_workout_id` links plan rows.
    - Required fields to insert: `family_group_id`, `workout_date`, `title/workout_name`, `workout_type`; `duration_min`, `difficulty`, `notes`, `scheduled_workout_id`, `completed` optional/derived. `created_at` is the canonical timestamp.
+   - Difficulty constraint: `family_workouts_difficulty_check` allows `BEGINNER`, `INTERMEDIATE`, or `ADVANCED`; send `NULL` when the UI selection is empty or unmapped.
 
 3. **Canonical date format rule**
    - `workout_date` uses `YYYY-MM-DD` local day keys from `toLocalDayKey`.

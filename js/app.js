@@ -93,6 +93,7 @@ import {
   cacheWorkoutsLocally,
   setWorkoutsFamilyState,
 } from "./workouts.js";
+import { formatWorkoutDifficulty } from "./workoutDifficulty.js";
 import { setProgressFamilyState } from "./progress.js";
 import { loadFamilyState } from "./family.js";
 import { initCoachHandlers } from "./coach.js";
@@ -950,8 +951,9 @@ function formatWorkoutPreviewRow(workout) {
     ? workout.workout_type.charAt(0).toUpperCase() + workout.workout_type.slice(1)
     : "Workout";
   const parts = [typeLabel];
-  if (workout.difficulty) {
-    parts.push(workout.difficulty.charAt(0).toUpperCase() + workout.difficulty.slice(1));
+  const diffLabel = formatWorkoutDifficulty(workout.difficulty);
+  if (diffLabel) {
+    parts.push(diffLabel);
   }
   if (workout.duration_min) {
     parts.push(`${workout.duration_min} min`);

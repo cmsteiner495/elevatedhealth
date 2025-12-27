@@ -3,19 +3,10 @@
 
 import { supabase } from "../supabaseClient.js";
 import { currentFamilyId, currentUser, toLocalDayKey } from "../state.js";
+import { normalizeWorkoutDifficulty } from "../workoutDifficulty.js";
 
 const UPCOMING_DELETE_PREFIX = "eh_upcoming_deleted:";
 let cachedUpcomingStrategy = null;
-
-const WORKOUT_DIFFICULTIES = ["Easy", "Medium", "Moderate", "Hard"];
-const WORKOUT_DIFFICULTY_MAP = {
-  easy: "Easy",
-  beginner: "Easy",
-  medium: "Medium",
-  moderate: "Moderate",
-  hard: "Hard",
-  intense: "Hard",
-};
 
 export function isDebugEnabled() {
   if (typeof window === "undefined" || typeof location === "undefined") return false;
@@ -65,17 +56,6 @@ function isMissingRelation(error, relationName) {
   const message = `${error.message || ""} ${error.details || ""}`.toLowerCase();
   const needle = String(relationName || "").toLowerCase();
   return message.includes(`relation \"${needle}`) || message.includes(`table \"${needle}`);
-}
-
-function normalizeWorkoutDifficulty(value) {
-  if (!value) return null;
-  const key = value.toString().trim().toLowerCase();
-  const mapped = WORKOUT_DIFFICULTY_MAP[key];
-  if (mapped) return mapped;
-  const canonical = WORKOUT_DIFFICULTIES.find(
-    (item) => item.toLowerCase() === key || item === value
-  );
-  return canonical || null;
 }
 
 async function assertAuthed() {

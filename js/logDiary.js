@@ -35,6 +35,7 @@ import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
 import { deleteWorkoutById, fetchWorkoutsByDate, loadWorkouts } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 import { isMealLogged, isWorkoutLogged } from "./selectors.js";
+import { formatWorkoutDifficulty } from "./workoutDifficulty.js";
 
 const sectionLists = {
   breakfast: diaryBreakfastList,
@@ -185,8 +186,9 @@ function createWorkoutEntry(item) {
     : "Exercise";
   const parts = [typeLabel];
   if (item.duration_min) parts.push(`${item.duration_min} min`);
-  if (item.difficulty) {
-    parts.push(item.difficulty.charAt(0).toUpperCase() + item.difficulty.slice(1));
+  const formattedDifficulty = formatWorkoutDifficulty(item.difficulty);
+  if (formattedDifficulty) {
+    parts.push(formattedDifficulty);
   }
   if (item.workout_date) parts.push(item.workout_date);
 
