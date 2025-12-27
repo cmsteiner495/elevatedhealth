@@ -208,7 +208,6 @@ Deno.serve(async (req: Request) => {
         scheduled_workout_id: scheduledWorkoutId,
         workout_date: workoutDate,
         completed: true,
-        logged_at: new Date().toISOString(),
       };
 
       try {

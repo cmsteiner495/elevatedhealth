@@ -7,8 +7,6 @@ function getWorkoutDayKey(workout) {
     workout?.day_key ||
     workout?.workout_date ||
     workout?.date ||
-    workout?.logged_at ||
-    workout?.loggedAt ||
     workout?.created_at ||
     workout?.updated_at;
   // We normalize to a local calendar day so every device uses the user's local time

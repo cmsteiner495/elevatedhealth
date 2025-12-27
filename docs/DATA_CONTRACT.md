@@ -58,7 +58,7 @@ This contract documents the current sources of truth, schema expectations, and c
    - Primary key: `id` (UUID). `log_id` mirrors `id` for compatibility.
    - Ownership: `family_group_id` required for synced rows; `added_by` user ID captured on inserts.
    - Date column: `workout_date` (`YYYY-MM-DD` local). Optional `scheduled_workout_id` links plan rows.
-   - Required fields to insert: `family_group_id`, `workout_date`, `title/workout_name`, `workout_type`; `duration_min`, `difficulty`, `notes`, `scheduled_workout_id`, `completed`, `logged_at` optional/derived.
+   - Required fields to insert: `family_group_id`, `workout_date`, `title/workout_name`, `workout_type`; `duration_min`, `difficulty`, `notes`, `scheduled_workout_id`, `completed` optional/derived. `created_at` is the canonical timestamp.
 
 3. **Canonical date format rule**
    - `workout_date` uses `YYYY-MM-DD` local day keys from `toLocalDayKey`.
@@ -71,14 +71,14 @@ This contract documents the current sources of truth, schema expectations, and c
    - Plan seeding: `applyCoachUpdates()` bulk deletes+inserts for generated week plans.
 
 5. **Invariants**
-   - Logged workouts carry `completed=true` or `logged_at`; scheduled/plan rows keep `completed=false` until promoted.
+   - Logged workouts carry `completed=true`; `created_at` records when the row was added. Scheduled/plan rows keep `completed=false` until promoted.
    - Family-scoped queries should include `family_group_id`; offline-only rows should be reconciled to Supabase when connectivity returns.
    - Diary streaks rely on Supabase-backed `family_workouts`; cached data is refreshed then re-cached.
 
 ## Scheduled workouts (plan)
 
 1. **Source of truth**
-   - Supabase `family_workouts` with `completed=false`/no `logged_at`. AI coach seeds week plans; manual adds can also be scheduled by leaving `completed` false.
+   - Supabase `family_workouts` with `completed=false`. AI coach seeds week plans; manual adds can also be scheduled by leaving `completed` false.
 
 2. **Schema assumptions**
    - Same as Workouts log; `scheduled_workout_id` or source IDs may link plan to logged entries.
@@ -141,4 +141,3 @@ This contract documents the current sources of truth, schema expectations, and c
 5. **Invariants**
    - Mutations should include `family_group_id` in filters to avoid cross-family edits.
    - Coach bulk sync replaces the entire family list; UI should refresh immediately after.
-
