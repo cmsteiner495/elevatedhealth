@@ -35,7 +35,6 @@ import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
 import { deleteWorkoutById, fetchWorkoutsByDate, loadWorkouts } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 import { isMealLogged, isWorkoutLogged } from "./selectors.js";
-import { formatWorkoutDifficulty } from "./workoutDifficulty.js";
 
 const sectionLists = {
   breakfast: diaryBreakfastList,
@@ -50,6 +49,22 @@ let currentDiaryMeals = [];
 let currentDiaryWorkouts = [];
 let storedTodayKey = toLocalDayKey(new Date());
 let dayChangeIntervalId = null;
+
+function parseMetricNumber(value) {
+  if (value == null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "string") {
+    const match = value.match(/-?\d+(?:\.\d+)?/);
+    if (match) {
+      const parsed = Number(match[0]);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
 
 function toLocalDate(dateValue) {
   const parts = (dateValue || "")
@@ -186,10 +201,8 @@ function createWorkoutEntry(item) {
     : "Exercise";
   const parts = [typeLabel];
   if (item.duration_min) parts.push(`${item.duration_min} min`);
-  const formattedDifficulty = formatWorkoutDifficulty(item.difficulty);
-  if (formattedDifficulty) {
-    parts.push(formattedDifficulty);
-  }
+  const calories = parseMetricNumber(item.calories_burned ?? item.calories);
+  if (calories) parts.push(`${calories} kcal`);
   if (item.workout_date) parts.push(item.workout_date);
 
   if (parts.length) {
@@ -418,16 +431,15 @@ function setDateText(dateValue) {
 }
 
 function calculateCalories(meals, workouts) {
-  // UI-only placeholder calculations for now. Plug real calories later.
   const goal = 2000;
-  const food = meals.reduce(
-    (sum, meal) => sum + (meal.calories ?? 450),
-    0
-  );
-  const exercise = workouts.reduce(
-    (sum, workout) => sum + (workout.calories || 0),
-    0
-  );
+  const food = meals.reduce((sum, meal) => {
+    const calories = meal.calories ?? meal.nutrition?.calories;
+    return sum + parseMetricNumber(calories);
+  }, 0);
+  const exercise = workouts.reduce((sum, workout) => {
+    const calories = workout.calories_burned ?? workout.calories;
+    return sum + parseMetricNumber(calories);
+  }, 0);
   const remaining = goal - food + exercise;
   const percent = Math.max(0, Math.min(100, Math.round((food / goal) * 100)));
 
@@ -491,8 +503,8 @@ async function loadDiary(dateValue) {
     renderList(listEl, byType[key] || [], key);
   });
 
-  renderExercise(diaryExerciseList, workouts || []);
-  calculateCalories(meals || [], workouts || []);
+  renderExercise(diaryExerciseList, currentDiaryWorkouts);
+  calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
 }
 
 function adjustSelectedDate(daysDelta) {

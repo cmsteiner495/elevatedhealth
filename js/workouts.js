@@ -7,7 +7,6 @@ import {
   workoutDateInput,
   workoutTitleInput,
   workoutTypeInput,
-  workoutDifficultyInput,
   workoutDurationInput,
   workoutNotesInput,
   workoutsMessage,
@@ -27,9 +26,9 @@ import { readWorkoutsStore, saveWorkouts } from "./dataAdapter.js";
 import { setWorkouts, upsertWorkout, removeWorkout } from "./ehStore.js";
 import { isWorkoutLogged } from "./selectors.js";
 import {
-  normalizeWorkoutDifficulty,
-  formatWorkoutDifficulty,
-} from "./workoutDifficulty.js";
+  estimateWorkoutCalories,
+  getLatestWeightKgForDate,
+} from "./workoutCalories.js";
 
 let workoutsCache = [];
 const LOCAL_ID_PREFIX = "local-";
@@ -37,6 +36,7 @@ const isDevWorkoutsEnv =
   typeof window !== "undefined" &&
   window.location &&
   ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const patchedCaloriesIds = new Set();
 
 function debugWorkouts(...args) {
   if (isDevWorkoutsEnv) {
@@ -154,6 +154,85 @@ function parseDuration(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseCalories(value) {
+  const num = Number(value);
+  if (Number.isFinite(num)) return Math.round(num);
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function computeWorkoutCalories(workout = {}) {
+  const dayKey = getWorkoutDayKey(workout) || workout.workout_date || new Date();
+  const weightKg = await getLatestWeightKgForDate(dayKey);
+  const durationMin = parseDuration(workout.duration_min ?? workout.duration);
+  const workoutType = workout.workout_type || workout.workoutType || "workout";
+  const title = workout.title || workout.workout_name || "";
+  return estimateWorkoutCalories({
+    workout_type: workoutType,
+    title,
+    duration_min: durationMin,
+    weight_kg: weightKg,
+  });
+}
+
+async function maybePatchWorkoutCalories(workout, calories) {
+  const workoutId = workout?.id;
+  if (!workoutId || workoutId.toString().startsWith(LOCAL_ID_PREFIX)) return;
+  if (!currentFamilyId) return;
+  if (patchedCaloriesIds.has(workoutId)) return;
+
+  patchedCaloriesIds.add(workoutId);
+  guardMutation({
+    table: "family_workouts",
+    operation: "update",
+    filters: { id: workoutId, family_group_id: currentFamilyId },
+  });
+  const { error } = await supabase
+    .from("family_workouts")
+    .update({ calories_burned: calories })
+    .eq("id", workoutId)
+    .eq("family_group_id", currentFamilyId);
+  if (error) {
+    patchedCaloriesIds.delete(workoutId);
+    console.warn("[WORKOUT CALORIES] Patch failed", { workoutId, error });
+  }
+}
+
+async function ensureWorkoutCalories(workout = {}) {
+  const normalizedDuration = parseDuration(workout.duration_min ?? workout.duration);
+  const caloriesFromRow = parseCalories(workout.calories_burned ?? workout.calories);
+  const base = {
+    ...workout,
+    duration_min: normalizedDuration,
+  };
+
+  if (caloriesFromRow != null) {
+    return { ...base, calories_burned: caloriesFromRow };
+  }
+
+  const calories = await computeWorkoutCalories({
+    ...workout,
+    duration_min: normalizedDuration,
+  });
+  const withCalories = { ...base, calories_burned: calories };
+  if (workout?.id && currentFamilyId) {
+    maybePatchWorkoutCalories(workout, calories).catch((err) => {
+      console.warn("[WORKOUT CALORIES] Patch promise rejected", err);
+    });
+  }
+  return withCalories;
+}
+
+async function enrichWorkoutsWithCalories(workouts = []) {
+  const result = [];
+  for (const workout of workouts) {
+    const normalized = normalizeWorkoutRow(workout);
+    const withCalories = await ensureWorkoutCalories(normalized);
+    result.push(withCalories);
+  }
+  return result;
+}
+
 function readWorkoutStore() {
   const snapshot = readWorkoutsStore();
   if (
@@ -266,10 +345,11 @@ export async function loadWorkouts() {
 
   const storedWorkouts = getStoredWorkouts(familyId).map(normalizeWorkoutRow);
   if (!familyId) {
-    workoutsCache = storedWorkouts;
-    setWorkouts(storedWorkouts, { reason: "loadWorkouts:unscoped" });
-    renderWorkouts();
-    if (workoutsMessage && storedWorkouts.length) {
+    const withCalories = await enrichWorkoutsWithCalories(storedWorkouts);
+    workoutsCache = withCalories;
+    setWorkouts(withCalories, { reason: "loadWorkouts:unscoped" });
+    renderWorkouts(withCalories);
+    if (workoutsMessage && withCalories.length) {
       workoutsMessage.textContent = "Saved locally (link a family to sync).";
       workoutsMessage.style.color = "var(--text-muted)";
     }
@@ -301,9 +381,10 @@ export async function loadWorkouts() {
     });
     console.error("Error loading workouts:", error);
     if (storedWorkouts.length) {
-      workoutsCache = storedWorkouts;
-      setWorkouts(storedWorkouts, { reason: "loadWorkouts:offline" });
-      renderWorkouts();
+      const withCalories = await enrichWorkoutsWithCalories(storedWorkouts);
+      workoutsCache = withCalories;
+      setWorkouts(withCalories, { reason: "loadWorkouts:offline" });
+      renderWorkouts(withCalories);
       if (workoutsMessage) {
         workoutsMessage.textContent = "Showing saved workouts (offline)";
         workoutsMessage.style.color = "var(--text-muted)";
@@ -319,14 +400,13 @@ export async function loadWorkouts() {
       order: ["workout_date", "created_at"],
       count: Array.isArray(data) ? data.length : 0,
     });
-    const remoteWorkouts = (data || []).map((item) =>
-      normalizeWorkoutRow({ log_id: item.id, ...item })
-    );
+    const remoteWorkouts = (data || []).map((item) => normalizeWorkoutRow({ log_id: item.id, ...item }));
     const merged = mergeWorkouts(remoteWorkouts, storedWorkouts.map(normalizeWorkoutRow));
-    persistWorkoutsForFamily(familyId, merged);
-    workoutsCache = merged;
-    setWorkouts(merged, { reason: "loadWorkouts" });
-    renderWorkouts();
+    const withCalories = await enrichWorkoutsWithCalories(merged);
+    persistWorkoutsForFamily(familyId, withCalories);
+    workoutsCache = withCalories;
+    setWorkouts(withCalories, { reason: "loadWorkouts" });
+    renderWorkouts(withCalories);
   }
 }
 
@@ -340,7 +420,7 @@ export async function fetchWorkoutsByDate(dateValue) {
     (workout) => getWorkoutDayKey(workout) === targetDayKey && isWorkoutLogged(workout)
   );
 
-  if (!familyId) return storedForDate;
+  if (!familyId) return enrichWorkoutsWithCalories(storedForDate);
 
   console.debug("[EH WORKOUT] fetchWorkoutsByDate", {
     familyId,
@@ -390,15 +470,16 @@ export async function fetchWorkoutsByDate(dateValue) {
 
   if (error) {
     console.error("Error loading workouts for date:", error);
-    return storedForDate;
+    return enrichWorkoutsWithCalories(storedForDate);
   }
 
   const merged = mergeWorkouts(
     (data || []).map((item) => normalizeWorkoutRow({ log_id: item.id, ...item })),
     storedWorkouts.map(normalizeWorkoutRow)
   );
-  persistWorkoutsForFamily(familyId, merged);
-  return merged.filter(
+  const withCalories = await enrichWorkoutsWithCalories(merged);
+  persistWorkoutsForFamily(familyId, withCalories);
+  return withCalories.filter(
     (workout) => getWorkoutDayKey(workout) === targetDayKey && isWorkoutLogged(workout)
   );
 }
@@ -515,6 +596,17 @@ async function logWorkoutToDiary(workout) {
     showToast("Workout is missing a title.");
     return { ok: false, error: new Error("Missing title") };
   }
+  const duration = parseDuration(workout.duration_min ?? workout.duration);
+  const existingCalories = parseCalories(workout.calories_burned ?? workout.calories);
+  const caloriesBurned =
+    existingCalories != null
+      ? existingCalories
+      : await computeWorkoutCalories({
+          ...workout,
+          workout_date: targetDate,
+          duration_min: duration,
+          title,
+        });
 
   // If this scheduled workout already exists for today, mark it complete instead of
   // creating a duplicate row.
@@ -523,6 +615,9 @@ async function logWorkoutToDiary(workout) {
     const updatePayload = {
       completed: true,
       updated_at: new Date().toISOString(),
+      calories_burned: caloriesBurned,
+      day_key: targetDate,
+      duration_min: duration,
     };
     const { data, error } = await updateWorkoutLoggedState(scheduledRowId, updatePayload);
 
@@ -550,13 +645,14 @@ async function logWorkoutToDiary(workout) {
       ...(data || {}),
       source: getWorkoutSource(workout),
     });
+    const mergedWithCalories = await ensureWorkoutCalories(mergedRow);
     workoutsCache = mergeWorkouts(
       workoutsCache.filter((item) => String(item.id) !== String(workout.id)),
-      [mergedRow]
+      [mergedWithCalories]
     );
     persistWorkoutsForFamily(currentFamilyId, workoutsCache);
-    upsertWorkout(mergedRow, { reason: "logWorkout:update" });
-    renderWorkouts();
+    upsertWorkout(mergedWithCalories, { reason: "logWorkout:update" });
+    renderWorkouts(workoutsCache);
     document.dispatchEvent(
       new CustomEvent("diary:refresh", {
         detail: { date: targetDate, entity: "exercise" },
@@ -566,10 +662,10 @@ async function logWorkoutToDiary(workout) {
     maybeVibrate([12]);
     showToast("Added to log");
     console.log("[EH WORKOUT] schedule add success", {
-      id: mergedRow.id || scheduledRowId,
+      id: mergedWithCalories.id || scheduledRowId,
       day: targetDate,
     });
-    return { ok: true, workout: mergedRow };
+    return { ok: true, workout: mergedWithCalories };
   }
 
   const scheduledId =
@@ -592,27 +688,20 @@ async function logWorkoutToDiary(workout) {
     return { ok: false, error: new Error("Already logged") };
   }
 
-  const duration = parseDuration(workout.duration_min ?? workout.duration);
-  const normalizedDifficulty = normalizeWorkoutDifficulty(workout.difficulty);
-  debugWorkouts(
-    "[WORKOUT] difficulty raw:",
-    workout.difficulty,
-    "normalized:",
-    normalizedDifficulty
-  );
   const source = scheduledId ? "scheduled" : "manual";
   const payload = {
     action: "add",
     family_group_id: currentFamilyId,
     added_by: currentUser.id || null,
     workout_date: targetDate,
+    day_key: targetDate,
     workout_name: title,
     title,
     workout_type: workout.workout_type || workout.workoutType || "workout",
-    ...(normalizedDifficulty !== null ? { difficulty: normalizedDifficulty } : {}),
     duration_min: duration,
     notes: workout.notes || null,
     scheduled_workout_id: scheduledId ? String(scheduledId) : null,
+    calories_burned: caloriesBurned,
   };
   debugWorkouts("[WORKOUT INSERT payload]", payload);
 
@@ -627,8 +716,8 @@ async function logWorkoutToDiary(workout) {
     duration_min: duration,
     workout_date: targetDate,
     scheduled_workout_id: payload.scheduled_workout_id,
-    difficulty: normalizedDifficulty,
     completed: true,
+    calories_burned: caloriesBurned,
     created_at: new Date().toISOString(),
   };
 
@@ -659,15 +748,17 @@ async function logWorkoutToDiary(workout) {
     return { ok: false, error: new Error(details) };
   }
 
-  const persisted = normalizeWorkoutRow({
-    ...optimisticEntry,
-    ...(data?.workout || {}),
-    id: data?.workout?.id || data?.log_id || optimisticEntry.id,
-    log_id: data?.log_id || data?.workout?.id || optimisticEntry.log_id,
-    workout_date: data?.workout?.workout_date || targetDate,
-    completed: true,
-    source,
-  });
+  const persisted = await ensureWorkoutCalories(
+    normalizeWorkoutRow({
+      ...optimisticEntry,
+      ...(data?.workout || {}),
+      id: data?.workout?.id || data?.log_id || optimisticEntry.id,
+      log_id: data?.log_id || data?.workout?.id || optimisticEntry.log_id,
+      workout_date: data?.workout?.workout_date || targetDate,
+      completed: true,
+      source,
+    })
+  );
 
   workoutsCache = mergeWorkouts(
     workoutsCache.filter((item) => item.id !== tempId),
@@ -743,9 +834,9 @@ function renderWorkouts(items = workoutsCache) {
       : "Workout";
 
     let metaText = `${typeLabel} • ${dateStr}`;
-    const diffLabel = formatWorkoutDifficulty(w.difficulty);
-    if (diffLabel) {
-      metaText += ` • ${diffLabel}`;
+    const calories = parseCalories(w.calories_burned ?? w.calories);
+    if (calories) {
+      metaText += ` • ${calories} kcal`;
     }
     if (w.duration_min) {
       metaText += ` • ${w.duration_min} min`;
@@ -828,9 +919,6 @@ if (workoutsForm) {
     );
     const title = workoutTitleInput.value.trim();
     const workoutType = workoutTypeInput.value;
-    const difficulty = workoutDifficultyInput.value || null;
-    const normalizedDifficulty = normalizeWorkoutDifficulty(difficulty);
-    debugWorkouts("[WORKOUT] difficulty raw:", difficulty, "normalized:", normalizedDifficulty);
     const durationRaw = workoutDurationInput.value;
     const parsedDuration = durationRaw ? parseInt(durationRaw, 10) : null;
     const durationMin = Number.isFinite(parsedDuration) ? parsedDuration : null;
@@ -845,16 +933,23 @@ if (workoutsForm) {
     }
 
     const dayKey = toLocalDayKey(dateValue) || dateValue;
+    const caloriesBurned = await computeWorkoutCalories({
+      workout_date: dayKey,
+      title,
+      workout_type: workoutType,
+      duration_min: durationMin,
+    });
     const payload = {
       family_group_id: currentFamilyId || null,
       added_by: currentUser?.id || null,
       workout_date: dayKey,
+      day_key: dayKey,
       title,
       workout_type: workoutType,
-      ...(normalizedDifficulty !== null ? { difficulty: normalizedDifficulty } : {}),
       duration_min: durationMin,
       notes: notes || null,
       completed: true,
+      calories_burned: caloriesBurned,
     };
     debugWorkouts("[WORKOUT INSERT payload]", payload);
 
@@ -896,11 +991,13 @@ if (workoutsForm) {
       return;
     }
 
-    persistedWorkout = normalizeWorkoutRow({
-      ...insertedRow,
-      log_id: insertedRow?.log_id || insertedRow?.id,
-      source: "manual",
-    });
+    persistedWorkout = await ensureWorkoutCalories(
+      normalizeWorkoutRow({
+        ...insertedRow,
+        log_id: insertedRow?.log_id || insertedRow?.id,
+        source: "manual",
+      })
+    );
 
     workoutsCache = mergeWorkouts(workoutsCache, [persistedWorkout]);
     upsertStoredWorkout(persistedWorkout);

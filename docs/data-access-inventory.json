@@ -144,18 +144,18 @@
         },
         {
           "operation": "insert",
-          "path": "js/workouts.js:575-577",
+          "path": "js/workouts.js:573-788",
           "function": "logWorkoutToDiary (edge invoke)",
           "filters": ["family_group_id set in payload"],
-          "columns": ["family_group_id", "added_by", "workout_date", "title/workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "completed"],
+          "columns": ["family_group_id", "added_by", "workout_date", "day_key", "title/workout_name", "workout_type", "duration_min", "notes", "scheduled_workout_id", "calories_burned", "completed"],
           "notes": "Calls Supabase edge function family_workouts"
         },
         {
           "operation": "insert",
-          "path": "js/workouts.js:802-806",
+          "path": "js/workouts.js:898-942",
           "function": "workoutsForm submit",
           "filters": ["family_group_id set in payload"],
-          "columns": ["family_group_id", "added_by", "workout_date", "title", "workout_type", "difficulty", "duration_min", "notes", "completed"],
+          "columns": ["family_group_id", "added_by", "workout_date", "day_key", "title", "workout_type", "duration_min", "notes", "calories_burned", "completed"],
           "notes": "Direct insert; relies on table defaults for timestamps"
         },
         {
@@ -175,10 +175,10 @@
         },
         {
           "operation": "insert",
-          "path": "js/coach.js:392-396",
+          "path": "js/coach.js:320-353",
           "function": "applyCoachUpdates",
           "filters": ["family_group_id set in payload"],
-          "columns": ["family_group_id", "added_by", "workout_date", "title", "workout_type", "duration_min", "notes", "completed"],
+          "columns": ["family_group_id", "added_by", "workout_date", "day_key", "title", "workout_type", "duration_min", "notes", "completed"],
           "notes": "AI coach seeds plan rows with completed=false"
         },
         {
@@ -194,7 +194,7 @@
           "path": "js/debug/dbSanity.js:178-214",
           "function": "insertWorkout",
           "filters": ["family_group_id or added_by/user_id set"],
-          "columns": ["title", "workout_type", "difficulty", "duration_min", "notes", "workout_date", "family_group_id", "added_by/user_id"]
+          "columns": ["title", "workout_type", "duration_min", "notes", "workout_date", "calories_burned", "family_group_id", "added_by/user_id"]
         },
         {
           "operation": "dev-delete",
@@ -391,9 +391,9 @@
         },
         {
           "operation": "insert",
-          "line": "199-233",
+          "line": "174-223",
           "filters": ["family_group_id required", "added_by set to auth user"],
-          "columns": ["family_group_id", "added_by", "title", "workout_name", "workout_type", "difficulty", "duration_min", "notes", "scheduled_workout_id", "workout_date", "completed"],
+          "columns": ["family_group_id", "added_by", "title", "workout_name", "workout_type", "duration_min", "notes", "scheduled_workout_id", "workout_date", "day_key", "calories_burned", "completed"],
           "date_columns": ["workout_date (YYYY-MM-DD)"]
         }
       ]
