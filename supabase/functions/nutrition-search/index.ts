@@ -125,8 +125,7 @@ function jsonResponse(
 }
 
 Deno.serve(async (req: Request) => {
-  const origin = req.headers.get("origin");
-  const cors = corsHeaders(origin);
+  const cors = corsHeaders;
 
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: cors });
