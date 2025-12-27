@@ -162,17 +162,22 @@ function parseCalories(value) {
 }
 
 async function computeWorkoutCalories(workout = {}) {
-  const dayKey = getWorkoutDayKey(workout) || workout.workout_date || new Date();
-  const weightKg = await getLatestWeightKgForDate(dayKey);
-  const durationMin = parseDuration(workout.duration_min ?? workout.duration);
-  const workoutType = workout.workout_type || workout.workoutType || "workout";
-  const title = workout.title || workout.workout_name || "";
-  return estimateWorkoutCalories({
-    workout_type: workoutType,
-    title,
-    duration_min: durationMin,
-    weight_kg: weightKg,
-  });
+  try {
+    const dayKey = getWorkoutDayKey(workout) || workout.workout_date || new Date();
+    const weightKg = await getLatestWeightKgForDate(dayKey);
+    const durationMin = parseDuration(workout.duration_min ?? workout.duration);
+    const workoutType = workout.workout_type || workout.workoutType || "workout";
+    const title = workout.title || workout.workout_name || "";
+    return estimateWorkoutCalories({
+      workout_type: workoutType,
+      title,
+      duration_min: durationMin,
+      weight_kg: weightKg,
+    });
+  } catch (err) {
+    console.warn("[WORKOUT CALORIES] compute failed; using 0", err);
+    return 0;
+  }
 }
 
 async function maybePatchWorkoutCalories(workout, calories) {
@@ -213,6 +218,9 @@ async function ensureWorkoutCalories(workout = {}) {
   const calories = await computeWorkoutCalories({
     ...workout,
     duration_min: normalizedDuration,
+  }).catch((err) => {
+    console.warn("[WORKOUT CALORIES] Enrichment failed; using 0", err);
+    return 0;
   });
   const withCalories = { ...base, calories_burned: calories };
   if (workout?.id && currentFamilyId) {
