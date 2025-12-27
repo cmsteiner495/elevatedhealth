@@ -11,6 +11,7 @@ import {
   groceryList,
 } from "./dom.js";
 import { currentUser, currentFamilyId } from "./state.js";
+import { guardMutation } from "./debug/mutationGuard.js";
 
 let groceryItems = [];
 
@@ -201,10 +202,30 @@ if (groceryList) {
         renderGroceryList();
       }
 
+      if (!currentFamilyId) {
+        guardMutation({
+          table: "grocery_list_items",
+          operation: "update",
+          filters: { id: itemId },
+        });
+        console.warn("[GROCERY] Missing family id for update");
+        groceryItems = groceryItems.map((item) =>
+          item.id === itemId ? { ...item, checked: !checked } : item
+        );
+        renderGroceryList();
+        return;
+      }
+
+      guardMutation({
+        table: "grocery_list_items",
+        operation: "update",
+        filters: { id: itemId, family_group_id: currentFamilyId },
+      });
       const { error } = await supabase
         .from("grocery_list_items")
         .update({ checked, updated_at: new Date().toISOString() })
-        .eq("id", itemId);
+        .eq("id", itemId)
+        .eq("family_group_id", currentFamilyId);
 
       if (error) {
         console.error("Error updating grocery item:", error);
@@ -221,10 +242,26 @@ if (groceryList) {
     // Delete
     if (e.target.classList.contains("grocery-delete")) {
       li.classList.add("list-removing");
+      if (!currentFamilyId) {
+        guardMutation({
+          table: "grocery_list_items",
+          operation: "delete",
+          filters: { id: itemId },
+        });
+        console.warn("[GROCERY] Missing family id for delete");
+        li.classList.remove("list-removing");
+        return;
+      }
+      guardMutation({
+        table: "grocery_list_items",
+        operation: "delete",
+        filters: { id: itemId, family_group_id: currentFamilyId },
+      });
       const { error } = await supabase
         .from("grocery_list_items")
         .delete()
-        .eq("id", itemId);
+        .eq("id", itemId)
+        .eq("family_group_id", currentFamilyId);
 
       if (error) {
         console.error("Error deleting grocery item:", error);
