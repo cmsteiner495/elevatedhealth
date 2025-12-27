@@ -41,6 +41,7 @@ const caloriesPatchGuardState = {
   disabled: false,
   logged: false,
 };
+let manualInsertCaloriesFallbackLogged = false;
 
 function debugWorkouts(...args) {
   if (isDevWorkoutsEnv) {
@@ -165,6 +166,13 @@ function parseCalories(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isCaloriesSchemaCacheError(error) {
+  if (!error) return false;
+  const code = error.code || "";
+  const message = error.message || "";
+  return code === "PGRST204" || message.includes("Could not find the 'calories_burned' column");
+}
+
 async function computeWorkoutCalories(workout = {}) {
   try {
     const dayKey = getWorkoutDayKey(workout) || workout.workout_date || new Date();
@@ -210,9 +218,7 @@ async function maybePatchWorkoutCalories(workout, calories) {
   const message = error?.message || "";
   const code = error?.code || "";
   const schemaCacheMismatch =
-    code === "PGRST204" ||
-    message.includes("schema cache") ||
-    message.includes("Could not find the 'calories_burned' column");
+    isCaloriesSchemaCacheError(error) || message.includes("schema cache");
 
   if (schemaCacheMismatch) {
     caloriesPatchGuardState.disabled = true;
@@ -997,22 +1003,50 @@ if (workoutsForm) {
     }
 
     let persistedWorkout = null;
-    const { data, error } = await supabase
-      .from("family_workouts")
-      .insert(payload)
-      .select();
-    debugWorkouts("[WORKOUT INSERT result]", { data, error });
+    let insertedRow = null;
+    try {
+      const attemptInsert = (body) =>
+        supabase.from("family_workouts").insert(body).select();
 
-    const insertedRow = Array.isArray(data) ? data[0] : data || null;
-    if (error) {
-      console.error("Error adding workout:", error);
+      let { data, error } = await attemptInsert(payload);
+      debugWorkouts("[WORKOUT INSERT result]", { data, error });
+
+      if (error && isCaloriesSchemaCacheError(error)) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.calories_burned;
+        if (!manualInsertCaloriesFallbackLogged) {
+          console.info(
+            "[WORKOUT INSERT] Retrying without calories_burned (schema cache mismatch)"
+          );
+          manualInsertCaloriesFallbackLogged = true;
+        }
+        ({ data, error } = await attemptInsert(fallbackPayload));
+        debugWorkouts("[WORKOUT INSERT fallback result]", { data, error });
+      }
+
+      if (error) {
+        console.error("Error adding workout:", error);
+        if (workoutsMessage) {
+          workoutsMessage.textContent =
+            "Couldn't save workout. Check your connection and retry.";
+          workoutsMessage.style.color = "red";
+        }
+        showToast("Couldn't save workout. Try again.");
+        return;
+      }
+
+      insertedRow = Array.isArray(data) ? data[0] : data || null;
+    } catch (err) {
+      console.error("Unexpected error adding workout:", err);
       if (workoutsMessage) {
-        workoutsMessage.textContent = "Couldn't save workout. Check your connection and retry.";
+        workoutsMessage.textContent = "Couldn't save workout. Please retry.";
         workoutsMessage.style.color = "red";
       }
       showToast("Couldn't save workout. Try again.");
       return;
-    } else if (!insertedRow) {
+    }
+
+    if (!insertedRow) {
       console.warn("[EH WORKOUT] Insert returned no rows", {
         payload,
         family_group_id: currentFamilyId,
