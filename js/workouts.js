@@ -37,6 +37,10 @@ const isDevWorkoutsEnv =
   window.location &&
   ["localhost", "127.0.0.1"].includes(window.location.hostname);
 const patchedCaloriesIds = new Set();
+const caloriesPatchGuardState = {
+  disabled: false,
+  logged: false,
+};
 
 function debugWorkouts(...args) {
   if (isDevWorkoutsEnv) {
@@ -185,6 +189,7 @@ async function maybePatchWorkoutCalories(workout, calories) {
   if (!workoutId || workoutId.toString().startsWith(LOCAL_ID_PREFIX)) return;
   if (!currentFamilyId) return;
   if (patchedCaloriesIds.has(workoutId)) return;
+  if (caloriesPatchGuardState.disabled) return;
 
   patchedCaloriesIds.add(workoutId);
   guardMutation({
@@ -197,10 +202,31 @@ async function maybePatchWorkoutCalories(workout, calories) {
     .update({ calories_burned: calories })
     .eq("id", workoutId)
     .eq("family_group_id", currentFamilyId);
-  if (error) {
-    patchedCaloriesIds.delete(workoutId);
-    console.warn("[WORKOUT CALORIES] Patch failed", { workoutId, error });
+
+  if (!error) return;
+
+  patchedCaloriesIds.delete(workoutId);
+
+  const message = error?.message || "";
+  const code = error?.code || "";
+  const schemaCacheMismatch =
+    code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("Could not find the 'calories_burned' column");
+
+  if (schemaCacheMismatch) {
+    caloriesPatchGuardState.disabled = true;
+    if (!caloriesPatchGuardState.logged) {
+      console.info(
+        "[WORKOUT CALORIES] Patch disabled for session (schema cache mismatch)",
+        { code, message }
+      );
+      caloriesPatchGuardState.logged = true;
+    }
+    return;
   }
+
+  console.warn("[WORKOUT CALORIES] Patch failed", { workoutId, error });
 }
 
 async function ensureWorkoutCalories(workout = {}) {
