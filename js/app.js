@@ -116,6 +116,7 @@ import { computeDashboardModel, isMealLogged, isWorkoutLogged } from "./selector
 import { formatNutritionSummary } from "./nutrition.js";
 import { computeWorkoutStreak, collectWorkoutDayKeys } from "./streak.js";
 import { initWeightTrends } from "./weightTrends.js";
+import { installDbSanity } from "./debug/dbSanity.js";
 
 console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
@@ -2564,6 +2565,7 @@ async function instantiateAppAfterInitialization() {
   initInstallState();
   initCoachHandlers();
   initDiary();
+  installDbSanity();
   await init();
   await calculateWorkoutStreak();
 }
