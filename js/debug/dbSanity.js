@@ -7,6 +7,16 @@ import { currentFamilyId, currentUser, toLocalDayKey } from "../state.js";
 const UPCOMING_DELETE_PREFIX = "eh_upcoming_deleted:";
 let cachedUpcomingStrategy = null;
 
+const WORKOUT_DIFFICULTIES = ["Easy", "Medium", "Moderate", "Hard"];
+const WORKOUT_DIFFICULTY_MAP = {
+  easy: "Easy",
+  beginner: "Easy",
+  medium: "Medium",
+  moderate: "Moderate",
+  hard: "Hard",
+  intense: "Hard",
+};
+
 export function isDebugEnabled() {
   if (typeof window === "undefined" || typeof location === "undefined") return false;
   const host = location.hostname || "";
@@ -55,6 +65,17 @@ function isMissingRelation(error, relationName) {
   const message = `${error.message || ""} ${error.details || ""}`.toLowerCase();
   const needle = String(relationName || "").toLowerCase();
   return message.includes(`relation \"${needle}`) || message.includes(`table \"${needle}`);
+}
+
+function normalizeWorkoutDifficulty(value) {
+  if (!value) return null;
+  const key = value.toString().trim().toLowerCase();
+  const mapped = WORKOUT_DIFFICULTY_MAP[key];
+  if (mapped) return mapped;
+  const canonical = WORKOUT_DIFFICULTIES.find(
+    (item) => item.toLowerCase() === key || item === value
+  );
+  return canonical || null;
 }
 
 async function assertAuthed() {
@@ -170,7 +191,7 @@ async function insertWorkout(payload = {}) {
   const basePayload = {
     title: payload.title || payload.workout_name || "Workout",
     workout_type: payload.workout_type || payload.workoutType || "workout",
-    difficulty: payload.difficulty ?? null,
+    difficulty: normalizeWorkoutDifficulty(payload.difficulty),
     duration_min: toNumber(payload.duration_min ?? payload.duration) ?? null,
     notes: payload.notes ?? null,
     workout_date: targetDate,
@@ -193,16 +214,22 @@ async function insertWorkout(payload = {}) {
       .from("family_workouts")
       .insert([serverPayload])
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (!error) {
       inserted = data;
       insertError = null;
       break;
     }
-    insertError = error;
+      insertError = error;
     if (!isMissingColumn(error, userColumn)) {
       break;
+    }
+    if (!data) {
+      console.warn("[DB SANITY] Workout insert returned no row", {
+        userColumn,
+        family_group_id: ctx.familyGroupId,
+      });
     }
   }
 
@@ -330,16 +357,22 @@ async function insertMeal(payload = {}) {
       .from("family_meals")
       .insert([serverPayload])
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (!error) {
       inserted = data;
       insertError = null;
       break;
     }
-    insertError = error;
+      insertError = error;
     if (!isMissingColumn(error, userColumn)) {
       break;
+    }
+    if (!data) {
+      console.warn("[DB SANITY] Meal insert returned no row", {
+        userColumn,
+        family_group_id: ctx.familyGroupId,
+      });
     }
   }
 

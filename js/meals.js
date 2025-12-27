@@ -773,6 +773,12 @@ export async function logMealToDiary(meal, options = {}) {
         persistedMeal = data;
         updateError = null;
         break;
+      } else {
+        console.warn("[MEAL UPDATE] No rows matched update", {
+          column,
+          value,
+          family_group_id: currentFamilyId,
+        });
       }
     }
   }
@@ -782,7 +788,7 @@ export async function logMealToDiary(meal, options = {}) {
       .from("family_meals")
       .insert([serverPayload])
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("[MEAL INSERT ERROR]", error);
@@ -794,6 +800,13 @@ export async function logMealToDiary(meal, options = {}) {
       if (!options.silent) {
         showToast("Couldn't save meal. Try again.");
       }
+      return;
+    } else if (!data) {
+      console.warn("[MEAL INSERT] Insert returned no row", {
+        family_group_id: currentFamilyId,
+        client_id: tempId,
+      });
+      await loadMeals();
       return;
     }
     persistedMeal = data;
@@ -1409,7 +1422,7 @@ if (mealsForm) {
       .from("family_meals")
       .insert(serverPayload)
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("[MEAL INSERT ERROR]", error);
@@ -1422,6 +1435,16 @@ if (mealsForm) {
         mealsMessage.textContent = "Error adding meal.";
         mealsMessage.style.color = "red";
       }
+    } else if (!data) {
+      console.warn("[MEAL INSERT] Insert returned no row", {
+        family_group_id: currentFamilyId,
+        client_id: tempId,
+      });
+      if (mealsMessage) {
+        mealsMessage.textContent = "Meal saved, but confirmation missing. Reloading…";
+        mealsMessage.style.color = "var(--text-muted)";
+      }
+      await loadMeals();
     } else {
       console.log("[MEAL INSERT] insertedRow", data);
       const reconciled = {

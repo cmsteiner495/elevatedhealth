@@ -114,11 +114,20 @@ async function handleCreateFamily(user) {
       created_by: user.id,
     })
     .select()
-    .single();
+    .maybeSingle();
 
   if (familyError) {
     console.error("Error creating family group:", familyError);
     alert("There was an error creating the family group.");
+    return;
+  }
+
+  if (!family) {
+    console.warn("[FAMILY CREATE] Insert returned no family row", {
+      name,
+      created_by: user.id,
+    });
+    alert("Family group saved, but no record returned. Please refresh.");
     return;
   }
 

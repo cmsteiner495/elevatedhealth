@@ -218,11 +218,18 @@ if (progressForm) {
         mood: mood || null,
         notes: notes || null,
       })
-      .select()
-      .single();
+      .select();
 
-    if (error || !data) {
+    const inserted = Array.isArray(data) ? data[0] : data || null;
+
+    if (error || !inserted) {
       console.error("Error adding progress entry:", error);
+      if (!error) {
+        console.warn("[PROGRESS INSERT] No rows returned for insert", {
+          family_group_id: currentFamilyId,
+          user_id: currentUser.id,
+        });
+      }
       if (progressMessage) {
         progressMessage.textContent = "Error adding progress.";
         progressMessage.style.color = "red";
@@ -231,7 +238,7 @@ if (progressForm) {
     }
 
     progressForm.reset();
-    upsertProgressLog(data, { reason: "progress-insert" });
+    upsertProgressLog(inserted, { reason: "progress-insert" });
     showToast("Progress saved");
     maybeVibrate([10]);
   });

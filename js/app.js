@@ -1377,10 +1377,22 @@ async function loadUserProfile(user) {
         display_name: user.email,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (insertError) {
       console.error("Error creating profile:", insertError);
+      displayNameValue =
+        currentUser?.user_metadata?.full_name ||
+        currentUser?.user_metadata?.fullName ||
+        currentUser?.user_metadata?.name ||
+        user.email;
+      updateWelcomeCopy();
+      updateAvatar(displayNameValue);
+      updateMobileHeader(activeTabId);
+      updateSettingsEmail(user.email);
+      return;
+    } else if (!newProfile) {
+      console.warn("[PROFILE INSERT] Insert returned no profile row", { user_id: user.id });
       displayNameValue =
         currentUser?.user_metadata?.full_name ||
         currentUser?.user_metadata?.fullName ||
