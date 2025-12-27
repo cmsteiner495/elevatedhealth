@@ -18,6 +18,7 @@ import {
   currentFamilyId,
   toLocalDateString,
   toLocalDayKey,
+  addDays,
   getTodayDate,
 } from "./state.js";
 import { maybeVibrate, showToast } from "./ui.js";
@@ -40,6 +41,12 @@ function normalizeWorkoutDay(value) {
   return toLocalDayKey(value) || "";
 }
 
+function buildWorkoutDateRange(dayKey) {
+  const normalized = toLocalDayKey(dayKey);
+  if (!normalized) return { startDate: null, nextDate: null };
+  return { startDate: normalized, nextDate: addDays(normalized, 1) };
+}
+
 function getWorkoutSource(workout) {
   if (!workout) return "manual";
   if (workout.source) return workout.source;
@@ -50,7 +57,7 @@ function getWorkoutSource(workout) {
 function getWorkoutDayKey(workout) {
   if (!workout) return "";
   return (
-    normalizeWorkoutDay(workout.workout_date || workout.day_key || workout.date) || ""
+    normalizeWorkoutDay(workout.workout_date || workout.date || workout.day_key) || ""
   );
 }
 
@@ -68,8 +75,10 @@ function buildWorkoutKey(workout) {
 function normalizeWorkoutRow(workout = {}) {
   const dayKey = getWorkoutDayKey(workout);
   const source = getWorkoutSource(workout);
+  const normalizedTitle = workout.title || workout.workout_name || "";
   const normalized = {
     ...workout,
+    title: normalizedTitle,
     day_key: dayKey || workout.day_key || null,
     workout_date: workout.workout_date || dayKey || workout.date || null,
     source,
@@ -236,33 +245,29 @@ export async function loadWorkouts() {
     return;
   }
 
-  const buildLoadQuery = (withDayKey = true) => {
-    let query = supabase.from("family_workouts").select("*").eq("family_group_id", familyId);
-    if (withDayKey) {
-      query = query.order("day_key", { ascending: true });
-    }
-    return query.order("workout_date", { ascending: true }).order("created_at", { ascending: true });
+  const buildLoadQuery = () => {
+    return supabase
+      .from("family_workouts")
+      .select("*")
+      .eq("family_group_id", familyId)
+      .order("workout_date", { ascending: true })
+      .order("created_at", { ascending: true });
   };
 
   let data = null;
   let error = null;
 
-  const primaryResult = await buildLoadQuery(true);
+  const primaryResult = await buildLoadQuery();
   data = primaryResult.data;
   error = primaryResult.error;
 
-  const missingDayKey = String(error?.message || error?.details || "")
-    .toLowerCase()
-    .includes("day_key");
-
-  if (error && missingDayKey) {
-    console.warn("[EH WORKOUT] day_key missing in schema cache; retrying without day_key order", error);
-    const fallbackResult = await buildLoadQuery(false);
-    data = fallbackResult.data;
-    error = fallbackResult.error;
-  }
-
   if (error) {
+    console.debug("[WORKOUT FETCH]", {
+      scope: "all",
+      familyId,
+      order: ["workout_date", "created_at"],
+      error: error?.message || error,
+    });
     console.error("Error loading workouts:", error);
     if (storedWorkouts.length) {
       workoutsCache = storedWorkouts;
@@ -277,6 +282,12 @@ export async function loadWorkouts() {
       setWorkouts([], { reason: "loadWorkouts:error" });
     }
   } else {
+    console.debug("[WORKOUT FETCH]", {
+      scope: "all",
+      familyId,
+      order: ["workout_date", "created_at"],
+      count: Array.isArray(data) ? data.length : 0,
+    });
     const remoteWorkouts = (data || []).map((item) =>
       normalizeWorkoutRow({ log_id: item.id, ...item })
     );
@@ -306,35 +317,45 @@ export async function fetchWorkoutsByDate(dateValue) {
     filterDayKey: targetDayKey,
   });
 
-  const buildQuery = () =>
-    supabase
+  const { startDate, nextDate } = buildWorkoutDateRange(targetDayKey);
+
+  const buildQuery = (useRange = false) => {
+    let query = supabase
       .from("family_workouts")
       .select("*")
-      .eq("family_group_id", familyId)
-      .order("day_key", { ascending: true })
-      .order("workout_date", { ascending: true })
-      .order("created_at", { ascending: true });
+      .eq("family_group_id", familyId);
 
-  const runQuery = async (column) =>
-    buildQuery().eq(column, targetDayKey || dateValue);
+    if (useRange && startDate && nextDate) {
+      query = query.gte("workout_date", startDate).lt("workout_date", nextDate);
+    } else {
+      query = query.eq("workout_date", targetDayKey || dateValue);
+    }
+
+    return query.order("workout_date", { ascending: true }).order("created_at", { ascending: true });
+  };
 
   let data = null;
   let error = null;
+  let filterType = "eq";
 
-  const primaryResult = await runQuery("day_key");
+  const primaryResult = await buildQuery(false);
   data = primaryResult.data;
   error = primaryResult.error;
 
-  const isDayKeyMissing = String(error?.message || error?.details || "")
-    .toLowerCase()
-    .includes("day_key");
-
-  if (error && isDayKeyMissing) {
-    console.warn("[EH WORKOUT] day_key missing in schema cache; retrying workout_date", error);
-    const fallback = await runQuery("workout_date");
+  if (error || (Array.isArray(data) && data.length === 0 && startDate && nextDate)) {
+    const fallback = await buildQuery(true);
     data = fallback.data;
     error = fallback.error;
+    filterType = "range";
   }
+
+  console.debug("[WORKOUT FETCH]", {
+    familyId,
+    date: targetDayKey,
+    filter: filterType,
+    resultCount: Array.isArray(data) ? data.length : 0,
+    error: error?.message || null,
+  });
 
   if (error) {
     console.error("Error loading workouts for date:", error);
@@ -349,6 +370,30 @@ export async function fetchWorkoutsByDate(dateValue) {
   return merged.filter(
     (workout) => getWorkoutDayKey(workout) === targetDayKey && isWorkoutLogged(workout)
   );
+}
+
+function findLoggedScheduledMatch(workout, workouts = []) {
+  if (!workout) return null;
+  if (isWorkoutLogged(workout)) return workout;
+  const scheduledId =
+    workout.scheduled_workout_id || workout.source_scheduled_id || workout.id || workout.log_id;
+  const targetDay = getWorkoutDayKey(workout);
+  if (!scheduledId || !targetDay) return null;
+
+  return workouts.find((entry) => {
+    if (!isWorkoutLogged(entry)) return false;
+    const entryDay = getWorkoutDayKey(entry);
+    if (entryDay !== targetDay) return false;
+    const matchValues = [
+      entry.scheduled_workout_id,
+      entry.source_scheduled_id,
+      entry.id,
+      entry.log_id,
+    ]
+      .filter((value) => value != null)
+      .map(String);
+    return matchValues.includes(String(scheduledId));
+  });
 }
 
 async function deleteWorkoutRow(id) {
@@ -495,19 +540,16 @@ async function logWorkoutToDiary(workout) {
     action: "add",
     family_group_id: currentFamilyId,
     added_by: currentUser.id || null,
-    day_key: targetDate,
+    workout_date: targetDate,
     workout_name: title,
+    title,
     workout_type: workout.workout_type || workout.workoutType || "workout",
     difficulty: workout.difficulty || null,
     duration_min: duration,
     notes: workout.notes || null,
     scheduled_workout_id: scheduledId ? String(scheduledId) : null,
   };
-  console.debug("[EH WORKOUT] diary insert payload", {
-    payload,
-    targetDate,
-    workoutDayKey: targetDate,
-  });
+  console.debug("[WORKOUT INSERT]", payload);
 
   const tempId = `${LOCAL_ID_PREFIX}${Date.now()}`;
   const optimisticEntry = {
@@ -519,7 +561,6 @@ async function logWorkoutToDiary(workout) {
     workout_type: payload.workout_type,
     duration_min: duration,
     workout_date: targetDate,
-    day_key: targetDate,
     scheduled_workout_id: payload.scheduled_workout_id,
     completed: true,
     logged_at: new Date().toISOString(),
@@ -534,6 +575,8 @@ async function logWorkoutToDiary(workout) {
   const { data, error } = await supabase.functions.invoke("family_workouts", {
     body: payload,
   });
+
+  console.debug("[WORKOUT INSERT RESULT]", { data, error });
 
   if (error || !data?.ok) {
     const details = error?.message || data?.error || "Unknown error";
@@ -557,7 +600,6 @@ async function logWorkoutToDiary(workout) {
     id: data?.workout?.id || data?.log_id || optimisticEntry.id,
     log_id: data?.log_id || data?.workout?.id || optimisticEntry.log_id,
     workout_date: data?.workout?.workout_date || targetDate,
-    day_key: data?.workout?.day_key || targetDate,
     completed: true,
     logged_at:
       data?.workout?.logged_at || optimisticEntry.logged_at || new Date().toISOString(),
@@ -573,7 +615,7 @@ async function logWorkoutToDiary(workout) {
   renderWorkouts();
   console.log("[EH WORKOUT] schedule add success", {
     id: persisted.id,
-    day: persisted.day_key || persisted.workout_date,
+    day: persisted.workout_date,
   });
 
   document.dispatchEvent(
@@ -658,7 +700,8 @@ function renderWorkouts(items = workoutsCache) {
     right.style.gap = "0.5rem";
 
     const canLogToday = getWorkoutDayKey(w) === today && currentFamilyId;
-    const isLogged = isWorkoutLogged(w);
+    const loggedMatch = findLoggedScheduledMatch(w, items);
+    const isLogged = isWorkoutLogged(w) || Boolean(loggedMatch);
 
     const addBtn = document.createElement("button");
     addBtn.type = "button";
@@ -743,7 +786,6 @@ if (workoutsForm) {
       family_group_id: currentFamilyId || null,
       added_by: currentUser?.id || null,
       workout_date: dayKey,
-      day_key: dayKey,
       title,
       workout_type: workoutType,
       difficulty,
@@ -752,10 +794,7 @@ if (workoutsForm) {
       completed: true,
       logged_at: loggedAt,
     };
-    console.debug("[EH WORKOUT] manual insert payload", {
-      payload,
-      selectedDate: dateValue,
-    });
+    console.debug("[WORKOUT INSERT]", payload);
 
     let persistedWorkout = null;
 
@@ -765,6 +804,7 @@ if (workoutsForm) {
         .insert(payload)
         .select()
         .single();
+      console.debug("[WORKOUT INSERT RESULT]", { data, error });
 
       if (error) {
         console.error("Error adding workout:", error);

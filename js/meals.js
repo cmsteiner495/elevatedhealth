@@ -617,6 +617,7 @@ export async function deleteMealById(mealId, options = {}) {
   const clientId = options.client_id || options.clientId || normalizedId;
   const shouldForceLocalRemoval =
     !isUUID(normalizedId) || String(clientId || "").startsWith(LOCAL_ID_PREFIX);
+  const allowLocalFallback = options.allowLocalFallback !== false;
   console.log("[MEAL DELETE] Attempting removal", {
     serverId: normalizedId,
     clientId,
@@ -625,6 +626,7 @@ export async function deleteMealById(mealId, options = {}) {
 
   let deleteError = null;
   let deletedRows = 0;
+  let usedLocalFallback = false;
 
   const attemptDelete = async (column, value) => {
     const { data, error } = await supabase
@@ -653,6 +655,15 @@ export async function deleteMealById(mealId, options = {}) {
   if (deleteError && shouldForceLocalRemoval) {
     console.warn("[MEAL DELETE] Local removal despite error", deleteError);
     deleteError = null;
+    usedLocalFallback = true;
+  } else if (deleteError && allowLocalFallback) {
+    console.warn("[MEAL DELETE] Falling back to local deletion", {
+      error: deleteError,
+      clientId,
+      normalizedId,
+    });
+    deleteError = null;
+    usedLocalFallback = true;
   }
 
   if (!deleteError) {
@@ -665,7 +676,7 @@ export async function deleteMealById(mealId, options = {}) {
     announceDataChange("meals", options.date || options.meal_date);
   }
 
-  return { error: deleteError };
+  return { error: deleteError, fallback: usedLocalFallback };
 }
 
 function announceDataChange(source, date) {
@@ -1489,7 +1500,7 @@ if (mealsList) {
       deleteBtn.disabled = true;
       deleteBtn.setAttribute("aria-busy", "true");
       li.classList.add("list-removing");
-      const { error } = await deleteMealById(identifier, {
+      const { error, fallback } = await deleteMealById(identifier, {
         date: li.dataset.mealDate,
         client_id: mealClientId,
         reason: "deleteMeal:planner",
@@ -1502,6 +1513,13 @@ if (mealsList) {
         deleteBtn.removeAttribute("aria-busy");
         showToast("Couldn't delete meal. Try again.");
         return;
+      }
+
+      if (fallback) {
+        console.warn("[MEAL DELETE] Applied local-only removal fallback", {
+          identifier,
+          clientId: mealClientId,
+        });
       }
 
       const removeNode = () => li.remove();
