@@ -656,8 +656,8 @@ async function logWorkoutToDiary(workout) {
       completed: true,
       updated_at: new Date().toISOString(),
       calories_burned: caloriesBurned,
-      day_key: targetDate,
       duration_min: duration,
+      workout_date: targetDate,
     };
     const { data, error } = await updateWorkoutLoggedState(scheduledRowId, updatePayload);
 
@@ -734,7 +734,6 @@ async function logWorkoutToDiary(workout) {
     family_group_id: currentFamilyId,
     added_by: currentUser.id || null,
     workout_date: targetDate,
-    day_key: targetDate,
     workout_name: title,
     title,
     workout_type: workout.workout_type || workout.workoutType || "workout",
@@ -983,7 +982,6 @@ if (workoutsForm) {
       family_group_id: currentFamilyId || null,
       added_by: currentUser?.id || null,
       workout_date: dayKey,
-      day_key: dayKey,
       title,
       workout_type: workoutType,
       duration_min: durationMin,
