@@ -4,6 +4,7 @@ import { getState } from "./ehStore.js";
 import { currentFamilyId, toLocalDayKey } from "./state.js";
 
 const LB_TO_KG = 0.45359237;
+const DEFAULT_WEIGHT_LB = 155;
 const weightCache = new Map();
 
 function parseNumber(value) {
@@ -16,11 +17,11 @@ function normalizeDuration(value) {
   return parsed ?? null;
 }
 
-function normalizeWeightKgFromLog(log = {}) {
-  const weightKg = parseNumber(log.weight_kg ?? log.weightKg);
-  if (weightKg != null) return weightKg;
+function normalizeWeightLbFromLog(log = {}) {
   const weightLb = parseNumber(log.weight_lb ?? log.weightLb ?? log.weight);
-  if (weightLb != null) return weightLb * LB_TO_KG;
+  if (weightLb != null) return weightLb;
+  const weightKg = parseNumber(log.weight_kg ?? log.weightKg);
+  if (weightKg != null) return weightKg / LB_TO_KG;
   return null;
 }
 
@@ -58,21 +59,26 @@ export function estimateWorkoutCalories({
 
 async function fetchLatestWeightFromDb(targetDayKey) {
   if (!currentFamilyId) return null;
-  const { data, error } = await supabase
-    .from("progress_logs")
-    .select("log_date, weight_lb, weight_kg")
-    .eq("family_group_id", currentFamilyId)
-    .lte("log_date", targetDayKey)
-    .order("log_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from("progress_logs")
+      .select("log_date, weight_lb")
+      .eq("family_group_id", currentFamilyId)
+      .lte("log_date", targetDayKey)
+      .order("log_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.warn("[WORKOUT CALORIES] weight lookup failed", error);
+    if (error) {
+      console.warn("[WORKOUT CALORIES] weight lookup failed", error);
+      return null;
+    }
+
+    return data || null;
+  } catch (err) {
+    console.warn("[WORKOUT CALORIES] weight lookup threw", err);
     return null;
   }
-
-  return data || null;
 }
 
 export async function getLatestWeightKgForDate(dateValue) {
@@ -80,25 +86,29 @@ export async function getLatestWeightKgForDate(dateValue) {
   if (weightCache.has(targetDayKey)) {
     return weightCache.get(targetDayKey);
   }
+
   const progressLogs = getState().progressLogs || [];
   const matchingLog = [...progressLogs]
     .filter((log) => log.dayKey && log.dayKey <= targetDayKey)
     .sort((a, b) => b.dayKey.localeCompare(a.dayKey))[0];
 
-  const fromStore = normalizeWeightKgFromLog(matchingLog);
-  if (fromStore != null) {
-    weightCache.set(targetDayKey, fromStore);
-    return fromStore;
+  const fromStoreLb = normalizeWeightLbFromLog(matchingLog);
+  if (fromStoreLb != null) {
+    const weightKg = fromStoreLb * LB_TO_KG;
+    weightCache.set(targetDayKey, weightKg);
+    return weightKg;
   }
 
   const dbLog = await fetchLatestWeightFromDb(targetDayKey);
-  const fromDb = normalizeWeightKgFromLog(dbLog);
-  if (fromDb != null) {
-    weightCache.set(targetDayKey, fromDb);
-    return fromDb;
+  const fromDbLb = normalizeWeightLbFromLog(dbLog);
+  if (fromDbLb != null) {
+    const weightKg = fromDbLb * LB_TO_KG;
+    weightCache.set(targetDayKey, weightKg);
+    return weightKg;
   }
 
-  console.info("[WORKOUT CALORIES] No weight found; using 70kg fallback");
-  weightCache.set(targetDayKey, 70);
-  return 70;
+  console.info("[WORKOUT CALORIES] No weight found; using default LB", DEFAULT_WEIGHT_LB);
+  const fallbackKg = DEFAULT_WEIGHT_LB * LB_TO_KG;
+  weightCache.set(targetDayKey, fallbackKg);
+  return fallbackKg;
 }
