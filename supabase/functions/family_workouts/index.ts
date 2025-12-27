@@ -39,6 +39,27 @@ type ActionPayload = {
   scheduled_workout_id?: string | number | null;
 };
 
+const WORKOUT_DIFFICULTIES = ["Easy", "Medium", "Moderate", "Hard"];
+const WORKOUT_DIFFICULTY_MAP: Record<string, string> = {
+  easy: "Easy",
+  beginner: "Easy",
+  medium: "Medium",
+  moderate: "Moderate",
+  hard: "Hard",
+  intense: "Hard",
+};
+
+function normalizeDifficulty(value: string | null | undefined) {
+  if (!value) return null;
+  const key = value.toString().trim().toLowerCase();
+  const mapped = WORKOUT_DIFFICULTY_MAP[key];
+  if (mapped) return mapped;
+  const canonical = WORKOUT_DIFFICULTIES.find(
+    (item) => item.toLowerCase() === key || item === value
+  );
+  return canonical ?? null;
+}
+
 function json(body: unknown, status = 200, cors: Record<string, string>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -167,7 +188,7 @@ Deno.serve(async (req: Request) => {
         .trim();
       const workoutName = String(body.workout_name || body.title || "").trim();
       const workoutType = String(body.workout_type || "workout").trim();
-      const difficulty = body.difficulty ? String(body.difficulty) : null;
+      const difficulty = normalizeDifficulty(body.difficulty ? String(body.difficulty) : null);
       const durationMin =
         typeof body.duration_min === "number"
           ? body.duration_min
@@ -216,7 +237,7 @@ Deno.serve(async (req: Request) => {
           .from("family_workouts")
           .insert(insertPayload)
           .select()
-          .single();
+          .maybeSingle();
 
         if (insertError) {
           console.error("Insert failed", insertError);
@@ -224,6 +245,18 @@ Deno.serve(async (req: Request) => {
             500,
             "insert_failed",
             { details: insertError.message || "Insert failed" },
+            cors
+          );
+        }
+
+        if (!inserted) {
+          console.warn("[WORKOUT INSERT] Insert returned no row", {
+            payload: insertPayload,
+            family_group_id: familyGroupId,
+          });
+          return json(
+            { ok: false, code: "insert_missing_row", workout: null, log_id: null },
+            200,
             cors
           );
         }

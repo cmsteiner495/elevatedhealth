@@ -34,6 +34,16 @@ const isDevWorkoutsEnv =
   window.location &&
   ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
+const WORKOUT_DIFFICULTIES = ["Easy", "Medium", "Moderate", "Hard"];
+const WORKOUT_DIFFICULTY_MAP = {
+  easy: "Easy",
+  beginner: "Easy",
+  medium: "Medium",
+  moderate: "Moderate",
+  hard: "Hard",
+  intense: "Hard",
+};
+
 function debugWorkouts(...args) {
   if (isDevWorkoutsEnv) {
     console.debug(...args);
@@ -50,6 +60,17 @@ function normalizeTitle(value) {
 
 function normalizeWorkoutDay(value) {
   return toLocalDayKey(value) || "";
+}
+
+function normalizeWorkoutDifficulty(value) {
+  if (!value) return null;
+  const key = value.toString().trim().toLowerCase();
+  const mapped = WORKOUT_DIFFICULTY_MAP[key];
+  if (mapped) return mapped;
+  const canonical = WORKOUT_DIFFICULTIES.find(
+    (item) => item.toLowerCase() === key || item === value
+  );
+  return canonical || null;
 }
 
 function buildWorkoutDateRange(dayKey) {
@@ -116,8 +137,7 @@ async function updateWorkoutLoggedState(workoutId, payload) {
       .update(body)
       .eq("id", workoutId)
       .eq("family_group_id", currentFamilyId)
-      .select()
-      .single();
+      .select();
     guardMutation({
       table: "family_workouts",
       operation: "update",
@@ -126,7 +146,21 @@ async function updateWorkoutLoggedState(workoutId, payload) {
     return query;
   };
 
-  return buildQuery(payload);
+  const { data, error } = await buildQuery(payload);
+  if (error) {
+    console.warn("[WORKOUT UPDATE] Update failed", { workoutId, error, payload });
+    return { data: null, error };
+  }
+
+  const updated = Array.isArray(data) ? data[0] : data || null;
+  if (!updated) {
+    console.warn("[WORKOUT UPDATE] No rows updated", {
+      workoutId,
+      family_group_id: currentFamilyId,
+    });
+  }
+
+  return { data: updated, error: null };
 }
 
 function parseDuration(value) {
@@ -514,6 +548,18 @@ async function logWorkoutToDiary(workout) {
       showToast("Couldn't add workout. Try again.");
       return { ok: false, error };
     }
+    if (!data) {
+      console.warn("[WORKOUT UPDATE] No rows marked complete for scheduled workout", {
+        scheduledRowId,
+        targetDate,
+        family_group_id: currentFamilyId,
+      });
+      try {
+        await loadWorkouts();
+      } catch (refreshErr) {
+        console.warn("Refresh after empty update failed", refreshErr);
+      }
+    }
 
     const mergedRow = normalizeWorkoutRow({
       ...workout,
@@ -573,7 +619,7 @@ async function logWorkoutToDiary(workout) {
     workout_name: title,
     title,
     workout_type: workout.workout_type || workout.workoutType || "workout",
-    difficulty: workout.difficulty || null,
+    difficulty: normalizeWorkoutDifficulty(workout.difficulty),
     duration_min: duration,
     notes: workout.notes || null,
     scheduled_workout_id: scheduledId ? String(scheduledId) : null,
@@ -813,7 +859,7 @@ if (workoutsForm) {
       workout_date: dayKey,
       title,
       workout_type: workoutType,
-      difficulty,
+      difficulty: normalizeWorkoutDifficulty(difficulty),
       duration_min: durationMin,
       notes: notes || null,
       completed: true,
@@ -833,10 +879,10 @@ if (workoutsForm) {
     const { data, error } = await supabase
       .from("family_workouts")
       .insert(payload)
-      .select()
-      .single();
+      .select();
     debugWorkouts("[WORKOUT INSERT result]", { data, error });
 
+    const insertedRow = Array.isArray(data) ? data[0] : data || null;
     if (error) {
       console.error("Error adding workout:", error);
       if (workoutsMessage) {
@@ -845,11 +891,22 @@ if (workoutsForm) {
       }
       showToast("Couldn't save workout. Try again.");
       return;
+    } else if (!insertedRow) {
+      console.warn("[EH WORKOUT] Insert returned no rows", {
+        payload,
+        family_group_id: currentFamilyId,
+      });
+      if (workoutsMessage) {
+        workoutsMessage.textContent = "Workout saved, but confirmation was missing. Refreshing…";
+        workoutsMessage.style.color = "var(--text-muted)";
+      }
+      await loadWorkouts();
+      return;
     }
 
     persistedWorkout = normalizeWorkoutRow({
-      ...data,
-      log_id: data?.log_id || data?.id,
+      ...insertedRow,
+      log_id: insertedRow?.log_id || insertedRow?.id,
       source: "manual",
     });
 
