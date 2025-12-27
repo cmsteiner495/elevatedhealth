@@ -26,6 +26,10 @@ import { maybeVibrate, showToast } from "./ui.js";
 import { readWorkoutsStore, saveWorkouts } from "./dataAdapter.js";
 import { setWorkouts, upsertWorkout, removeWorkout } from "./ehStore.js";
 import { isWorkoutLogged } from "./selectors.js";
+import {
+  normalizeWorkoutDifficulty,
+  formatWorkoutDifficulty,
+} from "./workoutDifficulty.js";
 
 let workoutsCache = [];
 const LOCAL_ID_PREFIX = "local-";
@@ -33,16 +37,6 @@ const isDevWorkoutsEnv =
   typeof window !== "undefined" &&
   window.location &&
   ["localhost", "127.0.0.1"].includes(window.location.hostname);
-
-const WORKOUT_DIFFICULTIES = ["Easy", "Medium", "Moderate", "Hard"];
-const WORKOUT_DIFFICULTY_MAP = {
-  easy: "Easy",
-  beginner: "Easy",
-  medium: "Medium",
-  moderate: "Moderate",
-  hard: "Hard",
-  intense: "Hard",
-};
 
 function debugWorkouts(...args) {
   if (isDevWorkoutsEnv) {
@@ -60,17 +54,6 @@ function normalizeTitle(value) {
 
 function normalizeWorkoutDay(value) {
   return toLocalDayKey(value) || "";
-}
-
-function normalizeWorkoutDifficulty(value) {
-  if (!value) return null;
-  const key = value.toString().trim().toLowerCase();
-  const mapped = WORKOUT_DIFFICULTY_MAP[key];
-  if (mapped) return mapped;
-  const canonical = WORKOUT_DIFFICULTIES.find(
-    (item) => item.toLowerCase() === key || item === value
-  );
-  return canonical || null;
 }
 
 function buildWorkoutDateRange(dayKey) {
@@ -610,6 +593,13 @@ async function logWorkoutToDiary(workout) {
   }
 
   const duration = parseDuration(workout.duration_min ?? workout.duration);
+  const normalizedDifficulty = normalizeWorkoutDifficulty(workout.difficulty);
+  debugWorkouts(
+    "[WORKOUT] difficulty raw:",
+    workout.difficulty,
+    "normalized:",
+    normalizedDifficulty
+  );
   const source = scheduledId ? "scheduled" : "manual";
   const payload = {
     action: "add",
@@ -619,7 +609,7 @@ async function logWorkoutToDiary(workout) {
     workout_name: title,
     title,
     workout_type: workout.workout_type || workout.workoutType || "workout",
-    difficulty: normalizeWorkoutDifficulty(workout.difficulty),
+    ...(normalizedDifficulty !== null ? { difficulty: normalizedDifficulty } : {}),
     duration_min: duration,
     notes: workout.notes || null,
     scheduled_workout_id: scheduledId ? String(scheduledId) : null,
@@ -637,6 +627,7 @@ async function logWorkoutToDiary(workout) {
     duration_min: duration,
     workout_date: targetDate,
     scheduled_workout_id: payload.scheduled_workout_id,
+    difficulty: normalizedDifficulty,
     completed: true,
     created_at: new Date().toISOString(),
   };
@@ -752,9 +743,8 @@ function renderWorkouts(items = workoutsCache) {
       : "Workout";
 
     let metaText = `${typeLabel} • ${dateStr}`;
-    if (w.difficulty) {
-      const diffLabel =
-        w.difficulty.charAt(0).toUpperCase() + w.difficulty.slice(1);
+    const diffLabel = formatWorkoutDifficulty(w.difficulty);
+    if (diffLabel) {
       metaText += ` • ${diffLabel}`;
     }
     if (w.duration_min) {
@@ -839,6 +829,8 @@ if (workoutsForm) {
     const title = workoutTitleInput.value.trim();
     const workoutType = workoutTypeInput.value;
     const difficulty = workoutDifficultyInput.value || null;
+    const normalizedDifficulty = normalizeWorkoutDifficulty(difficulty);
+    debugWorkouts("[WORKOUT] difficulty raw:", difficulty, "normalized:", normalizedDifficulty);
     const durationRaw = workoutDurationInput.value;
     const parsedDuration = durationRaw ? parseInt(durationRaw, 10) : null;
     const durationMin = Number.isFinite(parsedDuration) ? parsedDuration : null;
@@ -859,7 +851,7 @@ if (workoutsForm) {
       workout_date: dayKey,
       title,
       workout_type: workoutType,
-      difficulty: normalizeWorkoutDifficulty(difficulty),
+      ...(normalizedDifficulty !== null ? { difficulty: normalizedDifficulty } : {}),
       duration_min: durationMin,
       notes: notes || null,
       completed: true,

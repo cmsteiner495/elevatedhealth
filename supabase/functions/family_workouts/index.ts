@@ -39,18 +39,29 @@ type ActionPayload = {
   scheduled_workout_id?: string | number | null;
 };
 
-const WORKOUT_DIFFICULTIES = ["Easy", "Medium", "Moderate", "Hard"];
+const WORKOUT_DIFFICULTIES = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
 const WORKOUT_DIFFICULTY_MAP: Record<string, string> = {
-  easy: "Easy",
-  beginner: "Easy",
-  medium: "Medium",
-  moderate: "Moderate",
-  hard: "Hard",
-  intense: "Hard",
+  easy: "BEGINNER",
+  beginner: "BEGINNER",
+  low: "BEGINNER",
+  medium: "INTERMEDIATE",
+  moderate: "INTERMEDIATE",
+  intermediate: "INTERMEDIATE",
+  hard: "ADVANCED",
+  intense: "ADVANCED",
+  advanced: "ADVANCED",
 };
 
+function isEmptyDifficulty(value: string | null | undefined) {
+  if (!value) return true;
+  const trimmed = value.toString().trim();
+  if (!trimmed) return true;
+  const lower = trimmed.toLowerCase();
+  return lower === "select…" || lower === "select..." || lower === "select";
+}
+
 function normalizeDifficulty(value: string | null | undefined) {
-  if (!value) return null;
+  if (isEmptyDifficulty(value)) return null;
   const key = value.toString().trim().toLowerCase();
   const mapped = WORKOUT_DIFFICULTY_MAP[key];
   if (mapped) return mapped;
@@ -188,7 +199,9 @@ Deno.serve(async (req: Request) => {
         .trim();
       const workoutName = String(body.workout_name || body.title || "").trim();
       const workoutType = String(body.workout_type || "workout").trim();
-      const difficulty = normalizeDifficulty(body.difficulty ? String(body.difficulty) : null);
+      const rawDifficulty = body.difficulty ? String(body.difficulty) : null;
+      const difficulty = normalizeDifficulty(rawDifficulty);
+      console.debug("[WORKOUT] difficulty raw:", rawDifficulty, "normalized:", difficulty);
       const durationMin =
         typeof body.duration_min === "number"
           ? body.duration_min
@@ -217,19 +230,22 @@ Deno.serve(async (req: Request) => {
         return jsonError(400, "missing_workout_name", { required: ["workout_name"] }, cors);
       }
 
-      const insertPayload = {
+      const insertPayload: Record<string, unknown> = {
         family_group_id: familyGroupId,
         added_by: user.id,
         title: workoutName,
         workout_name: workoutName,
         workout_type: workoutType || "workout",
-        difficulty,
         duration_min: Number.isFinite(durationMin) ? durationMin : null,
         notes,
         scheduled_workout_id: scheduledWorkoutId,
         workout_date: workoutDate,
         completed: true,
       };
+
+      if (difficulty !== null) {
+        insertPayload.difficulty = difficulty;
+      }
 
       try {
         console.debug("[WORKOUT INSERT]", insertPayload);
