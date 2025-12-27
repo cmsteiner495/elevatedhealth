@@ -15,7 +15,6 @@ import {
 import {
   currentUser,
   currentFamilyId,
-  toLocalDateString,
   toLocalDayKey,
   addDays,
   getTodayDate,
@@ -944,18 +943,33 @@ if (workoutsForm) {
       workoutsMessage.style.color = "";
     }
 
-    const normalizeDateValue = (value) => {
-      if (!value) return "";
-      const parsed = new Date(value);
-      if (!Number.isNaN(parsed.getTime())) {
-        return toLocalDateString(parsed);
-      }
-      return value;
+    const formatLocalYYYYMMDD = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
     };
 
-    const dateValue = normalizeDateValue(
-      workoutDateInput.value || new Date().toISOString()
-    );
+    const normalizeSelectedDay = (value) => {
+      if (!value) return "";
+      if (value instanceof Date) {
+        return formatLocalYYYYMMDD(value);
+      }
+      if (typeof value === "string") {
+        const datePart = value.split("T")[0] || value;
+        const match = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+          return match.slice(1).join("-");
+        }
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+          return formatLocalYYYYMMDD(parsed);
+        }
+      }
+      return "";
+    };
+
+    const selectedDay = normalizeSelectedDay(workoutDateInput.value) || getTodayDayKey();
     const title = workoutTitleInput.value.trim();
     const workoutType = workoutTypeInput.value;
     const durationRaw = workoutDurationInput.value;
@@ -963,7 +977,7 @@ if (workoutsForm) {
     const durationMin = Number.isFinite(parsedDuration) ? parsedDuration : null;
     const notes = workoutNotesInput.value.trim();
 
-    if (!dateValue || !title || !workoutType) {
+    if (!selectedDay || !title || !workoutType) {
       if (workoutsMessage) {
         workoutsMessage.textContent = "Please add a title, type, and date.";
         workoutsMessage.style.color = "red";
@@ -971,9 +985,8 @@ if (workoutsForm) {
       return;
     }
 
-    const dayKey = toLocalDayKey(dateValue) || dateValue;
     const caloriesBurned = await computeWorkoutCalories({
-      workout_date: dayKey,
+      workout_date: selectedDay,
       title,
       workout_type: workoutType,
       duration_min: durationMin,
@@ -981,7 +994,7 @@ if (workoutsForm) {
     const payload = {
       family_group_id: currentFamilyId || null,
       added_by: currentUser?.id || null,
-      workout_date: dayKey,
+      workout_date: selectedDay,
       title,
       workout_type: workoutType,
       duration_min: durationMin,
@@ -989,6 +1002,14 @@ if (workoutsForm) {
       completed: true,
       calories_burned: caloriesBurned,
     };
+    if (isDevWorkoutsEnv) {
+      console.debug(
+        "[WORKOUT INSERT] selectedDay=",
+        selectedDay,
+        "workout_date=",
+        payload.workout_date
+      );
+    }
     debugWorkouts("[WORKOUT INSERT payload]", payload);
 
     if (!currentFamilyId || !currentUser) {
@@ -1077,10 +1098,10 @@ if (workoutsForm) {
 
     document.dispatchEvent(
       new CustomEvent("diary:refresh", {
-        detail: { date: dateValue, entity: "exercise" },
+        detail: { date: selectedDay, entity: "exercise" },
       })
     );
-    announceDataChange("workouts", dateValue);
+    announceDataChange("workouts", selectedDay);
     maybeVibrate([12]);
   });
 }
