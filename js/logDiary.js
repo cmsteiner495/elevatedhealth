@@ -505,11 +505,12 @@ function handleAddButtons() {
       const target = btn.dataset.diaryAdd;
       const dateValue = toLocalDayKey(selectedDate) || toLocalDayKey(new Date());
       if (!target) return;
-      const isExercise = (target || "").toLowerCase() === "exercise";
+      const normalizedTarget = (target || "").toString().trim().toLowerCase();
+      const isExercise = normalizedTarget === "exercise";
       const targetTab = isExercise ? "workouts-tab" : "meals-tab";
       document.dispatchEvent(
         new CustomEvent("diary:add", {
-          detail: { section: target, date: dateValue, targetTab },
+          detail: { section: normalizedTarget || target, date: dateValue, targetTab },
         })
       );
     });

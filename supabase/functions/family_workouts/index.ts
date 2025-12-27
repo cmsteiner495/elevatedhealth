@@ -28,7 +28,6 @@ type ActionPayload = {
   workout_id?: string | null;
   added_by?: string | null;
   family_group_id?: string | null;
-  day_key?: string | null;
   workout_date?: string | null;
   diary_date?: string | null;
   workout_name?: string | null;
@@ -164,7 +163,8 @@ Deno.serve(async (req: Request) => {
 
     if (action === "add") {
       const familyGroupId = String(body.family_group_id || "").trim();
-      const dayKey = String(body.day_key || body.workout_date || "").trim();
+      const workoutDate = String(body.workout_date || body.day_key || body.diary_date || "")
+        .trim();
       const workoutName = String(body.workout_name || body.title || "").trim();
       const workoutType = String(body.workout_type || "workout").trim();
       const difficulty = body.difficulty ? String(body.difficulty) : null;
@@ -188,8 +188,8 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      if (!dayKey) {
-        return jsonError(400, "missing_day_key", { required: ["day_key"] }, cors);
+      if (!workoutDate) {
+        return jsonError(400, "missing_workout_date", { required: ["workout_date"] }, cors);
       }
 
       if (!workoutName) {
@@ -206,13 +206,13 @@ Deno.serve(async (req: Request) => {
         duration_min: Number.isFinite(durationMin) ? durationMin : null,
         notes,
         scheduled_workout_id: scheduledWorkoutId,
-        day_key: dayKey,
-        workout_date: dayKey,
+        workout_date: workoutDate,
         completed: true,
         logged_at: new Date().toISOString(),
       };
 
       try {
+        console.debug("[WORKOUT INSERT]", insertPayload);
         const { data: inserted, error: insertError } = await supabase
           .from("family_workouts")
           .insert(insertPayload)
@@ -229,6 +229,7 @@ Deno.serve(async (req: Request) => {
           );
         }
 
+        console.debug("[WORKOUT INSERT RESULT]", inserted);
         return json({ ok: true, workout: inserted, log_id: inserted?.id }, 200, cors);
       } catch (err) {
         console.error("Unexpected insert error", err);
