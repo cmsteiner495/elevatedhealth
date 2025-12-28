@@ -14,20 +14,19 @@ type OpenFoodFactsProduct = Record<string, unknown> & {
 function pickNumber(
   nutriments: Record<string, unknown> | undefined,
   keys: string[]
-): number {
-  if (!nutriments) return 0;
+): number | null {
+  if (!nutriments) return null;
   for (const key of keys) {
     const value = nutriments[key];
     const num = Number(value);
     if (Number.isFinite(num)) return num;
   }
-  return 0;
+  return null;
 }
 
 function normalizeProduct(
   product: OpenFoodFactsProduct,
   fallbackName: string,
-  index: number
 ) {
   const nutriments = product.nutriments ?? {};
   const calories = pickNumber(nutriments, [
@@ -51,12 +50,9 @@ function normalizeProduct(
   const fat = pickNumber(nutriments, ["fat_100g", "fat_serving", "fat"]);
 
   const source = "openfoodfacts";
-  const code =
-    product.code ||
-    product._id ||
-    product.id ||
-    (fallbackName ? `${source}:${fallbackName}:${index}` : `${source}:${index}`);
-  const id = String(code);
+  const code = product.code;
+  if (!code) return null;
+  const id = `off:${code}`;
 
   const title =
     product.product_name ||
@@ -75,7 +71,6 @@ function normalizeProduct(
     protein,
     carbs,
     fat,
-    macros: { calories, protein, carbs, fat },
   };
 
   return normalized;
@@ -98,16 +93,16 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const query = body?.query ?? body?.q ?? body?.search ?? "";
 
+    console.log("nutrition-search query", query);
+
     if (!query) {
-      return new Response(JSON.stringify({ error: "Missing query" }), {
-        status: 400,
+      return new Response(JSON.stringify([]), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const url = new URL(
-      "https://world.openfoodfacts.org/cgi/search.pl"
-    );
+    const url = new URL("https://world.openfoodfacts.org/cgi/search.pl");
     url.searchParams.set("search_terms", query);
     url.searchParams.set("search_simple", "1");
     url.searchParams.set("action", "process");
@@ -115,6 +110,7 @@ Deno.serve(async (req) => {
     url.searchParams.set("page_size", "10");
 
     const resp = await fetch(url.toString(), { method: "GET" });
+    console.log("nutrition-search upstream status", resp.status);
     if (!resp.ok) {
       const text = await resp.text();
       console.error("OpenFoodFacts search failed", resp.status, text);
@@ -132,11 +128,31 @@ Deno.serve(async (req) => {
       ? payload.products
       : [];
 
-    const results = products.map((product, idx) =>
-      normalizeProduct(product, query, idx)
-    );
+    console.log("nutrition-search product count", products.length);
 
-    return new Response(JSON.stringify({ results }), {
+    const results = products
+      .map((product) => normalizeProduct(product, query))
+      .filter((product): product is NonNullable<typeof product> => !!product);
+
+    if (results.length === 0) {
+      const fallback = {
+        id: `off:stub:${query}`,
+        source: "openfoodfacts",
+        name: query,
+        brand: "",
+        serving_size: "",
+        calories: null,
+        protein: null,
+        carbs: null,
+        fat: null,
+      };
+      return new Response(JSON.stringify([fallback]), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify(results), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
