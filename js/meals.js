@@ -204,8 +204,11 @@ function normalizeFoodEntry(food = {}) {
   );
   const sourceItemId = food.sourceItemId || food.source_item_id || food.nix_item_id || null;
   const source = food.source || (sourceItemId ? "nutritionix" : "local");
+  const rawId = food.id || sourceItemId || null;
+  const id = rawId != null ? String(rawId) : null;
   return {
     ...food,
+    id,
     source,
     sourceItemId,
     brandName: food.brandName || food.brand || food.brand_name || null,
@@ -337,11 +340,22 @@ async function hydrateFoodDetails(food = {}) {
     return normalized;
   }
 
+  if (!normalized.id) {
+    console.warn("[EH] hydrateFoodDetails missing id for selection", normalized);
+    return normalized;
+  }
+
   try {
     const payload = {
-      id: normalized.id || normalized.sourceItemId || undefined,
+      id: normalized.id,
       source: normalized.source || undefined,
+      title: normalized.title || normalized.name || undefined,
     };
+    console.log("[EH] hydrateFoodDetails payload", {
+      id: payload.id,
+      source: payload.source,
+      title: payload.title,
+    });
     const { data, error } = await supabase.functions.invoke("nutrition-item", {
       body: payload,
     });
