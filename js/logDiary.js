@@ -34,7 +34,7 @@ import {
   getDiaryDateKey,
   toLocalDayKey,
 } from "./state.js";
-import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
+import { deleteMealLogById, fetchMealsByDate, logMealToDiary } from "./meals.js";
 import { deleteWorkoutById, fetchWorkoutsByDate, loadWorkouts } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 import { isMealLogged, isWorkoutLogged } from "./selectors.js";
@@ -645,7 +645,7 @@ async function removeMealFromDiary(mealId, entryEl) {
     entryEl.classList.add("diary-entry-removing");
   }
 
-  const { error } = await deleteMealById(normalizedMealId, {
+  const { error } = await deleteMealLogById(normalizedMealId, {
     client_id: clientId,
     date: entryEl?.dataset?.mealDate || selectedDate,
     reason: "deleteMeal:diary",
