@@ -514,16 +514,42 @@ function groupMealsByType(meals) {
     lunch: [],
     dinner: [],
     snacks: [],
-  };
+  }; 
 
   meals.forEach((meal) => {
     const normalized = (meal.meal_type || "").toLowerCase();
     if (byType[normalized]) {
       byType[normalized].push(meal);
     }
-  });
+  }); 
 
   return byType;
+}
+
+async function fetchDiaryFromSupabase(dateValue) {
+  const targetDate = getDiaryDateKey(dateValue) || getTodayDate();
+
+  const [meals, workouts] = await Promise.all([
+    fetchMealsByDate(targetDate, { offlineFallback: true }),
+    fetchWorkoutsByDate(targetDate, { offlineFallback: true }),
+  ]);
+
+  return { targetDate, meals, workouts };
+}
+
+function renderDiaryEntries(meals = [], workouts = []) {
+  currentDiaryMeals = (meals || []).filter(isMealLogged);
+  currentDiaryWorkouts = (workouts || []).filter(isWorkoutLogged);
+
+  const byType = groupMealsByType(currentDiaryMeals);
+
+  Object.entries(sectionLists).forEach(([key, listEl]) => {
+    renderList(listEl, byType[key] || [], key);
+  });
+  updateSectionTotals(byType);
+
+  renderExercise(diaryExerciseList, currentDiaryWorkouts);
+  calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
 }
 
 async function loadDiary(dateValue) {
@@ -559,23 +585,8 @@ async function loadDiary(dateValue) {
   Object.values(sectionLists).forEach((listEl) => setListLoading(listEl));
   setListLoading(diaryExerciseList);
 
-  const [meals, workouts] = await Promise.all([
-    fetchMealsByDate(targetDate),
-    fetchWorkoutsByDate(targetDate),
-  ]);
-
-  currentDiaryMeals = (meals || []).filter(isMealLogged);
-  currentDiaryWorkouts = (workouts || []).filter(isWorkoutLogged);
-
-  const byType = groupMealsByType(currentDiaryMeals);
-
-  Object.entries(sectionLists).forEach(([key, listEl]) => {
-    renderList(listEl, byType[key] || [], key);
-  });
-  updateSectionTotals(byType);
-
-  renderExercise(diaryExerciseList, currentDiaryWorkouts);
-  calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
+  const { meals, workouts } = await fetchDiaryFromSupabase(targetDate);
+  renderDiaryEntries(meals, workouts);
 
   if (isDebugEnabled()) {
     console.debug("[EH DIARY] loaded entries", {
@@ -653,43 +664,15 @@ async function removeMealFromDiary(mealId, entryEl) {
     return;
   }
 
-  const removedMeal = currentDiaryMeals.find(
-    (meal) => matchesMealIdentifier(meal, normalizedMealId, clientId)
-  );
-  currentDiaryMeals = currentDiaryMeals.filter(
-    (meal) => !matchesMealIdentifier(meal, normalizedMealId, clientId)
-  );
-
-  const updateUI = () => {
-    const byType = groupMealsByType(currentDiaryMeals);
-
-    Object.entries(sectionLists).forEach(([key, listEl]) => {
-      renderList(listEl, byType[key] || [], key);
-    });
-
-    updateSectionTotals(byType);
-
-    calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
-  };
-
-  if (entryEl) {
-    const handler = () => {
-      if (entryEl) entryEl.removeEventListener("transitionend", handler);
-      updateUI();
-    };
-    entryEl.addEventListener("transitionend", handler, { once: true });
-    setTimeout(() => updateUI(), 220);
-  } else {
-    updateUI();
-  }
-
-  const dateDetail = removedMeal?.meal_date || selectedDate;
+  const dateDetail = entryEl?.dataset?.mealDate || selectedDate;
   window.dispatchEvent(
     new CustomEvent("eh:data-changed", { detail: { source: "meals", date: dateDetail } })
   );
   window.dispatchEvent(
     new CustomEvent("eh:dataChanged", { detail: { source: "meals", date: dateDetail } })
   );
+
+  await reloadDiaryFromServer(dateDetail);
 }
 
 async function removeWorkoutFromDiary(workoutId, entryEl) {
@@ -741,28 +724,6 @@ async function removeWorkoutFromDiary(workoutId, entryEl) {
     return;
   }
 
-  currentDiaryWorkouts = currentDiaryWorkouts.filter(
-    (workout) =>
-      String(workout.id) !== String(normalizedWorkoutId) &&
-      String(workout.log_id || "") !== String(normalizedWorkoutId)
-  );
-
-  const updateUI = () => {
-    renderExercise(diaryExerciseList, currentDiaryWorkouts);
-    calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
-  };
-
-  if (entryEl) {
-    const handler = () => {
-      if (entryEl) entryEl.removeEventListener("transitionend", handler);
-      updateUI();
-    };
-    entryEl.addEventListener("transitionend", handler, { once: true });
-    setTimeout(() => updateUI(), 220);
-  } else {
-    updateUI();
-  }
-
   const dateDetail = entryEl?.dataset?.workoutDate || selectedDate;
   window.dispatchEvent(
     new CustomEvent("eh:data-changed", { detail: { source: "workouts", date: dateDetail } })
@@ -772,7 +733,7 @@ async function removeWorkoutFromDiary(workoutId, entryEl) {
   );
 
   try {
-    await Promise.all([loadWorkouts(), loadDiary(selectedDate)]);
+    await Promise.all([loadWorkouts(), reloadDiaryFromServer(dateDetail)]);
   } catch (err) {
     console.warn("Post-delete refresh failed", err);
   }
@@ -815,6 +776,10 @@ function attachExerciseListHandlers() {
     if (!workoutId) return;
     removeWorkoutFromDiary(workoutId, entry);
   });
+}
+
+export async function reloadDiaryFromServer(dateValue) {
+  return loadDiary(dateValue || selectedDate);
 }
 
 export function refreshDiaryForSelectedDate() {
