@@ -246,9 +246,12 @@ async function loadFoodDatabase() {
 async function fetchNutritionSearchResults(query) {
   try {
     const { data, error } = await supabase.functions.invoke("nutrition-search", {
-      body: { query },
+      body: { q: query, query },
     });
     if (error) throw error;
+    if (data?.build) {
+      console.debug("[meals] nutrition-search build", data.build);
+    }
     const payloadResults =
       (data?.ok && Array.isArray(data.results) && data.results) ||
       (Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : []);
