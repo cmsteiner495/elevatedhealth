@@ -1,117 +1,79 @@
 import { corsHeaders } from "../_shared/cors.ts";
 
-const BUILD_VERSION = "nutrition-search v2";
+const BUILD_VERSION = "nutrition-search v3";
 const BUILD_TIMESTAMP = new Date().toISOString();
 const BUILD_MARKER = `${BUILD_VERSION} ${BUILD_TIMESTAMP}`;
 
 type OpenFoodFactsProduct = Record<string, unknown> & {
   code?: string;
-  _id?: string;
-  id?: string;
   product_name?: string;
   generic_name?: string;
   brands?: string;
-  serving_size?: string;
-  nutriments?: Record<string, unknown>;
 };
 
-type NormalizedFood = {
+type NutritionSearchResult = {
   id: string;
-  source: string;
   name: string;
-  title: string;
-  brand: string;
-  serving_size: string;
-  calories: number | null;
-  protein: number | null;
-  carbs: number | null;
-  fat: number | null;
-  sourceItemId: string;
+  brand: string | null;
+  source: "openfoodfacts";
 };
 
-function jsonResponse(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+const ALLOWED_ORIGINS = new Set([
+  "http://127.0.0.1:5500",
+  "http://localhost:5500",
+]);
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") ?? "";
+  const allowOrigin = ALLOWED_ORIGINS.has(origin)
+    ? origin
+    : corsHeaders["Access-Control-Allow-Origin"] || "*";
+  return {
+    ...corsHeaders,
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Content-Type": "application/json",
+  };
 }
 
-function pickNumber(
-  nutriments: Record<string, unknown> | undefined,
-  keys: string[]
-): number | null {
-  if (!nutriments) return null;
-  for (const key of keys) {
-    const value = nutriments[key];
-    const num = Number(value);
-    if (Number.isFinite(num)) return num;
-  }
-  return null;
+function respond(
+  req: Request,
+  payload: Record<string, unknown>,
+  status = 200,
+) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: getCorsHeaders(req),
+  });
 }
 
 function normalizeProduct(
   product: OpenFoodFactsProduct,
   fallbackName: string,
-): NormalizedFood | null {
-  const nutriments = product.nutriments ?? {};
-  const calories = pickNumber(nutriments, [
-    "energy-kcal_100g",
-    "energy-kcal_value",
-    "energy-kcal",
-    "energy-kcal_serving",
-    "energy_kcal_100g",
-    "energy_kcal_serving",
-  ]);
-  const protein = pickNumber(nutriments, [
-    "proteins_100g",
-    "proteins_serving",
-    "proteins",
-  ]);
-  const carbs = pickNumber(nutriments, [
-    "carbohydrates_100g",
-    "carbohydrates_serving",
-    "carbohydrates",
-  ]);
-  const fat = pickNumber(nutriments, ["fat_100g", "fat_serving", "fat"]);
+): NutritionSearchResult | null {
+  const id = typeof product.code === "string" && product.code.trim()
+    ? product.code.trim()
+    : null;
+  if (!id) return null;
 
-  const source = "openfoodfacts";
-  const code = product.code;
-  if (!code) return null;
-  const id = `off:${code}`;
+  const name = (product.product_name || product.generic_name || fallbackName || "Unknown").toString();
+  const brand = product.brands?.toString().trim() || null;
 
-  const title =
-    product.product_name ||
-    product.generic_name ||
-    fallbackName ||
-    "Unknown item";
-  const name = title;
-  const normalized: NormalizedFood = {
+  return {
     id,
-    source,
     name,
-    title,
-    brand: product.brands || "",
-    serving_size: product.serving_size || "",
-    calories,
-    protein,
-    carbs,
-    fat,
-    sourceItemId: id,
+    brand,
+    source: "openfoodfacts",
   };
-
-  return normalized;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 200, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: getCorsHeaders(req) });
   }
 
-  // Health check so we can confirm it exists in prod and verify the build marker
-  // In browser: open Network tab, trigger a search, and confirm the "nutrition-search"
-  // response payload includes the "build" field shown below.
+  // Health check
   if (req.method === "GET") {
-    return jsonResponse({
+    return respond(req, {
       ok: true,
       fn: "nutrition-search",
       build: BUILD_MARKER,
@@ -120,13 +82,17 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const queryRaw = body?.query ?? body?.q ?? body?.search ?? "";
-    const query = typeof queryRaw === "string" ? queryRaw.trim() : "";
+    const queryRaw =
+      (typeof body?.q === "string" && body.q) ||
+      (typeof body?.query === "string" && body.query) ||
+      (typeof body?.search === "string" && body.search) ||
+      "";
+    const query = queryRaw.trim();
 
     console.log("nutrition-search query", query);
 
     if (!query) {
-      return jsonResponse({ build: BUILD_MARKER, results: [] });
+      return respond(req, { results: [] });
     }
 
     const url = new URL("https://world.openfoodfacts.org/cgi/search.pl");
@@ -136,37 +102,41 @@ Deno.serve(async (req) => {
     url.searchParams.set("json", "1");
     url.searchParams.set("page_size", "10");
 
-    const resp = await fetch(url.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    console.log("nutrition-search upstream status", resp.status);
-    if (!resp.ok) {
-      const text = await resp.text();
-      console.error("OpenFoodFacts search failed", resp.status, text);
-      return jsonResponse(
-        { build: BUILD_MARKER, error: "Search failed" },
-        502,
-      );
+    try {
+      const resp = await fetch(url.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      console.log("nutrition-search upstream status", resp.status);
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error("OpenFoodFacts search failed", resp.status, text);
+        return respond(req, {
+          results: [],
+          error: `OpenFoodFacts search failed (${resp.status})`,
+        });
+      }
+
+      const payload = await resp.json();
+      const products: OpenFoodFactsProduct[] = Array.isArray(payload?.products)
+        ? payload.products
+        : [];
+
+      const results = products
+        .map((product) => normalizeProduct(product, query))
+        .filter((item): item is NutritionSearchResult => Boolean(item));
+
+      console.log("nutrition-search product count", results.length);
+
+      return respond(req, { results });
+    } catch (err) {
+      console.error("OpenFoodFacts request error", err);
+      return respond(req, { results: [], error: String(err) });
     }
-
-    const payload = await resp.json();
-    const products: OpenFoodFactsProduct[] = Array.isArray(payload?.products)
-      ? payload.products
-      : [];
-
-    console.log("nutrition-search product count", products.length);
-
-    const results = products
-      .map((product) => normalizeProduct(product, query))
-      .filter((product): product is NonNullable<typeof product> => !!product);
-
-    return jsonResponse({ build: BUILD_MARKER, results });
   } catch (err) {
     console.error("nutrition-search error", err);
-    return jsonResponse(
-      { build: BUILD_MARKER, error: String(err) },
-      500,
-    );
+    return respond(req, { results: [], error: String(err) });
   }
 });

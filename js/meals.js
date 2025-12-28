@@ -249,17 +249,14 @@ async function fetchNutritionSearchResults(query) {
       body: { q: query, query },
     });
     if (error) throw error;
-    if (data?.build) {
-      console.debug("[meals] nutrition-search build", data.build);
+    const payloadResults = Array.isArray(data?.results) ? data.results : [];
+    const normalizedResults = payloadResults.map((entry) => normalizeFoodEntry(entry));
+    if (!normalizedResults.length && data?.error) {
+      console.warn("[meals] nutrition-search returned empty results", data.error);
     }
-    const payloadResults =
-      (data?.ok && Array.isArray(data.results) && data.results) ||
-      (Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : []);
     return {
-      results: Array.isArray(payloadResults)
-        ? payloadResults.map((entry) => normalizeFoodEntry(entry))
-        : [],
-      error: null,
+      results: normalizedResults,
+      error: data?.error || null,
     };
   } catch (err) {
     console.error("[meals] nutrition-search failed", err);
