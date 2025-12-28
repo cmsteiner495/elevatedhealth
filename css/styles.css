@@ -1279,6 +1279,24 @@ body {
   gap: var(--space-12);
 }
 
+.diary-section-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.diary-section-total {
+  background: var(--bg-card-soft);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
 .diary-section-title {
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -1315,6 +1333,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.diary-entry-calories {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .diary-entry-title {

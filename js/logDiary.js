@@ -19,6 +19,7 @@ import {
   diaryCaloriesExercise,
   diaryCaloriesRemaining,
   dashboardCaloriesFill,
+  diarySectionTotals,
 } from "./dom.js";
 import {
   currentFamilyId,
@@ -41,6 +42,13 @@ const sectionLists = {
   lunch: diaryLunchList,
   dinner: diaryDinnerList,
   snacks: diarySnacksList,
+};
+
+const mealTotals = {
+  breakfast: 0,
+  lunch: 0,
+  dinner: 0,
+  snacks: 0,
 };
 
 const emptyMessage = "No entries yet";
@@ -117,6 +125,8 @@ function matchesMealIdentifier(meal, identifier, clientId) {
 }
 
 function createMealEntry(item, sectionKey) {
+  const caloriesValue = getEntryCalories(item);
+
   const li = document.createElement("li");
   li.className = "diary-entry";
   li.dataset.mealId = item.id;
@@ -126,7 +136,7 @@ function createMealEntry(item, sectionKey) {
   li.dataset.mealTitle = item.title || "";
   li.dataset.mealNotes = item.notes || "";
   li.dataset.mealDescription = item.description || "";
-  li.dataset.mealCalories = item.calories || item.nutrition?.calories || "";
+  li.dataset.mealCalories = caloriesValue;
   li.dataset.mealProtein = item.protein || item.nutrition?.protein || "";
   li.dataset.mealCarbs = item.carbs || item.nutrition?.carbs || "";
   li.dataset.mealFat = item.fat || item.nutrition?.fat || "";
@@ -142,6 +152,13 @@ function createMealEntry(item, sectionKey) {
   title.className = "diary-entry-title";
   title.textContent = item.title;
   textWrap.appendChild(title);
+
+  if (caloriesValue != null) {
+    const caloriesLabel = document.createElement("div");
+    caloriesLabel.className = "diary-entry-calories";
+    caloriesLabel.textContent = `${caloriesValue} cal`;
+    textWrap.appendChild(caloriesLabel);
+  }
 
   if (item.notes) {
     const notes = document.createElement("div");
@@ -174,6 +191,31 @@ function renderList(listEl, items, sectionKey) {
   listEl.innerHTML = "";
   items.forEach((item) => {
     listEl.appendChild(createMealEntry(item, sectionKey));
+  });
+}
+
+function getEntryCalories(entry) {
+  const caloriesValue =
+    entry?.macros?.calories ??
+    entry?.calories ??
+    entry?.nutrition?.calories ??
+    0;
+  return Math.round(parseMetricNumber(caloriesValue));
+}
+
+function getSectionCalories(entries = []) {
+  return entries.reduce((sum, entry) => sum + getEntryCalories(entry), 0);
+}
+
+function updateSectionTotals(byType) {
+  Object.entries(byType).forEach(([key, entries]) => {
+    const total = getSectionCalories(entries || []);
+    mealTotals[key] = total;
+    const target = diarySectionTotals?.[key];
+    if (target) {
+      target.textContent = `Total: ${total} cal`;
+      target.style.display = entries && entries.length ? "inline-flex" : "none";
+    }
   });
 }
 
@@ -481,6 +523,12 @@ async function loadDiary(dateValue) {
     Object.entries(sectionLists).forEach(([key, listEl]) =>
       renderList(listEl, [], key)
     );
+    updateSectionTotals({
+      breakfast: [],
+      lunch: [],
+      dinner: [],
+      snacks: [],
+    });
     renderExercise(diaryExerciseList, []);
     calculateCalories([], []);
     return;
@@ -502,6 +550,7 @@ async function loadDiary(dateValue) {
   Object.entries(sectionLists).forEach(([key, listEl]) => {
     renderList(listEl, byType[key] || [], key);
   });
+  updateSectionTotals(byType);
 
   renderExercise(diaryExerciseList, currentDiaryWorkouts);
   calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
@@ -585,6 +634,8 @@ async function removeMealFromDiary(mealId, entryEl) {
     Object.entries(sectionLists).forEach(([key, listEl]) => {
       renderList(listEl, byType[key] || [], key);
     });
+
+    updateSectionTotals(byType);
 
     calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
   };
