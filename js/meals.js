@@ -1132,7 +1132,18 @@ function announceDataChange(source, date) {
 }
 
 export async function logMealToDiary(meal, options = {}) {
+  const userId = currentUser?.id || null;
+  if (!supabase || typeof supabase.from !== "function") {
+    console.warn("[ADD EARLY RETURN] missing supabase client");
+    showToast("Missing Supabase client");
+    return;
+  }
+
   if (!currentUser || !currentFamilyId) {
+    console.warn("[ADD EARLY RETURN] missing auth or family", {
+      userId,
+      familyId: currentFamilyId || null,
+    });
     showToast("Join a family to log meals.");
     return;
   }
@@ -1140,7 +1151,11 @@ export async function logMealToDiary(meal, options = {}) {
   const targetDate =
     getDiaryDateKey(options.date || selectedDate || getTodayDate()) || getTodayDate();
   const title = meal.title?.trim();
-  if (!title) return;
+  if (!title) {
+    console.warn("[ADD EARLY RETURN] missing meal title", { mealId: meal.id || null });
+    showToast("Meal is missing a title.");
+    return;
+  }
 
   const mealType = meal.meal_type || meal.mealType || options.mealType || "dinner";
   const notes = (meal.notes || meal.description || "").trim() || null;
@@ -1188,6 +1203,7 @@ export async function logMealToDiary(meal, options = {}) {
   const { logged_at: _omitLoggedAt, ...serverPayloadInput } = payload;
   const serverPayload = buildServerMealPayload(serverPayloadInput);
   console.log("[MEAL INSERT] serverPayload", serverPayload);
+  console.log("[INSERT START]", { payload: serverPayload, tempId, targetDate });
 
   const tryUpdateTargets = [
     existingId ? ["id", existingId] : null,
@@ -1231,6 +1247,8 @@ export async function logMealToDiary(meal, options = {}) {
       .insert([serverPayload])
       .select("*")
       .maybeSingle();
+
+    console.log("[INSERT DONE]", { data, error });
 
     if (error) {
       console.error("[MEAL INSERT ERROR]", error);
@@ -1699,6 +1717,9 @@ function renderMeals(items) {
     const logBtn = document.createElement("button");
     logBtn.textContent = "Add";
     logBtn.type = "button";
+    logBtn.dataset.action = "add-upcoming-meal";
+    logBtn.dataset.mealId = meal.id || "";
+    logBtn.dataset.mealClientId = meal.client_id || meal.id || "";
     logBtn.classList.add("ghost-btn", "meal-log-btn");
     logBtn.style.paddingInline = "0.6rem";
     logBtn.style.fontSize = "0.85rem";
