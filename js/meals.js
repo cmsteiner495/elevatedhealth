@@ -217,18 +217,85 @@ function normalizeLogDate(value) {
 function normalizeMealLogRow(row = {}) {
   const logDate = normalizeLogDate(row.log_date || row.meal_date || row.date);
   const mealType = normalizeMealLogType(row.meal_type || row.mealType || row.type);
+  const calories = Math.round(coerceNumber(row.calories));
+  const protein = coerceNumber(row.protein_g ?? row.protein ?? row.macros?.protein);
+  const carbs = coerceNumber(row.carbs_g ?? row.carbs ?? row.macros?.carbs);
+  const fat = coerceNumber(row.fat_g ?? row.fat ?? row.macros?.fat);
+  const servingSizeG = coerceNumber(row.serving_size_g ?? row.serving_size ?? row.serving);
   return {
     ...row,
+    title: row.title || row.name || "Meal",
+    name: row.name || row.title || "Meal",
     log_date: logDate,
     meal_date: row.meal_date || logDate,
     meal_type: mealType,
-    calories: coerceNumber(row.calories),
-    protein: coerceNumber(row.protein),
-    carbs: coerceNumber(row.carbs),
-    fat: coerceNumber(row.fat),
+    calories,
+    protein_g: protein,
+    carbs_g: carbs,
+    fat_g: fat,
+    protein,
+    carbs,
+    fat,
+    serving_size_g: servingSizeG || null,
     logged: true,
     logged_at: row.logged_at || row.created_at || logDate,
     dateKey: logDate,
+  };
+}
+
+export function buildMealLogPayload({ userId, familyGroupId, logDate, mealType, sourceMeal }) {
+  const name = sourceMeal?.name || sourceMeal?.title || "Meal";
+  const brand = sourceMeal?.brand || sourceMeal?.restaurant || sourceMeal?.source || null;
+
+  const servingSizeG =
+    sourceMeal?.serving_size_g ??
+    sourceMeal?.servingSizeG ??
+    sourceMeal?.serving_size ??
+    sourceMeal?.serving ??
+    null;
+
+  const calories =
+    sourceMeal?.calories ??
+    sourceMeal?.kcal ??
+    sourceMeal?.energy ??
+    0;
+
+  const protein =
+    sourceMeal?.protein_g ??
+    sourceMeal?.protein ??
+    sourceMeal?.macros?.protein ??
+    0;
+
+  const carbs =
+    sourceMeal?.carbs_g ??
+    sourceMeal?.carbs ??
+    sourceMeal?.macros?.carbs ??
+    0;
+
+  const fat =
+    sourceMeal?.fat_g ??
+    sourceMeal?.fat ??
+    sourceMeal?.macros?.fat ??
+    0;
+
+  return {
+    user_id: userId,
+    family_group_id: familyGroupId || null,
+    log_date: logDate, // 'YYYY-MM-DD'
+    meal_type: mealType, // breakfast/lunch/dinner/snacks
+    meal_id: sourceMeal?.id || sourceMeal?.meal_id || null,
+
+    name: String(name),
+    brand: brand ? String(brand) : null,
+    serving_size_g:
+      servingSizeG === null || servingSizeG === undefined || servingSizeG === ""
+        ? null
+        : Number(servingSizeG),
+
+    calories: Math.round(Number(calories) || 0),
+    protein_g: Number(protein) || 0,
+    carbs_g: Number(carbs) || 0,
+    fat_g: Number(fat) || 0,
   };
 }
 
@@ -243,12 +310,42 @@ async function refreshDiary(dateValue) {
   }
 }
 
-async function insertMealLog(payload) {
-  const sanitizedPayload = {
+function sanitizeMealLogPayload(payload = {}) {
+  const allowed = new Set([
+    "user_id",
+    "family_group_id",
+    "log_date",
+    "meal_type",
+    "meal_id",
+    "name",
+    "brand",
+    "serving_size_g",
+    "calories",
+    "protein_g",
+    "carbs_g",
+    "fat_g",
+    "notes",
+  ]);
+  const prepared = {
     ...payload,
     log_date: normalizeLogDate(payload.log_date),
     meal_type: normalizeMealLogType(payload.meal_type),
+    calories: Math.round(Number(payload.calories) || 0),
+    protein_g: Number(payload.protein_g) || 0,
+    carbs_g: Number(payload.carbs_g) || 0,
+    fat_g: Number(payload.fat_g) || 0,
+    notes: payload.notes ?? null,
   };
+  return Object.entries(prepared).reduce((acc, [key, value]) => {
+    if (allowed.has(key)) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+
+async function insertMealLog(payload) {
+  const sanitizedPayload = sanitizeMealLogPayload(payload);
   const { data, error } = await supabase.from(MEAL_LOG_TABLE).insert([sanitizedPayload]).select("*");
   console.log("[MEAL LOG INSERT]", { data, error });
   const insertedRow = Array.isArray(data) ? data[0] : data;
@@ -995,9 +1092,9 @@ function computeMealTotals(meal = {}) {
   const normalized = normalizeMeal(meal) || {};
   return {
     calories: coerceNumber(normalized.calories),
-    protein: coerceNumber(normalized.protein),
-    carbs: coerceNumber(normalized.carbs),
-    fat: coerceNumber(normalized.fat),
+    protein: coerceNumber(normalized.protein ?? normalized.protein_g),
+    carbs: coerceNumber(normalized.carbs ?? normalized.carbs_g),
+    fat: coerceNumber(normalized.fat ?? normalized.fat_g),
   };
 }
 
@@ -1241,7 +1338,7 @@ export async function logMealToDiary(meal, options = {}) {
 
   const targetDate =
     getDiaryDateKey(options.date || selectedDate || getTodayDate()) || getTodayDate();
-  const title = (meal.title || meal.name || "").trim();
+  const title = (meal.title || meal.name || "Meal").trim();
   if (!title) {
     console.warn("[ADD EARLY RETURN] missing meal title", { mealId: meal.id || null });
     showToast("Meal is missing a title.");
@@ -1254,29 +1351,46 @@ export async function logMealToDiary(meal, options = {}) {
   const existingId = meal.id || null;
   const existingClientId = meal.client_id || meal.clientId || null;
   const tempId = existingClientId || existingId || `${LOCAL_ID_PREFIX}${Date.now()}`;
-  const payload = {
-    family_group_id: currentFamilyId || null,
-    user_id: userId,
-    client_id: tempId,
-    log_date: targetDate,
-    meal_type: mealType,
+
+  const sourceMeal = {
+    ...meal,
     title,
+    name: meal.name || title,
     notes,
-    calories: totals.calories,
-    protein: totals.protein,
-    carbs: totals.carbs,
-    fat: totals.fat,
-    source: meal.source || options.source || null,
+    calories:
+      Math.round(coerceNumber(totals.calories ?? meal.calories ?? meal.nutrition?.calories)) || 0,
+    protein: coerceNumber(
+      totals.protein ?? meal.protein_g ?? meal.protein ?? meal.nutrition?.protein_g ?? meal.nutrition?.protein
+    ),
+    carbs: coerceNumber(
+      totals.carbs ?? meal.carbs_g ?? meal.carbs ?? meal.nutrition?.carbs_g ?? meal.nutrition?.carbs
+    ),
+    fat: coerceNumber(
+      totals.fat ?? meal.fat_g ?? meal.fat ?? meal.nutrition?.fat_g ?? meal.nutrition?.fat
+    ),
+  };
+
+  const payload = {
+    ...buildMealLogPayload({
+      userId,
+      familyGroupId: currentFamilyId,
+      logDate: targetDate,
+      mealType,
+      sourceMeal,
+    }),
+    notes,
   };
 
   const { data, error } = await insertMealLog(payload);
   if (error) {
-    console.error("[MEAL LOG INSERT ERROR]", error);
+    console.error("[MEAL LOG INSERT ERROR]", { error, payload });
     if (!options.silent) {
-      showToast("Couldn't save meal. Try again.");
+      showToast(`Couldn't save meal: ${error.message}`);
     }
     return { error };
   }
+
+  console.log("[MEAL LOG INSERT OK]", data);
 
   const reconciled = normalizeMealLogRow({
     ...payload,
@@ -1369,9 +1483,9 @@ function openMealDetailsModal(meal) {
           meal_type: meal.meal_type,
           notes: meal.notes,
           calories: meal.calories,
-          protein: meal.protein,
-          carbs: meal.carbs,
-          fat: meal.fat,
+          protein: meal.protein_g || meal.protein || meal.nutrition?.protein_g || meal.nutrition?.protein,
+          carbs: meal.carbs_g || meal.carbs || meal.nutrition?.carbs_g || meal.nutrition?.carbs,
+          fat: meal.fat_g || meal.fat || meal.nutrition?.fat_g || meal.nutrition?.fat,
           nutrition: meal.nutrition || meal.macros,
         },
         { date: selectedDate }
@@ -1387,9 +1501,9 @@ setDinnerLogHandler(async (meal) => {
       meal_type: "dinner",
       notes: meal.description || meal.notes,
       calories: meal.calories || meal.nutrition?.calories,
-      protein: meal.protein || meal.nutrition?.protein,
-      carbs: meal.carbs || meal.nutrition?.carbs,
-      fat: meal.fat || meal.nutrition?.fat,
+      protein: meal.protein_g || meal.protein || meal.nutrition?.protein_g || meal.nutrition?.protein,
+      carbs: meal.carbs_g || meal.carbs || meal.nutrition?.carbs_g || meal.nutrition?.carbs,
+      fat: meal.fat_g || meal.fat || meal.nutrition?.fat_g || meal.nutrition?.fat,
       nutrition: meal.nutrition || meal.macros,
     },
     { date: selectedDate }
