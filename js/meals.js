@@ -201,27 +201,78 @@ function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
 
 export { sanitizeFamilyMealPayload };
 
+function normalizeMacroSet(macros) {
+  if (!macros || typeof macros !== "object") return null;
+  return {
+    calories: coerceNumber(macros.calories ?? macros.kcal ?? macros.energy ?? 0),
+    protein: coerceNumber(macros.protein ?? macros.protein_g ?? 0),
+    carbs: coerceNumber(macros.carbs ?? macros.carbohydrates ?? macros.carbs_g ?? 0),
+    fat: coerceNumber(macros.fat ?? macros.fat_g ?? 0),
+  };
+}
+
+function scaleMacroValues(macros = {}, factor = 1) {
+  const safeFactor = Number(factor) && Number(factor) > 0 ? Number(factor) : 1;
+  return {
+    calories: Math.round(coerceNumber(macros.calories) * safeFactor),
+    protein: Math.round(coerceNumber(macros.protein ?? macros.protein_g) * safeFactor),
+    carbs: Math.round(coerceNumber(macros.carbs ?? macros.carbohydrates ?? macros.carbs_g) * safeFactor),
+    fat: Math.round(coerceNumber(macros.fat ?? macros.fat_g) * safeFactor),
+  };
+}
+
+function scalePer100g(per100g = {}, grams = 100) {
+  const factor = (coerceNumber(grams) || 0) / 100;
+  const round2 = (value) => Math.round(value * 100) / 100;
+  return {
+    calories: round2(coerceNumber(per100g.calories) * (factor || 1)),
+    protein: round2(coerceNumber(per100g.protein) * (factor || 1)),
+    carbs: round2(coerceNumber(per100g.carbs) * (factor || 1)),
+    fat: round2(coerceNumber(per100g.fat) * (factor || 1)),
+  };
+}
+
 function normalizeFoodEntry(food = {}) {
   const servingQty = coerceNumber(food.serving_qty ?? food.servingQty);
-  const servingGrams = coerceNumber(
-    food.serving_grams ?? food.servingGrams ?? food.serving_weight_grams
+  const servingSizeG = coerceNumber(
+    food.serving_size_g ?? food.serving_grams ?? food.servingGrams ?? food.serving_weight_grams
   );
+  const servingLabel = (food.serving_size || food.servingSize || "").toString().trim() || null;
   const sourceItemId = food.sourceItemId || food.source_item_id || food.nix_item_id || null;
   const source = food.source || (sourceItemId ? "nutritionix" : "local");
   const rawId = food.id || sourceItemId || null;
   const id = rawId != null ? String(rawId) : null;
   const macrosBasis = food.macros_basis || food.macrosBasis || null;
   const per100g =
-    food.per100g ||
-    (macrosBasis === "per100g"
-      ? {
-          calories: coerceNumber(food.calories ?? food.macros?.calories ?? 0),
-          protein: coerceNumber(food.protein ?? food.macros?.protein ?? food.protein_g ?? 0),
-          carbs: coerceNumber(food.carbs ?? food.macros?.carbs ?? food.carbs_g ?? 0),
-          fat: coerceNumber(food.fat ?? food.macros?.fat ?? food.fat_g ?? 0),
-        }
-      : null);
-  const macros = food.macros || per100g || null;
+    normalizeMacroSet(food.per100g) ||
+    (macrosBasis === "per100g" ? normalizeMacroSet(food.macros) : null);
+  const perServing =
+    normalizeMacroSet(food.perServing) ||
+    (macrosBasis === "perServing" ? normalizeMacroSet(food.macros) : null) ||
+    (per100g && servingSizeG ? normalizeMacroSet(scalePer100g(per100g, servingSizeG)) : null);
+  const macros =
+    normalizeMacroSet(food.macros) ||
+    perServing ||
+    (macrosBasis !== "perServing" ? per100g : null) || {
+      calories: coerceNumber(
+        food.calories ??
+          food.calorie ??
+          food.calories_total ??
+          food.kcal ??
+          food.macros?.calories ??
+          0
+      ),
+      protein: coerceNumber(
+        food.protein ?? food.protein_g ?? food.protein_total ?? food.macros?.protein
+      ),
+      carbs: coerceNumber(
+        food.carbs ?? food.carbs_g ?? food.carbs_total ?? food.net_carbs ?? food.macros?.carbs
+      ),
+      fat: coerceNumber(food.fat ?? food.fat_g ?? food.fat_total ?? food.fats ?? food.macros?.fat),
+    };
+  const resolvedBasis =
+    macrosBasis ||
+    (perServing ? "perServing" : per100g ? "per100g" : macros ? "perServing" : null);
 
   return {
     ...food,
@@ -230,25 +281,17 @@ function normalizeFoodEntry(food = {}) {
     sourceItemId,
     brandName: food.brandName || food.brand || food.brand_name || null,
     name: food.name || food.title || food.food_name || "",
-    calories: coerceNumber(
-      food.calories ??
-        food.calorie ??
-        food.calories_total ??
-        food.kcal ??
-        food.macros?.calories ??
-        0
-    ),
-    protein_g: coerceNumber(
-      food.protein_g ?? food.protein ?? food.protein_total ?? food.macros?.protein
-    ),
-    carbs_g: coerceNumber(
-      food.carbs_g ?? food.carbs ?? food.carbs_total ?? food.net_carbs ?? food.macros?.carbs
-    ),
-    fat_g: coerceNumber(food.fat_g ?? food.fat ?? food.fat_total ?? food.fats ?? food.macros?.fat),
+    calories: coerceNumber(macros.calories),
+    protein_g: coerceNumber(macros.protein),
+    carbs_g: coerceNumber(macros.carbs),
+    fat_g: coerceNumber(macros.fat),
     serving_qty: servingQty || null,
     serving_unit: food.serving_unit || food.servingUnit || null,
-    serving_grams: servingGrams || null,
-    macros_basis: macrosBasis,
+    serving_grams: servingSizeG || null,
+    serving_size_g: servingSizeG || null,
+    serving_size: servingLabel || (servingSizeG ? `${Math.round(servingSizeG)} g` : null),
+    macros_basis: resolvedBasis,
+    perServing: perServing || null,
     per100g: per100g || null,
     macros,
     raw: food.raw || food.raw_json,
@@ -322,6 +365,9 @@ function searchLocalFoods(query) {
 
 function formatServingLabel(food = {}) {
   const normalized = normalizeFoodEntry(food);
+  if (normalized.serving_size) return normalized.serving_size;
+  const servingSizeG = coerceNumber(normalized.serving_size_g ?? normalized.serving_grams);
+  if (servingSizeG) return `${Math.round(servingSizeG)} g`;
   const qty = coerceNumber(normalized.serving_qty);
   const unit = normalized.serving_unit;
   if (!qty || !unit) return "";
@@ -418,29 +464,63 @@ function getPer100gMacros(nutrition = {}) {
   return null;
 }
 
+function getPerServingMacros(nutrition = {}) {
+  const perServing = normalizeMacroSet(nutrition.perServing);
+  if (perServing) return perServing;
+  if (nutrition.macros_basis === "perServing" && nutrition.macros) {
+    return normalizeMacroSet(nutrition.macros);
+  }
+  const per100g = normalizeMacroSet(getPer100gMacros(nutrition));
+  const servingSizeG = coerceNumber(nutrition.serving_size_g ?? nutrition.serving_grams);
+  if (per100g && servingSizeG) {
+    return normalizeMacroSet(scalePer100g(per100g, servingSizeG));
+  }
+  return null;
+}
+
 function applyPortionMultiplier(nutrition = {}, portion = selectedPortion, options = {}) {
   const factor = Number(portion) && Number(portion) > 0 ? Number(portion) : 1;
   const servingQty = coerceNumber(nutrition.serving_qty);
-  const servingGrams = coerceNumber(nutrition.serving_grams);
-  const per100g = getPer100gMacros(nutrition);
-  if (nutrition.macros_basis === "per100g" && per100g) {
-    const gramsOverride = coerceNumber(options.gramsOverride);
-    const effectiveGrams = coerceNumber(servingGrams || gramsOverride) || 100;
-    const scaledFactor = (effectiveGrams / 100) * factor;
+  const servingGrams = coerceNumber(nutrition.serving_size_g ?? nutrition.serving_grams);
+  const perServing = getPerServingMacros(nutrition);
+  const per100g = normalizeMacroSet(getPer100gMacros(nutrition));
+  if (perServing) {
+    const scaledMacros = scaleMacroValues(perServing, factor);
     return {
-      calories: Math.round(coerceNumber(per100g.calories) * scaledFactor),
-      protein: Math.round(coerceNumber(per100g.protein) * scaledFactor),
-      carbs: Math.round(coerceNumber(per100g.carbs) * scaledFactor),
-      fat: Math.round(coerceNumber(per100g.fat) * scaledFactor),
+      ...scaledMacros,
       serving_qty: servingQty ? servingQty * factor : null,
       serving_unit: nutrition.serving_unit || null,
-      serving_grams: Math.round(effectiveGrams * factor),
+      serving_grams: servingGrams ? Math.round(servingGrams * factor) : null,
+      serving_size_g: servingGrams ? Math.round(servingGrams * factor) : null,
+      serving_size: nutrition.serving_size || null,
       name: nutrition.name,
       brandName: nutrition.brandName || null,
       sourceItemId: nutrition.sourceItemId || null,
       source: nutrition.source || null,
       raw: nutrition.raw,
-      macros_basis: nutrition.macros_basis,
+      macros_basis: "perServing",
+      perServing,
+      per100g,
+    };
+  }
+
+  if (per100g) {
+    const gramsOverride = coerceNumber(options.gramsOverride);
+    const effectiveGrams = coerceNumber(servingGrams || gramsOverride) || 100;
+    const scaledMacros = scaleMacroValues(per100g, (effectiveGrams / 100) * factor);
+    return {
+      ...scaledMacros,
+      serving_qty: servingQty ? servingQty * factor : null,
+      serving_unit: nutrition.serving_unit || null,
+      serving_grams: Math.round(effectiveGrams * factor),
+      serving_size_g: Math.round(effectiveGrams * factor),
+      serving_size: nutrition.serving_size || (effectiveGrams ? `${Math.round(effectiveGrams)} g` : null),
+      name: nutrition.name,
+      brandName: nutrition.brandName || null,
+      sourceItemId: nutrition.sourceItemId || null,
+      source: nutrition.source || null,
+      raw: nutrition.raw,
+      macros_basis: "per100g",
       per100g,
     };
   }
@@ -453,6 +533,8 @@ function applyPortionMultiplier(nutrition = {}, portion = selectedPortion, optio
     serving_qty: servingQty ? servingQty * factor : null,
     serving_unit: nutrition.serving_unit || null,
     serving_grams: servingGrams ? Math.round(servingGrams * factor) : null,
+    serving_size_g: servingGrams ? Math.round(servingGrams * factor) : null,
+    serving_size: nutrition.serving_size || null,
     name: nutrition.name,
     brandName: nutrition.brandName || null,
     sourceItemId: nutrition.sourceItemId || null,
@@ -462,16 +544,25 @@ function applyPortionMultiplier(nutrition = {}, portion = selectedPortion, optio
 }
 
 function buildServingNote(nutrition = {}, portion = selectedPortion) {
-  const qty = coerceNumber(nutrition.serving_qty);
-  const unit = nutrition.serving_unit;
-  if (!qty || !unit) return "";
-  const scaledQty = Math.round(qty * portion * 100) / 100;
+  const baseLabel = nutrition.serving_size || "";
   const grams = coerceNumber(nutrition.serving_grams);
-  const gramsLabel = grams ? ` (~${Math.round(grams * portion)} g)` : "";
+  const portionGrams = grams ? Math.round(grams * portion) : null;
+  const scaledLabel =
+    portion !== 1 && portionGrams
+      ? (baseLabel ? `${baseLabel} (x${portion} ≈ ${portionGrams} g)` : `${portionGrams} g`)
+      : baseLabel;
+  const label =
+    scaledLabel ||
+    formatServingLabel({
+      ...nutrition,
+      serving_qty: nutrition.serving_qty ? nutrition.serving_qty * portion : nutrition.serving_qty,
+      serving_grams: portionGrams ?? nutrition.serving_grams,
+    });
+  if (!label) return "";
   const brandLabel = nutrition.brandName ? ` • ${nutrition.brandName}` : "";
   const sourceLabel =
     nutrition.source === "nutritionix" || !nutrition.source ? " (Nutritionix)" : "";
-  return `Serving: ${scaledQty} ${unit}${gramsLabel}${brandLabel}${sourceLabel}`;
+  return `Serving: ${label}${brandLabel}${sourceLabel}`;
 }
 
 function mergeNotesWithServing(notes, nutrition = {}, portion = selectedPortion) {
@@ -483,41 +574,52 @@ function mergeNotesWithServing(notes, nutrition = {}, portion = selectedPortion)
 
 function getFoodNutrition(food) {
   const normalized = normalizeFoodEntry(food);
+  const perServing = getPerServingMacros(normalized);
+  const per100g = normalizeMacroSet(normalized.per100g);
+  const macros =
+    perServing ||
+    normalizeMacroSet(normalized.macros) ||
+    (normalized.macros_basis !== "perServing" ? per100g : null) ||
+    null;
   return {
-    calories: normalized.calories,
-    protein: normalized.protein_g,
-    carbs: normalized.carbs_g,
-    fat: normalized.fat_g,
+    calories: coerceNumber(macros?.calories ?? normalized.calories),
+    protein: coerceNumber(macros?.protein ?? normalized.protein_g),
+    carbs: coerceNumber(macros?.carbs ?? normalized.carbs_g),
+    fat: coerceNumber(macros?.fat ?? normalized.fat_g),
     serving_qty: normalized.serving_qty,
     serving_unit: normalized.serving_unit,
     serving_grams: normalized.serving_grams,
+    serving_size_g: normalized.serving_size_g ?? normalized.serving_grams,
+    serving_size: normalized.serving_size || null,
     name: normalized.name,
     brandName: normalized.brandName || null,
     sourceItemId: normalized.sourceItemId || null,
     source: normalized.source || null,
     raw: normalized.raw,
-    macros_basis: normalized.macros_basis || null,
-    per100g: normalized.per100g || null,
-    macros: food.macros || normalized.macros || null,
+    macros_basis: normalized.macros_basis || (perServing ? "perServing" : per100g ? "per100g" : null),
+    perServing: perServing || null,
+    per100g: per100g || null,
+    macros,
   };
 }
 
-function updateSelectedServingDetails(food = {}) {
-  const nutrition = getFoodNutrition(food);
+function updateSelectedServingDetails(food = {}, options = {}) {
+  const nutrition = options.nutrition || getFoodNutrition(food);
+  const gramsLabel = nutrition.serving_grams ? `${Math.round(nutrition.serving_grams)} g` : "";
+  const baseServing = nutrition.serving_size || "";
+  const servingLabel =
+    (selectedPortion !== 1 && baseServing && gramsLabel
+      ? `${baseServing} (≈ ${gramsLabel})`
+      : baseServing || gramsLabel) || formatServingLabel(nutrition);
   const per100g = getPer100gMacros(nutrition);
-  const hasPer100g = nutrition.macros_basis === "per100g" && per100g;
+  const hasPer100g = Boolean(per100g);
+  const hasPerServing = Boolean(nutrition.perServing);
   const servingGrams = coerceNumber(nutrition.serving_grams);
   if (mealSelectedServingNote) {
-    if (hasPer100g && servingGrams) {
-      mealSelectedServingNote.textContent = `Based on ~${Math.round(servingGrams)}g serving`;
-    } else if (hasPer100g) {
-      mealSelectedServingNote.textContent = "Per 100g";
-    } else {
-      mealSelectedServingNote.textContent = "";
-    }
+    mealSelectedServingNote.textContent = servingLabel ? `Serving: ${servingLabel}` : hasPer100g ? "Per 100g" : "";
   }
   if (mealSelectedGrams) {
-    const showGrams = hasPer100g && !servingGrams;
+    const showGrams = hasPer100g && !hasPerServing && !servingGrams;
     mealSelectedGrams.hidden = !showGrams;
     if (showGrams && mealSelectedGramsInput && !mealSelectedGramsInput.value) {
       mealSelectedGramsInput.value = String(selectedManualGrams || 100);
@@ -605,7 +707,7 @@ function updateSelectedPreview() {
     mealSelectedName.textContent = label;
   }
   if (mealSelectedMacros) mealSelectedMacros.textContent = formatSelectedMacros(nutrition);
-  updateSelectedServingDetails(selectedFood);
+  updateSelectedServingDetails(selectedFood, { nutrition });
 }
 
 async function selectFood(food) {

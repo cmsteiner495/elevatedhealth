@@ -28,21 +28,24 @@ type NormalizedItem = {
   title: string;
   brand: string;
   serving_size: string;
-  serving_grams: number | null;
+  serving_size_g: number;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
+  perServing: MacroSet;
   per100g: MacroSet;
   macros: MacroSet;
-  macros_basis: "per100g";
+  macros_basis: "perServing" | "per100g";
 };
 
 function coerceNumber(value: unknown): number | null {
   if (typeof value === "string") {
-    const normalized = value.replace(",", ".");
-    const num = Number(normalized);
-    return Number.isFinite(num) ? num : null;
+    const normalized = value.replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+    if (normalized) {
+      const num = Number(normalized[0]);
+      return Number.isFinite(num) ? num : null;
+    }
   }
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
@@ -55,28 +58,75 @@ function pickNumber(
   if (!nutriments) return 0;
   for (const key of keys) {
     const value = nutriments[key];
-    const num = Number(value);
+    const num = coerceNumber(value);
     if (Number.isFinite(num)) return num;
   }
   return 0;
 }
 
-function parseServingGrams(product: OpenFoodFactsProduct): number | null {
-  const servingSize = typeof product.serving_size === "string" ? product.serving_size : "";
-  const match = servingSize.match(/(\d+[.,]?\d*)\s*g/i);
-  if (match && match[1]) {
-    const parsed = coerceNumber(match[1]);
-    if (parsed && parsed > 0) return parsed;
+function parseServingInfo(product: OpenFoodFactsProduct): { label: string; grams: number | null } {
+  const rawServing = typeof product.serving_size === "string" ? product.serving_size.trim() : "";
+  const findGrams = (text: string): number | null => {
+    const match = text.match(/(\d+[.,]?\d*)\s*g\b/i);
+    if (match && match[1]) {
+      const parsed = coerceNumber(match[1]);
+      if (parsed && parsed > 0) return parsed;
+    }
+    return null;
+  };
+
+  let grams: number | null = null;
+
+  if (rawServing) {
+    const parenMatches = rawServing.match(/\([^()]*\)/g) || [];
+    for (const group of parenMatches) {
+      const parsed = findGrams(group);
+      if (parsed) {
+        grams = parsed;
+        break;
+      }
+    }
+
+    if (grams === null) {
+      grams = findGrams(rawServing);
+    }
   }
 
   const productQty = coerceNumber(product.product_quantity);
-  if (productQty && productQty > 0) return productQty;
+  if (grams === null && productQty && productQty > 0) {
+    grams = productQty;
+  }
 
   const servingQty = coerceNumber(product.serving_quantity);
   const servingUnit = String(product.serving_quantity_unit || "").toLowerCase();
-  if (servingQty && servingQty > 0 && servingUnit === "g") return servingQty;
+  if (grams === null && servingQty && servingQty > 0 && servingUnit === "g") {
+    grams = servingQty;
+  }
 
-  return null;
+  let label = rawServing || "";
+  if (!label && servingQty) {
+    label = servingUnit ? `${servingQty} ${servingUnit}` : String(servingQty);
+  } else if (!label && productQty) {
+    label = `${productQty} g`;
+  }
+
+  if (grams === null) {
+    grams = 100;
+    label = "100g";
+  }
+
+  return { label: label || "100g", grams };
+}
+
+function scaleMacroSet(macros: MacroSet, grams: number): MacroSet {
+  const factor = grams / 100;
+  const round2 = (value: number) => Math.round(value * 100) / 100;
+  return {
+    calories: round2((macros.calories || 0) * factor),
+    protein: round2((macros.protein || 0) * factor),
+    carbs: round2((macros.carbs || 0) * factor),
+    fat: round2((macros.fat || 0) * factor),
+  };
 }
 
 function normalizeProduct(
@@ -84,37 +134,42 @@ function normalizeProduct(
   fallbackName: string
 ): NormalizedItem {
   const nutriments = product.nutriments ?? {};
-  const calories = pickNumber(nutriments, [
-    "energy-kcal_100g",
-    "energy-kcal_value",
-    "energy-kcal",
-    "energy-kcal_serving",
-    "energy_kcal_100g",
-    "energy_kcal_serving",
+  const caloriesFromKj = pickNumber(nutriments, [
+    "energy-kj_100g",
+    "energy-kj_value",
+    "energy_kj_100g",
+    "energy_value",
+    "energy_100g",
   ]);
-  const protein = pickNumber(nutriments, [
-    "proteins_100g",
-    "proteins_serving",
-    "proteins",
-  ]);
-  const carbs = pickNumber(nutriments, [
-    "carbohydrates_100g",
-    "carbohydrates_serving",
-    "carbohydrates",
-  ]);
-  const fat = pickNumber(nutriments, ["fat_100g", "fat_serving", "fat"]);
+  const calories =
+    pickNumber(nutriments, [
+      "energy-kcal_100g",
+      "energy-kcal_value",
+      "energy-kcal",
+      "energy_kcal_100g",
+    ]) ||
+    (caloriesFromKj ? Math.round((caloriesFromKj / 4.184) * 100) / 100 : 0);
+  const protein = pickNumber(nutriments, ["proteins_100g"]);
+  const carbs = pickNumber(nutriments, ["carbohydrates_100g"]);
+  const fat = pickNumber(nutriments, ["fat_100g"]);
 
   const name =
     product.product_name ||
     product.generic_name ||
     fallbackName ||
     "Unknown item";
+  const { label: servingLabel, grams: servingSizeG } = parseServingInfo(product);
 
   const rawId = product.code ?? product._id ?? product.id ?? fallbackName ?? "item";
   const id = String(rawId);
-  const per100g = { calories, protein, carbs, fat };
-  const servingGrams = parseServingGrams(product);
-  const macros = per100g;
+  const per100g = {
+    calories: calories || 0,
+    protein: protein || 0,
+    carbs: carbs || 0,
+    fat: fat || 0,
+  };
+  const perServing = scaleMacroSet(per100g, servingSizeG || 100);
+  const macros = perServing;
 
   return {
     id,
@@ -122,15 +177,16 @@ function normalizeProduct(
     name,
     title: name,
     brand: product.brands || "",
-    serving_size: product.serving_size || "",
-    serving_grams: servingGrams,
-    calories,
-    protein,
-    carbs,
-    fat,
+    serving_size: servingLabel,
+    serving_size_g: servingSizeG,
+    calories: macros.calories,
+    protein: macros.protein,
+    carbs: macros.carbs,
+    fat: macros.fat,
+    perServing,
     per100g,
     macros,
-    macros_basis: "per100g",
+    macros_basis: "perServing",
   };
 }
 
@@ -209,23 +265,23 @@ Deno.serve(async (req: Request) => {
   }
 
   const { calories, protein, carbs, fat, macros, name, title, source: sourceName } = product;
-  return jsonResponse(
-    {
-      id: product.id,
-      brand: product.brand,
-      serving_size: product.serving_size,
-      serving_grams: product.serving_grams,
-      calories,
-      protein,
-      carbs,
-      fat,
-      macros: macros ?? { calories, protein, carbs, fat },
-      per100g: product.per100g,
-      macros_basis: product.macros_basis,
-      title,
-      name,
-      source: sourceName,
-    },
-    200
-  );
+  const responseBody = {
+    id: product.id,
+    brand: product.brand,
+    serving_size: product.serving_size,
+    serving_size_g: product.serving_size_g,
+    calories,
+    protein,
+    carbs,
+    fat,
+    macros: macros ?? { calories, protein, carbs, fat },
+    perServing: product.perServing,
+    per100g: product.per100g,
+    macros_basis: product.macros_basis,
+    title,
+    name,
+    source: sourceName,
+  };
+
+  return jsonResponse({ ...responseBody, food: responseBody }, 200);
 });
