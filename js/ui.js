@@ -54,16 +54,34 @@ export function maybeVibrate(pattern = [12]) {
 }
 
 export function showToast(message = "") {
-  if (!toastContainer || !message) return;
-  const toast = document.createElement("div");
-  toast.className = "toast";
-  toast.textContent = message;
-  toastContainer.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add("show"));
-  setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.remove(), 250);
-  }, 3200);
+  if (!message) return;
+
+  let toastCreated = false;
+
+  try {
+    if (toastContainer) {
+      const toast = document.createElement("div");
+      toast.className = "toast";
+      toast.textContent = message;
+      toastContainer.appendChild(toast);
+      toastCreated = true;
+      requestAnimationFrame(() => toast.classList.add("show"));
+      setTimeout(() => {
+        toast.classList.remove("show");
+        setTimeout(() => toast.remove(), 250);
+      }, 3200);
+    }
+  } catch (err) {
+    console.warn("[TOAST ERROR]", err);
+  }
+
+  console.warn("[TOAST]", message);
+
+  const hasToastUi = toastCreated || document.querySelector(".toast") || document.querySelector("#toastContainer");
+
+  if (!hasToastUi) {
+    alert(message);
+  }
 }
 
 export function setDinnerLogHandler(cb) {
