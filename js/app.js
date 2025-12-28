@@ -1891,32 +1891,7 @@ async function logUpcomingMealToToday(entryEl) {
   const fat = entryEl.dataset.mealFat;
   const clientId = entryEl.dataset.mealClientId || mealId || null;
 
-  const payload = {
-    family_group_id: currentFamilyId,
-    user_id: userId,
-    meal_id: mealId,
-    client_id: clientId,
-    meal_date: targetDate,
-    meal_type: mealType,
-    title,
-    notes,
-    calories,
-    protein,
-    carbs,
-    fat,
-    source: "upcoming-add",
-  };
-
-  console.log("[INSERT START]", { payload });
-  const { data, error } = await supabase.from("meal_logs").insert([payload]).select("*");
-  console.log("[INSERT DONE]", { data, error });
-
-  if (error) {
-    showToast(error.message || "Couldn't save meal.");
-    return;
-  }
-
-  await logMealToDiary(
+  const { error } = await logMealToDiary(
     {
       id: mealId,
       client_id: clientId,
@@ -1928,11 +1903,15 @@ async function logUpcomingMealToToday(entryEl) {
       carbs,
       fat,
     },
-    { date: targetDate, silent: true }
+    { date: targetDate, silent: true, mealType }
   );
 
-  await refreshDiaryForSelectedDate(targetDate);
-  showToast("Logged!");
+  if (!error) {
+    await refreshDiaryForSelectedDate(targetDate);
+    showToast("Logged!");
+  } else {
+    showToast(error.message || "Couldn't save meal.");
+  }
 }
 
 function bindMealsLogButtons() {

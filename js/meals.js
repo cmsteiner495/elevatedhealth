@@ -55,6 +55,8 @@ const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FOODS_DATA_URL = "/src/data/foods.json";
 const DELETED_MEALS_KEY = "eh:deleted-meals";
+const MEAL_LOG_TABLE = "meal_logs";
+const MEAL_LOG_TYPES = new Set(["breakfast", "lunch", "dinner", "snacks"]);
 
 const FAMILY_MEAL_COLUMNS = [
   "id",
@@ -202,6 +204,56 @@ function sanitizeFamilyMealPayload(payload = {}, context = "family_meals") {
 }
 
 export { sanitizeFamilyMealPayload };
+
+function normalizeMealLogType(value, fallback = "dinner") {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  return MEAL_LOG_TYPES.has(normalized) ? normalized : fallback;
+}
+
+function normalizeLogDate(value) {
+  return getDiaryDateKey(value || getTodayDate());
+}
+
+function normalizeMealLogRow(row = {}) {
+  const logDate = normalizeLogDate(row.log_date || row.meal_date || row.date);
+  const mealType = normalizeMealLogType(row.meal_type || row.mealType || row.type);
+  return {
+    ...row,
+    log_date: logDate,
+    meal_date: row.meal_date || logDate,
+    meal_type: mealType,
+    calories: coerceNumber(row.calories),
+    protein: coerceNumber(row.protein),
+    carbs: coerceNumber(row.carbs),
+    fat: coerceNumber(row.fat),
+    logged: true,
+    logged_at: row.logged_at || row.created_at || logDate,
+    dateKey: logDate,
+  };
+}
+
+async function refreshDiary(dateValue) {
+  try {
+    const mod = await import("./logDiary.js");
+    if (typeof mod.reloadDiaryFromServer === "function") {
+      await mod.reloadDiaryFromServer(dateValue);
+    }
+  } catch (err) {
+    console.warn("[MEALS] Could not refresh diary", err);
+  }
+}
+
+async function insertMealLog(payload) {
+  const sanitizedPayload = {
+    ...payload,
+    log_date: normalizeLogDate(payload.log_date),
+    meal_type: normalizeMealLogType(payload.meal_type),
+  };
+  const { data, error } = await supabase.from(MEAL_LOG_TABLE).insert([sanitizedPayload]).select("*");
+  console.log("[MEAL LOG INSERT]", { data, error });
+  const insertedRow = Array.isArray(data) ? data[0] : data;
+  return { data: insertedRow, error };
+}
 
 function normalizeMacroSet(macros) {
   if (!macros || typeof macros !== "object") return null;
@@ -1125,6 +1177,45 @@ export async function deleteMealById(mealId, options = {}) {
   return { error: deleteError, fallback: usedLocalFallback };
 }
 
+export async function deleteMealLogById(logId, options = {}) {
+  if (!logId) return { error: new Error("Missing meal log id") };
+  if (!currentUser?.id) return { error: new Error("Missing user") };
+
+  const normalizedId = String(logId);
+  const clientId = options.client_id || options.clientId || normalizedId;
+  const targetDate = options.date || options.log_date || options.meal_date;
+
+  const attemptDelete = async (column, value) =>
+    supabase
+      .from(MEAL_LOG_TABLE)
+      .delete()
+      .eq("user_id", currentUser.id)
+      .eq(column, value)
+      .select("*");
+
+  let response = await attemptDelete("id", normalizedId);
+
+  if ((!response.data || response.data.length === 0) && !response.error && clientId && clientId !== normalizedId) {
+    response = await attemptDelete("client_id", clientId);
+  }
+
+  console.log("[MEAL LOG DELETE]", {
+    id: normalizedId,
+    clientId,
+    data: response.data,
+    error: response.error,
+  });
+
+  if (response.error) {
+    return { error: response.error };
+  }
+
+  announceDataChange("meals", targetDate);
+  await refreshDiary(targetDate || selectedDate);
+
+  return { data: Array.isArray(response.data) ? response.data[0] : response.data };
+}
+
 function announceDataChange(source, date) {
   const detail = source || date ? { source, date } : { source };
   window.dispatchEvent(new CustomEvent("eh:data-changed", { detail }));
@@ -1136,38 +1227,38 @@ export async function logMealToDiary(meal, options = {}) {
   if (!supabase || typeof supabase.from !== "function") {
     console.warn("[ADD EARLY RETURN] missing supabase client");
     showToast("Missing Supabase client");
-    return;
+    return { error: new Error("Missing Supabase client") };
   }
 
-  if (!currentUser || !currentFamilyId) {
-    console.warn("[ADD EARLY RETURN] missing auth or family", {
+  if (!currentUser) {
+    console.warn("[ADD EARLY RETURN] missing auth", {
       userId,
       familyId: currentFamilyId || null,
     });
-    showToast("Join a family to log meals.");
-    return;
+    showToast("Please sign in to log meals.");
+    return { error: new Error("Missing auth") };
   }
 
   const targetDate =
     getDiaryDateKey(options.date || selectedDate || getTodayDate()) || getTodayDate();
-  const title = meal.title?.trim();
+  const title = (meal.title || meal.name || "").trim();
   if (!title) {
     console.warn("[ADD EARLY RETURN] missing meal title", { mealId: meal.id || null });
     showToast("Meal is missing a title.");
-    return;
+    return { error: new Error("Missing title") };
   }
 
-  const mealType = meal.meal_type || meal.mealType || options.mealType || "dinner";
+  const mealType = normalizeMealLogType(meal.meal_type || meal.mealType || options.mealType);
   const notes = (meal.notes || meal.description || "").trim() || null;
   const totals = computeMealTotals(meal);
-  const loggedAt = new Date().toISOString();
   const existingId = meal.id || null;
   const existingClientId = meal.client_id || meal.clientId || null;
   const tempId = existingClientId || existingId || `${LOCAL_ID_PREFIX}${Date.now()}`;
   const payload = {
-    family_group_id: currentFamilyId,
-    added_by: currentUser.id,
-    meal_date: targetDate,
+    family_group_id: currentFamilyId || null,
+    user_id: userId,
+    client_id: tempId,
+    log_date: targetDate,
     meal_type: mealType,
     title,
     notes,
@@ -1175,130 +1266,28 @@ export async function logMealToDiary(meal, options = {}) {
     protein: totals.protein,
     carbs: totals.carbs,
     fat: totals.fat,
-    client_id: tempId,
-    logged_at: loggedAt,
+    source: meal.source || options.source || null,
   };
 
-  clearDeletedMealMarkers(currentFamilyId, [existingId, existingClientId, tempId]);
-
-  const optimisticEntry = {
-    id: existingId || tempId,
-    client_id: tempId,
-    ...payload,
-    created_at: new Date().toISOString(),
-  };
-
-  upsertStoredMeal(currentFamilyId, optimisticEntry);
-  upsertMeal(optimisticEntry, {
-    reason: "logMealToDiary:optimistic",
-    matchClientId: tempId,
-  });
-  console.log("[MEAL CREATE] Optimistic insert", {
-    tempId,
-    date: targetDate,
-    mealType,
-  });
-
-  let persistedMeal = null;
-  const { logged_at: _omitLoggedAt, ...serverPayloadInput } = payload;
-  const serverPayload = buildServerMealPayload(serverPayloadInput);
-  console.log("[MEAL INSERT] serverPayload", serverPayload);
-  console.log("[INSERT START]", { payload: serverPayload, tempId, targetDate });
-
-  const tryUpdateTargets = [
-    existingId ? ["id", existingId] : null,
-    !existingId && existingClientId ? ["client_id", existingClientId] : null,
-  ].filter(Boolean);
-
-  let updateError = null;
-
-  if (tryUpdateTargets.length) {
-    for (const [column, value] of tryUpdateTargets) {
-      const { data, error } = await supabase
-        .from("family_meals")
-        .update(serverPayload)
-        .eq(column, value)
-        .eq("family_group_id", currentFamilyId)
-        .select("*")
-        .maybeSingle();
-
-      if (error) {
-        updateError = error;
-        continue;
-      }
-
-      if (data) {
-        persistedMeal = data;
-        updateError = null;
-        break;
-      } else {
-        console.warn("[MEAL UPDATE] No rows matched update", {
-          column,
-          value,
-          family_group_id: currentFamilyId,
-        });
-      }
-    }
-  }
-
-  if (!persistedMeal) {
-    const { data, error } = await supabase
-      .from("family_meals")
-      .insert([serverPayload])
-      .select("*")
-      .maybeSingle();
-
-    console.log("[INSERT DONE]", { data, error });
-
-    if (error) {
-      console.error("[MEAL INSERT ERROR]", error);
-      removeStoredMeal(currentFamilyId, tempId, tempId);
-      removeMealByIdOrClientId(tempId, {
-        reason: "logMealToDiary:rollback",
-        clientId: tempId,
-      });
-      if (!options.silent) {
-        showToast("Couldn't save meal. Try again.");
-      }
-      return;
-    } else if (!data) {
-      console.warn("[MEAL INSERT] Insert returned no row", {
-        family_group_id: currentFamilyId,
-        client_id: tempId,
-      });
-      await loadMeals();
-      return;
-    }
-    persistedMeal = data;
-    updateError = null;
-  } else if (updateError) {
-    console.error("[MEAL UPDATE ERROR]", updateError);
+  const { data, error } = await insertMealLog(payload);
+  if (error) {
+    console.error("[MEAL LOG INSERT ERROR]", error);
     if (!options.silent) {
       showToast("Couldn't save meal. Try again.");
     }
-    await loadMeals();
-    return;
+    return { error };
   }
 
-  console.log("[MEAL UPSERT] saved row", persistedMeal);
-  const reconciled = {
-    ...optimisticEntry,
-    ...persistedMeal,
-    client_id: persistedMeal?.client_id || tempId,
-  };
-  upsertStoredMeal(currentFamilyId, reconciled, { matchClientId: tempId });
+  const reconciled = normalizeMealLogRow({
+    ...payload,
+    ...(data || {}),
+    client_id: data?.client_id || tempId,
+  });
+
   upsertMeal(reconciled, {
-    reason: "logMealToDiary:reconcile",
+    reason: "logMealToDiary:insert",
     matchClientId: tempId,
   });
-  console.log("[MEAL RECONCILE] tempId -> uuid", {
-    tempId,
-    serverId: persistedMeal?.id,
-  });
-  if (!options.silent) {
-    showToast("Added to log");
-    maybeVibrate([16]);
-  }
   console.log("[EH MEAL] saved row totals", {
     calories: reconciled.calories ?? 0,
     protein: reconciled.protein ?? 0,
@@ -1306,22 +1295,16 @@ export async function logMealToDiary(meal, options = {}) {
     fat: reconciled.fat ?? 0,
   });
 
-  const viewingTarget = selectedDate === targetDate;
-  if (!viewingTarget && options.syncDate !== false) {
-    setSelectedDate(targetDate, { force: true });
-  } else {
-    document.dispatchEvent(
-      new CustomEvent("diary:refresh", {
-        detail: { date: targetDate, entity: "meal" },
-      })
-    );
-  }
-
   announceDataChange("meals", targetDate);
 
-  if (!options.skipReload) {
-    await loadMeals();
+  await refreshDiary(targetDate);
+
+  if (!options.silent) {
+    showToast("Added to log");
+    maybeVibrate([16]);
   }
+
+  return { data: reconciled };
 }
 
 function formatMealDateLabel(dateValue) {
@@ -1584,64 +1567,35 @@ export async function loadMeals() {
 }
 
 export async function fetchMealsByDate(dateValue, options = {}) {
-  const familyId = currentFamilyId;
+  const userId = currentUser?.id;
   const targetDate = getDiaryDateKey(dateValue);
-  if (!familyId || !targetDate) return [];
+  if (!userId || !targetDate) return [];
 
-  const storedMeals = filterDeletedMeals(familyId, getStoredMeals(familyId));
-  const storedForDate = storedMeals.filter(
-    (meal) => (meal.meal_date || "") === targetDate && isMealLogged(meal)
-  );
-
-  const { data, error } = await applyMealOrdering(
-    supabase
-      .from("family_meals")
-      .select("*")
-      .eq("family_group_id", familyId)
-      .eq("meal_date", targetDate)
-  );
+  const { data, error } = await supabase
+    .from(MEAL_LOG_TABLE)
+    .select("*")
+    .eq("user_id", userId)
+    .eq("log_date", targetDate)
+    .order("log_date", { ascending: true })
+    .order("created_at", { ascending: true });
 
   if (isDebugEnabled()) {
-    console.debug("[EH DIARY] fetchMealsByDate", {
-      userId: currentUser?.id || null,
-      familyId,
+    console.debug("[EH DIARY] fetchMealsByDate (meal_logs)", {
+      userId,
       dateKey: targetDate,
       remoteCount: Array.isArray(data) ? data.length : 0,
-      localCount: storedForDate.length,
       error: error?.message || null,
     });
   }
 
   if (error) {
     console.error("Error loading meals for date:", error);
-    return options.offlineFallback === false ? [] : storedForDate;
+    return [];
   }
 
-  const remoteMeals = data || [];
-  const patchKeys = remoteMeals
-    .filter((meal) => hasIncompleteNutrition(meal))
-    .map((meal) => meal.id || meal.client_id);
-  const { normalizedMeals, patches } = normalizeMealsWithNutrition(remoteMeals, {
-    patchKeys,
-  });
-  const visibleMeals = filterDeletedMeals(familyId, normalizedMeals);
-  persistMealsForFamily(familyId, visibleMeals);
-  await applyNutritionBackfill(patches);
-  const resultsForDate = visibleMeals.filter(
-    (meal) => (meal.meal_date || "") === targetDate && isMealLogged(meal)
-  );
-
-  if (isDebugEnabled()) {
-    console.debug("[EH DIARY] meals loaded", {
-      userId: currentUser?.id || null,
-      familyId,
-      dateKey: targetDate,
-      loadedMeals: resultsForDate.length,
-      mergedCount: visibleMeals.length,
-    });
-  }
-
-  return resultsForDate;
+  const normalizedMeals = (data || []).map((meal) => normalizeMealLogRow(meal));
+  setMeals(normalizedMeals, { reason: "fetchMealsByDate:meal_logs" });
+  return normalizedMeals;
 }
 
 async function logMealToToday(meal) {
@@ -1895,96 +1849,23 @@ if (mealsForm) {
     }
 
     const tempId = `${LOCAL_ID_PREFIX}${Date.now()}`;
-    const loggedAt = new Date().toISOString();
-    const payload = {
-      family_group_id: currentFamilyId,
-      added_by: currentUser.id,
-      meal_date: dateValue,
-      meal_type: mealType,
-      title,
-      notes: notesWithServing,
-      calories: totals.calories,
-      protein: totals.protein,
-      carbs: totals.carbs,
-      fat: totals.fat,
-      client_id: tempId,
-      completed: true,
-      logged_at: loggedAt,
-    };
-    clearDeletedMealMarkers(currentFamilyId, [tempId]);
-    const optimisticEntry = {
-      id: tempId,
-      client_id: tempId,
-      ...payload,
-      added_by: currentUser?.id || null,
-      created_at: new Date().toISOString(),
-      logged: true,
-    };
-    upsertStoredMeal(currentFamilyId, optimisticEntry);
-    upsertMeal(optimisticEntry, {
-      reason: "addMeal:optimistic",
-      matchClientId: tempId,
-    });
-
-    const serverPayload = buildServerMealPayload(payload);
-    console.log("[MEAL INSERT] serverPayload", serverPayload);
-    const { data, error } = await supabase
-      .from("family_meals")
-      .insert(serverPayload)
-      .select("*")
-      .maybeSingle();
-
-    if (error) {
-      console.error("[MEAL INSERT ERROR]", error);
-      removeStoredMeal(currentFamilyId, tempId, tempId);
-      removeMealByIdOrClientId(tempId, {
-        reason: "addMeal:rollback",
-        clientId: tempId,
-      });
-      if (mealsMessage) {
-        mealsMessage.textContent = "Error adding meal.";
-        mealsMessage.style.color = "red";
-      }
-    } else if (!data) {
-      console.warn("[MEAL INSERT] Insert returned no row", {
-        family_group_id: currentFamilyId,
+    const { error } = await logMealToDiary(
+      {
+        title,
+        meal_type: mealType,
+        notes: notesWithServing,
+        calories: totals.calories,
+        protein: totals.protein,
+        carbs: totals.carbs,
+        fat: totals.fat,
         client_id: tempId,
-      });
-      if (mealsMessage) {
-        mealsMessage.textContent = "Meal saved, but confirmation missing. Reloading…";
-        mealsMessage.style.color = "var(--text-muted)";
-      }
-      await loadMeals();
-    } else {
-      console.log("[MEAL INSERT] insertedRow", data);
-      const reconciled = {
-        ...optimisticEntry,
-        ...data,
-        client_id: data?.client_id || tempId,
-      };
-      upsertStoredMeal(currentFamilyId, reconciled, {
-        matchClientId: tempId,
-      });
-      upsertMeal(reconciled, { reason: "addMeal:reconcile", matchClientId: tempId });
-    }
+      },
+      { date: dateValue, silent: true, mealType }
+    );
 
-    console.log("[EH MEAL] saved row totals", {
-      calories: optimisticEntry.calories ?? 0,
-      protein: optimisticEntry.protein ?? 0,
-      carbs: optimisticEntry.carbs ?? 0,
-      fat: optimisticEntry.fat ?? 0,
-    });
-
-    const guidedDate = mealsForm.dataset.targetDate;
-    const guidedMealType = mealsForm.dataset.targetMealType;
-    const shouldMirrorToLog =
-      guidedDate && guidedMealType && (guidedDate !== dateValue || guidedMealType !== mealType);
-
-    if (shouldMirrorToLog) {
-      await logMealToDiary(
-        { title, meal_type: guidedMealType, notes: notesWithServing },
-        { date: guidedDate, silent: true, skipReload: true }
-      );
+    if (error && mealsMessage) {
+      mealsMessage.textContent = "Error adding meal.";
+      mealsMessage.style.color = "red";
     }
 
     mealsForm.reset();
