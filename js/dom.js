@@ -79,6 +79,12 @@ export const diaryCaloriesRemaining = document.getElementById(
 export const dashboardCaloriesFill = document.getElementById(
   "dashboard-calories-fill"
 );
+export const diarySectionTotals = {
+  breakfast: document.querySelector('[data-diary-total="breakfast"]'),
+  lunch: document.querySelector('[data-diary-total="lunch"]'),
+  dinner: document.querySelector('[data-diary-total="dinner"]'),
+  snacks: document.querySelector('[data-diary-total="snacks"]'),
+};
 export const insightMacrosCard = document.getElementById("insight-macros-card");
 export const insightCaloriesCard = document.getElementById(
   "insight-calories-card"
