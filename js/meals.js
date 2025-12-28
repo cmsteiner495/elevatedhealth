@@ -339,11 +339,8 @@ async function hydrateFoodDetails(food = {}) {
 
   try {
     const payload = {
-      sourceItemId: normalized.sourceItemId || undefined,
-      foodName: normalized.name || undefined,
-      brandName: normalized.brandName || undefined,
-      serving_qty: normalized.serving_qty || undefined,
-      serving_unit: normalized.serving_unit || undefined,
+      id: normalized.id || normalized.sourceItemId || undefined,
+      source: normalized.source || undefined,
     };
     const { data, error } = await supabase.functions.invoke("nutrition-item", {
       body: payload,
