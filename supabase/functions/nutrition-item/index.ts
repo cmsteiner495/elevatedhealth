@@ -28,7 +28,7 @@ type NormalizedItem = {
   title: string;
   brand: string;
   serving_size: string;
-  serving_size_g: number;
+  serving_size_g: number | null;
   calories: number;
   protein: number;
   carbs: number;
@@ -65,7 +65,12 @@ function pickNumber(
 }
 
 function parseServingInfo(product: OpenFoodFactsProduct): { label: string; grams: number | null } {
-  const rawServing = typeof product.serving_size === "string" ? product.serving_size.trim() : "";
+  const rawServingValue = product.serving_size;
+  const rawServing = typeof rawServingValue === "string"
+    ? rawServingValue.trim()
+    : typeof rawServingValue === "number"
+      ? `${rawServingValue} g`
+      : "";
   const findGrams = (text: string): number | null => {
     const match = text.match(/(\d+[.,]?\d*)\s*g\b/i);
     if (match && match[1]) {
@@ -110,24 +115,11 @@ function parseServingInfo(product: OpenFoodFactsProduct): { label: string; grams
     label = `${productQty} g`;
   }
 
-  if (grams === null) {
-    grams = 100;
-    label = "100g";
-  }
-
-  return { label: label || "100g", grams };
+  return { label: label || "", grams };
 }
 
-function scaleMacroSet(macros: MacroSet, grams: number): MacroSet {
-  const factor = grams / 100;
-  const round2 = (value: number) => Math.round(value * 100) / 100;
-  return {
-    calories: round2((macros.calories || 0) * factor),
-    protein: round2((macros.protein || 0) * factor),
-    carbs: round2((macros.carbs || 0) * factor),
-    fat: round2((macros.fat || 0) * factor),
-  };
-}
+const round1 = (value: number) => Math.round(value * 10) / 10;
+const round0 = (value: number) => Math.round(value);
 
 function normalizeProduct(
   product: OpenFoodFactsProduct,
@@ -168,8 +160,35 @@ function normalizeProduct(
     carbs: carbs || 0,
     fat: fat || 0,
   };
-  const perServing = scaleMacroSet(per100g, servingSizeG || 100);
+
+  const hasServingSize = typeof servingSizeG === "number" && servingSizeG > 0;
+  const scale = hasServingSize ? servingSizeG / 100 : 1;
+  const perServing = {
+    calories: round0((per100g.calories || 0) * scale),
+    protein: round1((per100g.protein || 0) * scale),
+    carbs: round1((per100g.carbs || 0) * scale),
+    fat: round1((per100g.fat || 0) * scale),
+  };
+  const macrosBasis: NormalizedItem["macros_basis"] = hasServingSize ? "perServing" : "per100g";
+  const fallbackLabel = servingLabel && /100\s*g/i.test(servingLabel)
+    ? servingLabel
+    : servingLabel
+      ? `${servingLabel} (100g)`
+      : "100g";
+  const servingLabelResolved = hasServingSize
+    ? servingLabel || `${round0(servingSizeG)} g`
+    : fallbackLabel;
+  const servingSizeValue = hasServingSize ? servingSizeG : null;
   const macros = perServing;
+
+  console.log("[nutrition-item] serving parse", {
+    id,
+    serving_size: product.serving_size,
+    serving_quantity: product.serving_quantity,
+    serving_quantity_unit: product.serving_quantity_unit,
+    serving_size_g: servingSizeValue,
+    scale_applied: hasServingSize,
+  });
 
   return {
     id,
@@ -177,8 +196,8 @@ function normalizeProduct(
     name,
     title: name,
     brand: product.brands || "",
-    serving_size: servingLabel,
-    serving_size_g: servingSizeG,
+    serving_size: servingLabelResolved,
+    serving_size_g: servingSizeValue,
     calories: macros.calories,
     protein: macros.protein,
     carbs: macros.carbs,
@@ -186,7 +205,7 @@ function normalizeProduct(
     perServing,
     per100g,
     macros,
-    macros_basis: "perServing",
+    macros_basis: macrosBasis,
   };
 }
 
