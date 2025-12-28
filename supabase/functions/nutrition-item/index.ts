@@ -74,14 +74,9 @@ function normalizeProduct(
     fallbackName ||
     "Unknown item";
 
-  const rawId =
-    product.code ?? product._id ?? product.id ?? fallbackName ?? "item";
-  const id =
-    typeof rawId === "string"
-      ? rawId
-      : rawId !== undefined && rawId !== null
-        ? String(rawId)
-        : "item";
+  const rawId = product.code ?? product._id ?? product.id ?? fallbackName ?? "item";
+  const id = String(rawId);
+  const macros = { calories, protein, carbs, fat };
 
   return {
     id,
@@ -94,7 +89,7 @@ function normalizeProduct(
     protein,
     carbs,
     fat,
-    macros: { calories, protein, carbs, fat },
+    macros,
   };
 }
 
@@ -108,24 +103,19 @@ function jsonResponse(body: unknown, status: number): Response {
 async function fetchOpenFoodFactsProduct(
   id: string
 ): Promise<NormalizedItem | null> {
-  const urls = [
-    `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(id)}.json`,
-    `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(id)}.json`,
-  ];
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(id)}.json`;
 
-  for (const url of urls) {
-    try {
-      const resp = await fetch(url, { method: "GET" });
-      if (!resp.ok) continue;
-      const payload = await resp.json();
-      const status = payload?.status;
-      const product = payload?.product as OpenFoodFactsProduct | undefined;
-      if (product && (status === 1 || status === "1" || status === "success")) {
-        return normalizeProduct(product, id);
-      }
-    } catch (err) {
-      console.error("OpenFoodFacts item fetch failed", url, err);
+  try {
+    const resp = await fetch(url, { method: "GET" });
+    if (!resp.ok) return null;
+    const payload = await resp.json();
+    const status = payload?.status;
+    const product = payload?.product as OpenFoodFactsProduct | undefined;
+    if (product && (status === 1 || status === "1" || status === "success")) {
+      return normalizeProduct(product, id);
     }
+  } catch (err) {
+    console.error("OpenFoodFacts item fetch failed", url, err);
   }
 
   return null;
@@ -151,17 +141,21 @@ Deno.serve(async (req: Request) => {
     body = {};
   }
 
-  const idRaw = body?.id;
-  const sourceRaw = body?.source;
+  const rawId = body?.id ?? body?.code ?? body?.productId ?? body?.product_id;
   const id =
-    typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : undefined;
+    typeof rawId === "string" && rawId.trim()
+      ? rawId.trim()
+      : rawId !== undefined && rawId !== null
+        ? String(rawId)
+        : undefined;
+  const sourceRaw = body?.source;
   const source =
     typeof sourceRaw === "string" && sourceRaw.trim()
       ? sourceRaw.trim().toLowerCase()
       : "openfoodfacts";
 
   if (!id) {
-    return jsonResponse({ error: "Missing id" }, 400);
+    return jsonResponse({ error: "Missing product id" }, 400);
   }
 
   if (source !== "openfoodfacts") {
@@ -173,5 +167,21 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Not found" }, 404);
   }
 
-  return jsonResponse(product, 200);
+  const { calories, protein, carbs, fat, macros, name, title, source: sourceName } = product;
+  return jsonResponse(
+    {
+      id: product.id,
+      brand: product.brand,
+      serving_size: product.serving_size,
+      calories,
+      protein,
+      carbs,
+      fat,
+      macros: macros ?? { calories, protein, carbs, fat },
+      title,
+      name,
+      source: sourceName,
+    },
+    200
+  );
 });

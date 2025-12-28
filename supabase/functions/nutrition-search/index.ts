@@ -46,25 +46,20 @@ function normalizeProduct(product: OpenFoodFactsProduct, fallbackName: string) {
   ]);
   const fat = pickNumber(nutriments, ["fat_100g", "fat_serving", "fat"]);
 
-  const rawId =
-    product.code ?? product._id ?? product.id ?? fallbackName ?? "item";
-  const id =
-    typeof rawId === "string"
-      ? rawId
-      : rawId !== undefined && rawId !== null
-        ? String(rawId)
-        : "item";
+  const code = product.code ?? product._id ?? product.id ?? fallbackName ?? "item";
+  const id = String(code);
 
-  const name =
+  const title =
     product.product_name ||
     product.generic_name ||
     fallbackName ||
     "Unknown item";
+  const name = title;
   const normalized = {
     id,
     source: "openfoodfacts",
     name,
-    title: name,
+    title,
     brand: product.brands || "",
     serving_size: product.serving_size || "",
     calories,
