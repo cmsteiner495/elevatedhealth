@@ -1598,6 +1598,33 @@ textarea {
   text-align: right;
 }
 
+#meal-selected-serving-note {
+  margin-top: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.meal-selected-grams {
+  margin-top: 8px;
+}
+
+.meal-selected-grams .label-small {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.meal-grams-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.meal-grams-input input {
+  width: 90px;
+}
+
 .meal-selected-hint {
   margin-top: 8px;
   font-size: var(--font-size-sm);

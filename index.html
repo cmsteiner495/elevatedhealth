@@ -711,6 +711,23 @@
                           <div class="meal-selected-macros">
                             <div class="label">Macros</div>
                             <div id="meal-selected-macros" class="metric-subtext"></div>
+                            <div id="meal-selected-serving-note" class="metric-subtext small"></div>
+                            <div id="meal-selected-grams" class="meal-selected-grams" hidden>
+                              <label for="meal-selected-grams-input" class="label-small">Grams</label>
+                              <div class="meal-grams-input">
+                                <input
+                                  type="number"
+                                  id="meal-selected-grams-input"
+                                  min="1"
+                                  step="1"
+                                  inputmode="numeric"
+                                  value="100"
+                                />
+                                <div class="metric-subtext">
+                                  Enter serving grams to calculate per item.
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div class="meal-selected-hint">

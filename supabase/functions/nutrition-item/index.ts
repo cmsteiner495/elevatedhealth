@@ -8,7 +8,17 @@ type OpenFoodFactsProduct = Record<string, unknown> & {
   generic_name?: string;
   brands?: string;
   serving_size?: string;
+  serving_quantity?: number | string;
+  serving_quantity_unit?: string;
+  product_quantity?: number | string;
   nutriments?: Record<string, unknown>;
+};
+
+type MacroSet = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
 };
 
 type NormalizedItem = {
@@ -18,17 +28,25 @@ type NormalizedItem = {
   title: string;
   brand: string;
   serving_size: string;
+  serving_grams: number | null;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
-  macros: {
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-  };
+  per100g: MacroSet;
+  macros: MacroSet;
+  macros_basis: "per100g";
 };
+
+function coerceNumber(value: unknown): number | null {
+  if (typeof value === "string") {
+    const normalized = value.replace(",", ".");
+    const num = Number(normalized);
+    return Number.isFinite(num) ? num : null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
 
 function pickNumber(
   nutriments: Record<string, unknown> | undefined,
@@ -41,6 +59,24 @@ function pickNumber(
     if (Number.isFinite(num)) return num;
   }
   return 0;
+}
+
+function parseServingGrams(product: OpenFoodFactsProduct): number | null {
+  const servingSize = typeof product.serving_size === "string" ? product.serving_size : "";
+  const match = servingSize.match(/(\d+[.,]?\d*)\s*g/i);
+  if (match && match[1]) {
+    const parsed = coerceNumber(match[1]);
+    if (parsed && parsed > 0) return parsed;
+  }
+
+  const productQty = coerceNumber(product.product_quantity);
+  if (productQty && productQty > 0) return productQty;
+
+  const servingQty = coerceNumber(product.serving_quantity);
+  const servingUnit = String(product.serving_quantity_unit || "").toLowerCase();
+  if (servingQty && servingQty > 0 && servingUnit === "g") return servingQty;
+
+  return null;
 }
 
 function normalizeProduct(
@@ -76,7 +112,9 @@ function normalizeProduct(
 
   const rawId = product.code ?? product._id ?? product.id ?? fallbackName ?? "item";
   const id = String(rawId);
-  const macros = { calories, protein, carbs, fat };
+  const per100g = { calories, protein, carbs, fat };
+  const servingGrams = parseServingGrams(product);
+  const macros = per100g;
 
   return {
     id,
@@ -85,11 +123,14 @@ function normalizeProduct(
     title: name,
     brand: product.brands || "",
     serving_size: product.serving_size || "",
+    serving_grams: servingGrams,
     calories,
     protein,
     carbs,
     fat,
+    per100g,
     macros,
+    macros_basis: "per100g",
   };
 }
 
@@ -173,11 +214,14 @@ Deno.serve(async (req: Request) => {
       id: product.id,
       brand: product.brand,
       serving_size: product.serving_size,
+      serving_grams: product.serving_grams,
       calories,
       protein,
       carbs,
       fat,
       macros: macros ?? { calories, protein, carbs, fat },
+      per100g: product.per100g,
+      macros_basis: product.macros_basis,
       title,
       name,
       source: sourceName,
