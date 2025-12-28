@@ -24,7 +24,11 @@ function pickNumber(
   return 0;
 }
 
-function normalizeProduct(product: OpenFoodFactsProduct, fallbackName: string) {
+function normalizeProduct(
+  product: OpenFoodFactsProduct,
+  fallbackName: string,
+  index: number
+) {
   const nutriments = product.nutriments ?? {};
   const calories = pickNumber(nutriments, [
     "energy-kcal_100g",
@@ -46,7 +50,12 @@ function normalizeProduct(product: OpenFoodFactsProduct, fallbackName: string) {
   ]);
   const fat = pickNumber(nutriments, ["fat_100g", "fat_serving", "fat"]);
 
-  const code = product.code ?? product._id ?? product.id ?? fallbackName ?? "item";
+  const source = "openfoodfacts";
+  const code =
+    product.code ||
+    product._id ||
+    product.id ||
+    (fallbackName ? `${source}:${fallbackName}:${index}` : `${source}:${index}`);
   const id = String(code);
 
   const title =
@@ -57,7 +66,7 @@ function normalizeProduct(product: OpenFoodFactsProduct, fallbackName: string) {
   const name = title;
   const normalized = {
     id,
-    source: "openfoodfacts",
+    source,
     name,
     title,
     brand: product.brands || "",
@@ -123,11 +132,11 @@ Deno.serve(async (req) => {
       ? payload.products
       : [];
 
-    const results = products.map((product) =>
-      normalizeProduct(product, query)
+    const results = products.map((product, idx) =>
+      normalizeProduct(product, query, idx)
     );
 
-    return new Response(JSON.stringify(results), {
+    return new Response(JSON.stringify({ results }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
