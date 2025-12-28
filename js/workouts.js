@@ -449,7 +449,7 @@ export async function loadWorkouts() {
   }
 }
 
-export async function fetchWorkoutsByDate(dateValue) {
+export async function fetchWorkoutsByDate(dateValue, options = {}) {
   if (!dateValue) return [];
 
   const familyId = currentFamilyId;
@@ -509,14 +509,14 @@ export async function fetchWorkoutsByDate(dateValue) {
 
   if (error) {
     console.error("Error loading workouts for date:", error);
+    if (options.offlineFallback === false) return [];
     return enrichWorkoutsWithCalories(storedForDate);
   }
 
-  const merged = mergeWorkouts(
-    (data || []).map((item) => normalizeWorkoutRow({ log_id: item.id, ...item })),
-    storedWorkouts.map(normalizeWorkoutRow)
+  const remoteWorkouts = (data || []).map((item) =>
+    normalizeWorkoutRow({ log_id: item.id, ...item })
   );
-  const withCalories = await enrichWorkoutsWithCalories(merged);
+  const withCalories = await enrichWorkoutsWithCalories(remoteWorkouts);
   persistWorkoutsForFamily(familyId, withCalories);
   return withCalories.filter(
     (workout) => getWorkoutDayKey(workout) === targetDayKey && isWorkoutLogged(workout)

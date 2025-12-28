@@ -1565,7 +1565,7 @@ export async function loadMeals() {
   }
 }
 
-export async function fetchMealsByDate(dateValue) {
+export async function fetchMealsByDate(dateValue, options = {}) {
   const familyId = currentFamilyId;
   const targetDate = getDiaryDateKey(dateValue);
   if (!familyId || !targetDate) return [];
@@ -1596,14 +1596,14 @@ export async function fetchMealsByDate(dateValue) {
 
   if (error) {
     console.error("Error loading meals for date:", error);
-    return storedForDate;
+    return options.offlineFallback === false ? [] : storedForDate;
   }
 
-  const merged = mergeMeals(data || [], storedMeals);
-  const patchKeys = (data || [])
+  const remoteMeals = data || [];
+  const patchKeys = remoteMeals
     .filter((meal) => hasIncompleteNutrition(meal))
     .map((meal) => meal.id || meal.client_id);
-  const { normalizedMeals, patches } = normalizeMealsWithNutrition(merged, {
+  const { normalizedMeals, patches } = normalizeMealsWithNutrition(remoteMeals, {
     patchKeys,
   });
   const visibleMeals = filterDeletedMeals(familyId, normalizedMeals);
