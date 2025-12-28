@@ -29,10 +29,12 @@ import {
   currentUser,
   currentFamilyId,
   getTodayDate,
+  getDiaryDateKey,
   selectedDate,
   setSelectedDate,
 } from "./state.js";
 import { guardMutation } from "./debug/mutationGuard.js";
+import { isDebugEnabled } from "./debug/dbSanity.js";
 import { maybeVibrate, openModal, setDinnerLogHandler, showToast } from "./ui.js";
 import { readMealsStore, saveMeals } from "./dataAdapter.js";
 import {
@@ -628,7 +630,7 @@ function updateSelectedServingDetails(food = {}, options = {}) {
 }
 
 function getSelectedMealDate() {
-  return mealDateInput?.value || selectedDate || getTodayDate();
+  return getDiaryDateKey(mealDateInput?.value || selectedDate || getTodayDate());
 }
 
 function getSelectedMealType() {
@@ -1135,7 +1137,8 @@ export async function logMealToDiary(meal, options = {}) {
     return;
   }
 
-  const targetDate = options.date || selectedDate || getTodayDate();
+  const targetDate =
+    getDiaryDateKey(options.date || selectedDate || getTodayDate()) || getTodayDate();
   const title = meal.title?.trim();
   if (!title) return;
 
@@ -1563,20 +1566,33 @@ export async function loadMeals() {
 }
 
 export async function fetchMealsByDate(dateValue) {
-  if (!currentFamilyId || !dateValue) return [];
+  const familyId = currentFamilyId;
+  const targetDate = getDiaryDateKey(dateValue);
+  if (!familyId || !targetDate) return [];
 
-  const storedMeals = filterDeletedMeals(currentFamilyId, getStoredMeals(currentFamilyId));
+  const storedMeals = filterDeletedMeals(familyId, getStoredMeals(familyId));
   const storedForDate = storedMeals.filter(
-    (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
+    (meal) => (meal.meal_date || "") === targetDate && isMealLogged(meal)
   );
 
   const { data, error } = await applyMealOrdering(
     supabase
       .from("family_meals")
       .select("*")
-      .eq("family_group_id", currentFamilyId)
-      .eq("meal_date", dateValue)
+      .eq("family_group_id", familyId)
+      .eq("meal_date", targetDate)
   );
+
+  if (isDebugEnabled()) {
+    console.debug("[EH DIARY] fetchMealsByDate", {
+      userId: currentUser?.id || null,
+      familyId,
+      dateKey: targetDate,
+      remoteCount: Array.isArray(data) ? data.length : 0,
+      localCount: storedForDate.length,
+      error: error?.message || null,
+    });
+  }
 
   if (error) {
     console.error("Error loading meals for date:", error);
@@ -1590,12 +1606,24 @@ export async function fetchMealsByDate(dateValue) {
   const { normalizedMeals, patches } = normalizeMealsWithNutrition(merged, {
     patchKeys,
   });
-  const visibleMeals = filterDeletedMeals(currentFamilyId, normalizedMeals);
-  persistMealsForFamily(currentFamilyId, visibleMeals);
+  const visibleMeals = filterDeletedMeals(familyId, normalizedMeals);
+  persistMealsForFamily(familyId, visibleMeals);
   await applyNutritionBackfill(patches);
-  return visibleMeals.filter(
-    (meal) => (meal.meal_date || "") === dateValue && isMealLogged(meal)
+  const resultsForDate = visibleMeals.filter(
+    (meal) => (meal.meal_date || "") === targetDate && isMealLogged(meal)
   );
+
+  if (isDebugEnabled()) {
+    console.debug("[EH DIARY] meals loaded", {
+      userId: currentUser?.id || null,
+      familyId,
+      dateKey: targetDate,
+      loadedMeals: resultsForDate.length,
+      mergedCount: visibleMeals.length,
+    });
+  }
+
+  return resultsForDate;
 }
 
 async function logMealToToday(meal) {

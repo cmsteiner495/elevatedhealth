@@ -8,6 +8,7 @@ import {
   diaryDateMeta,
   diaryDateLabel,
   diaryDateSub,
+  diaryRefreshBtn,
   diaryAddButtons,
   diaryBreakfastList,
   diaryLunchList,
@@ -30,12 +31,14 @@ import {
   selectedDate,
   setSelectedDate,
   toLocalDateString,
+  getDiaryDateKey,
   toLocalDayKey,
 } from "./state.js";
 import { deleteMealById, fetchMealsByDate, logMealToDiary } from "./meals.js";
 import { deleteWorkoutById, fetchWorkoutsByDate, loadWorkouts } from "./workouts.js";
 import { closeModal, openModal, showToast } from "./ui.js";
 import { isMealLogged, isWorkoutLogged } from "./selectors.js";
+import { isDebugEnabled } from "./debug/dbSanity.js";
 
 const sectionLists = {
   breakfast: diaryBreakfastList,
@@ -52,6 +55,8 @@ const mealTotals = {
 };
 
 const emptyMessage = "No entries yet";
+const authRequiredMessage = "Please sign in to sync your diary.";
+const familyRequiredMessage = "Join a family to log meals and workouts.";
 
 let currentDiaryMeals = [];
 let currentDiaryWorkouts = [];
@@ -112,6 +117,11 @@ function syncDatePicker(dateValue) {
 function setListLoading(listEl) {
   if (!listEl) return;
   listEl.innerHTML = '<li class="diary-empty">Loading…</li>';
+}
+
+function renderEmpty(listEl, message = emptyMessage) {
+  if (!listEl) return;
+  listEl.innerHTML = `<li class="diary-empty">${message}</li>`;
 }
 
 function matchesMealIdentifier(meal, identifier, clientId) {
@@ -180,11 +190,12 @@ function createMealEntry(item, sectionKey) {
   return li;
 }
 
-function renderList(listEl, items, sectionKey) {
+function renderList(listEl, items, sectionKey, options = {}) {
   if (!listEl) return;
+  const emptyText = options.emptyText || emptyMessage;
 
   if (!items.length) {
-    listEl.innerHTML = `<li class="diary-empty">${emptyMessage}</li>`;
+    renderEmpty(listEl, emptyText);
     return;
   }
 
@@ -277,11 +288,12 @@ function createWorkoutEntry(item) {
   return li;
 }
 
-function renderExercise(listEl, items) {
+function renderExercise(listEl, items, options = {}) {
   if (!listEl) return;
+  const emptyText = options.emptyText || emptyMessage;
 
   if (!items.length) {
-    listEl.innerHTML = `<li class="diary-empty">${emptyMessage}</li>`;
+    renderEmpty(listEl, emptyText);
     return;
   }
 
@@ -515,13 +527,14 @@ function groupMealsByType(meals) {
 }
 
 async function loadDiary(dateValue) {
-  setDateText(dateValue);
+  const targetDate = getDiaryDateKey(dateValue) || getTodayDate();
+  setDateText(targetDate);
 
-  if (!currentFamilyId) {
+  const renderDiaryEmptyState = (message) => {
     currentDiaryMeals = [];
     currentDiaryWorkouts = [];
     Object.entries(sectionLists).forEach(([key, listEl]) =>
-      renderList(listEl, [], key)
+      renderList(listEl, [], key, { emptyText: message })
     );
     updateSectionTotals({
       breakfast: [],
@@ -529,8 +542,17 @@ async function loadDiary(dateValue) {
       dinner: [],
       snacks: [],
     });
-    renderExercise(diaryExerciseList, []);
+    renderExercise(diaryExerciseList, [], { emptyText: message });
     calculateCalories([], []);
+  };
+
+  if (!currentUser) {
+    renderDiaryEmptyState(authRequiredMessage);
+    return;
+  }
+
+  if (!currentFamilyId) {
+    renderDiaryEmptyState(familyRequiredMessage);
     return;
   }
 
@@ -538,8 +560,8 @@ async function loadDiary(dateValue) {
   setListLoading(diaryExerciseList);
 
   const [meals, workouts] = await Promise.all([
-    fetchMealsByDate(dateValue),
-    fetchWorkoutsByDate(dateValue),
+    fetchMealsByDate(targetDate),
+    fetchWorkoutsByDate(targetDate),
   ]);
 
   currentDiaryMeals = (meals || []).filter(isMealLogged);
@@ -554,6 +576,16 @@ async function loadDiary(dateValue) {
 
   renderExercise(diaryExerciseList, currentDiaryWorkouts);
   calculateCalories(currentDiaryMeals, currentDiaryWorkouts);
+
+  if (isDebugEnabled()) {
+    console.debug("[EH DIARY] loaded entries", {
+      userId: currentUser?.id || null,
+      familyId: currentFamilyId || null,
+      dateKey: targetDate,
+      meals: currentDiaryMeals.length,
+      workouts: currentDiaryWorkouts.length,
+    });
+  }
 }
 
 function adjustSelectedDate(daysDelta) {
@@ -566,7 +598,7 @@ function handleAddButtons() {
   diaryAddButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.dataset.diaryAdd;
-      const dateValue = toLocalDayKey(selectedDate) || toLocalDayKey(new Date());
+      const dateValue = getDiaryDateKey(selectedDate) || getDiaryDateKey(new Date());
       if (!target) return;
       const normalizedTarget = (target || "").toString().trim().toLowerCase();
       const isExercise = normalizedTarget === "exercise";
@@ -828,6 +860,11 @@ export function initDiary() {
     diaryNextDayBtn.addEventListener("click", () => adjustSelectedDate(1));
   if (diaryTodayBtn)
     diaryTodayBtn.addEventListener("click", () => setSelectedDate(getTodayDate()));
+  if (diaryRefreshBtn) {
+    diaryRefreshBtn.addEventListener("click", () => {
+      refreshDiaryForSelectedDate();
+    });
+  }
   if (diaryCalendarBtn) {
     diaryCalendarBtn.addEventListener("click", () => {
       openDatePicker();
