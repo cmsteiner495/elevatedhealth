@@ -32,6 +32,10 @@ export function toLocalDayKey(value) {
   return "";
 }
 
+export function getDiaryDateKey(value) {
+  return toLocalDayKey(value || new Date()) || getTodayDate();
+}
+
 export function getLast7DaysLocal() {
   const days = [];
   const today = new Date();
