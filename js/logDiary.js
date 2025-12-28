@@ -147,9 +147,24 @@ function createMealEntry(item, sectionKey) {
   li.dataset.mealNotes = item.notes || "";
   li.dataset.mealDescription = item.description || "";
   li.dataset.mealCalories = caloriesValue;
-  li.dataset.mealProtein = item.protein || item.nutrition?.protein || "";
-  li.dataset.mealCarbs = item.carbs || item.nutrition?.carbs || "";
-  li.dataset.mealFat = item.fat || item.nutrition?.fat || "";
+  li.dataset.mealProtein =
+    item.protein_g ??
+    item.protein ??
+    item.nutrition?.protein_g ??
+    item.nutrition?.protein ??
+    "";
+  li.dataset.mealCarbs =
+    item.carbs_g ??
+    item.carbs ??
+    item.nutrition?.carbs_g ??
+    item.nutrition?.carbs ??
+    "";
+  li.dataset.mealFat =
+    item.fat_g ??
+    item.fat ??
+    item.nutrition?.fat_g ??
+    item.nutrition?.fat ??
+    "";
   li.dataset.mealUrl = item.recipe_url || item.recipeUrl || "";
 
   const row = document.createElement("div");
@@ -364,9 +379,9 @@ async function logMealFromDetail(meal) {
       meal_type: mealType,
       notes,
       calories: meal.calories || meal.nutrition?.calories,
-      protein: meal.protein || meal.nutrition?.protein,
-      carbs: meal.carbs || meal.nutrition?.carbs,
-      fat: meal.fat || meal.nutrition?.fat,
+      protein: meal.protein_g || meal.protein || meal.nutrition?.protein_g || meal.nutrition?.protein,
+      carbs: meal.carbs_g || meal.carbs || meal.nutrition?.carbs_g || meal.nutrition?.carbs,
+      fat: meal.fat_g || meal.fat || meal.nutrition?.fat_g || meal.nutrition?.fat,
       nutrition: meal.nutrition || meal.macros,
     },
     { date: selectedDate }
@@ -441,10 +456,19 @@ function showMealDetails(entry) {
 
   const nutritionSource =
     mealData.nutrition || {
-      calories: mealData.calories || entry.dataset.mealCalories,
-      protein: mealData.protein || entry.dataset.mealProtein,
-      carbs: mealData.carbs || entry.dataset.mealCarbs,
-      fat: mealData.fat || entry.dataset.mealFat,
+      calories: mealData.calories ?? entry.dataset.mealCalories,
+      protein:
+        mealData.protein_g ??
+        mealData.protein ??
+        entry.dataset.mealProtein,
+      carbs:
+        mealData.carbs_g ??
+        mealData.carbs ??
+        entry.dataset.mealCarbs,
+      fat:
+        mealData.fat_g ??
+        mealData.fat ??
+        entry.dataset.mealFat,
     };
   const nutrition = buildNutritionPills(nutritionSource);
   if (nutrition) {
