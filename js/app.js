@@ -122,6 +122,19 @@ console.log(
   "EH app.js VERSION 5.1 (nav refresh + central log tab + desktop FAB menu)"
 );
 
+const isLocalDevHost =
+  location.hostname === "localhost" ||
+  location.hostname === "127.0.0.1" ||
+  /^10\./.test(location.hostname) ||
+  /^192\.168\./.test(location.hostname);
+
+if (isLocalDevHost && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+}
+if (isLocalDevHost && "caches" in window) {
+  caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)));
+}
+
 // Global UI/install state
 let activeTabId;
 let displayNameValue;
@@ -1878,6 +1891,31 @@ async function logUpcomingMealToToday(entryEl) {
   const fat = entryEl.dataset.mealFat;
   const clientId = entryEl.dataset.mealClientId || mealId || null;
 
+  const payload = {
+    family_group_id: currentFamilyId,
+    user_id: userId,
+    meal_id: mealId,
+    client_id: clientId,
+    meal_date: targetDate,
+    meal_type: mealType,
+    title,
+    notes,
+    calories,
+    protein,
+    carbs,
+    fat,
+    source: "upcoming-add",
+  };
+
+  console.log("[INSERT START]", { payload });
+  const { data, error } = await supabase.from("meal_logs").insert([payload]).select("*");
+  console.log("[INSERT DONE]", { data, error });
+
+  if (error) {
+    showToast(error.message || "Couldn't save meal.");
+    return;
+  }
+
   await logMealToDiary(
     {
       id: mealId,
@@ -1890,24 +1928,51 @@ async function logUpcomingMealToToday(entryEl) {
       carbs,
       fat,
     },
-    { date: targetDate }
+    { date: targetDate, silent: true }
   );
+
+  await refreshDiaryForSelectedDate(targetDate);
+  showToast("Logged!");
 }
 
 function bindMealsLogButtons() {
   document.addEventListener(
     "click",
     async (e) => {
-      const btn = e.target.closest('[data-action="add-upcoming-meal"], .meal-log-btn');
+      console.log("[GLOBAL CLICK]", e.target);
+      let btn = e.target.closest(
+        '[data-action="add-upcoming-meal"], .add-upcoming-meal, button[data-meal-id][data-action], .meal-log-btn'
+      );
+
+      if (!btn) {
+        const clickable = e.target.closest("button");
+        const parentMeal = e.target.closest("li[data-meal-id], article[data-meal-id]");
+        if (clickable && parentMeal && clickable.textContent?.trim().toLowerCase() === "add") {
+          btn = clickable;
+        }
+      }
+
       if (!btn) return;
+
+      console.log("[ADD BUTTON FOUND]", btn);
       e.preventDefault();
       e.stopPropagation();
-      const li = btn.closest("li");
+
+      const li = btn.closest("li[data-meal-id], li[data-meal-client-id], article[data-meal-id]");
+      const mealId = btn.dataset.mealId || btn.getAttribute("data-meal-id");
+
       if (!li) {
         console.warn("[ADD EARLY RETURN] no parent list item for meal log button");
         showToast("Couldn't find the meal to log.");
         return;
       }
+
+      if (!mealId) {
+        console.warn("[ADD EARLY RETURN] missing meal id on button", { btn });
+        showToast("Add failed: missing meal id");
+        return;
+      }
+
       btn.disabled = true;
       await logUpcomingMealToToday(li);
       btn.disabled = false;
