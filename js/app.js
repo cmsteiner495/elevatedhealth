@@ -1822,21 +1822,60 @@ function bindWeightLogButton() {
 }
 
 async function logUpcomingMealToToday(entryEl) {
-  if (!entryEl || !currentFamilyId || !currentUser) {
+  const mealId =
+    entryEl?.dataset?.mealId || entryEl?.dataset?.mealClientId || entryEl?.dataset?.mealClientid || null;
+  const targetDate = selectedDate || getTodayDate();
+  const userId = currentUser?.id || null;
+  console.log("[ADD UPCOMING MEAL CLICK]", { mealId, selectedDate: targetDate, userId });
+
+  if (!entryEl) {
+    console.warn("[ADD EARLY RETURN] missing entry element");
+    showToast("No meal to log.");
+    return;
+  }
+
+  if (!supabase || typeof supabase.from !== "function") {
+    console.warn("[ADD EARLY RETURN] missing supabase client", { mealId });
+    showToast("Missing Supabase client");
+    return;
+  }
+
+  if (!currentUser) {
+    console.warn("[ADD EARLY RETURN] no user", { mealId });
+    showToast("Not logged in");
+    return;
+  }
+
+  if (!currentFamilyId) {
+    console.warn("[ADD EARLY RETURN] missing family", { userId, mealId });
     showToast("Join a family to log meals.");
     return;
   }
 
+  if (!targetDate) {
+    console.warn("[ADD EARLY RETURN] missing selectedDate", { mealId, userId });
+    showToast("Select a date to log this meal.");
+    return;
+  }
+
+  if (!mealId) {
+    console.warn("[ADD EARLY RETURN] missing mealId", { userId, targetDate });
+    showToast("Meal is missing an id.");
+    return;
+  }
+
   const title = entryEl.dataset.mealTitle || "";
-  if (!title.trim()) return;
+  if (!title.trim()) {
+    console.warn("[ADD EARLY RETURN] missing meal title", { mealId });
+    showToast("Meal is missing a title.");
+    return;
+  }
   const notes = entryEl.dataset.mealNotes || null;
   const mealType = entryEl.dataset.mealType || "dinner";
-  const targetDate = selectedDate || getTodayDate();
   const calories = entryEl.dataset.mealCalories;
   const protein = entryEl.dataset.mealProtein;
   const carbs = entryEl.dataset.mealCarbs;
   const fat = entryEl.dataset.mealFat;
-  const mealId = entryEl.dataset.mealId || null;
   const clientId = entryEl.dataset.mealClientId || mealId || null;
 
   await logMealToDiary(
@@ -1856,16 +1895,22 @@ async function logUpcomingMealToToday(entryEl) {
 }
 
 function bindMealsLogButtons() {
-  if (!mealsList) return;
-  mealsList.addEventListener(
+  document.addEventListener(
     "click",
     async (e) => {
-      const btn = e.target.closest(".meal-log-btn");
+      const btn = e.target.closest('[data-action="add-upcoming-meal"], .meal-log-btn');
       if (!btn) return;
       e.preventDefault();
-      e.stopImmediatePropagation();
+      e.stopPropagation();
       const li = btn.closest("li");
+      if (!li) {
+        console.warn("[ADD EARLY RETURN] no parent list item for meal log button");
+        showToast("Couldn't find the meal to log.");
+        return;
+      }
+      btn.disabled = true;
       await logUpcomingMealToToday(li);
+      btn.disabled = false;
     },
     { capture: true }
   );
@@ -1877,22 +1922,12 @@ function bindMealsListRemoveButtons() {
     "click",
     async (e) => {
       const deleteBtn = e.target.closest(".meal-delete");
-      const logBtn = e.target.closest(".meal-log-btn");
-      if (!deleteBtn && !logBtn) return;
+      if (!deleteBtn) return;
       const li = e.target.closest("li");
       if (!li) return;
 
       const mealId = li.dataset.mealId;
       const mealClientId = li.dataset.mealClientId || li.dataset.mealClientid;
-
-      if (logBtn) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        logBtn.disabled = true;
-        await logUpcomingMealToToday(li);
-        logBtn.disabled = false;
-        return;
-      }
 
       if (!mealId) return;
       e.preventDefault();
