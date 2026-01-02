@@ -120,6 +120,7 @@ export const mealsHasFamily = document.getElementById("meals-has-family");
 export const mealsForm = document.getElementById("meals-form");
 export const mealSearchInput = document.getElementById("meal-search");
 export const mealSearchResults = document.getElementById("meal-search-results");
+export const mealSearchModeButtons = document.querySelectorAll("[data-meal-search-mode]");
 export const mealSelectedContainer = document.getElementById("meal-selected");
 export const mealSelectedName = document.getElementById("meal-selected-name");
 export const mealSelectedMacros = document.getElementById("meal-selected-macros");
