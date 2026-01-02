@@ -371,13 +371,11 @@ async function logMealFromDetail(meal) {
   if (!title) return;
 
   const mealType = meal.meal_type || meal.mealType || meal.type || "dinner";
-  const notes = meal.notes || meal.description || null;
 
   await logMealToDiary(
     {
       title,
       meal_type: mealType,
-      notes,
       calories: meal.calories || meal.nutrition?.calories,
       protein: meal.protein_g || meal.protein || meal.nutrition?.protein_g || meal.nutrition?.protein,
       carbs: meal.carbs_g || meal.carbs || meal.nutrition?.carbs_g || meal.nutrition?.carbs,

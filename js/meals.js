@@ -21,7 +21,6 @@ import {
   mealProteinInput,
   mealCarbsInput,
   mealFatInput,
-  mealNotesInput,
   mealsMessage,
   mealsList,
 } from "./dom.js";
@@ -277,6 +276,7 @@ export function buildMealLogPayload({ userId, familyGroupId, logDate, mealType, 
     sourceMeal?.fat ??
     sourceMeal?.macros?.fat ??
     0;
+  const source = sourceMeal?.source || null;
 
   return {
     user_id: userId,
@@ -296,6 +296,7 @@ export function buildMealLogPayload({ userId, familyGroupId, logDate, mealType, 
     protein_g: Number(protein) || 0,
     carbs_g: Number(carbs) || 0,
     fat_g: Number(fat) || 0,
+    source: source ? String(source) : null,
   };
 }
 
@@ -311,10 +312,11 @@ async function refreshDiary(dateValue) {
 }
 
 function sanitizeMealLogPayload(payload = {}) {
-  const allowed = new Set([
+  const allowedKeys = new Set([
     "user_id",
     "family_group_id",
     "log_date",
+    "meal_date",
     "meal_type",
     "meal_id",
     "name",
@@ -324,24 +326,61 @@ function sanitizeMealLogPayload(payload = {}) {
     "protein_g",
     "carbs_g",
     "fat_g",
-    "notes",
+    "source",
+    "created_at",
   ]);
-  const prepared = {
-    ...payload,
-    log_date: normalizeLogDate(payload.log_date),
-    meal_type: normalizeMealLogType(payload.meal_type),
-    calories: Math.round(Number(payload.calories) || 0),
-    protein_g: Number(payload.protein_g) || 0,
-    carbs_g: Number(payload.carbs_g) || 0,
-    fat_g: Number(payload.fat_g) || 0,
-    notes: payload.notes ?? null,
+  const unknownKeys = Object.keys(payload || {}).filter((key) => !allowedKeys.has(key));
+  if (unknownKeys.length) {
+    console.warn("[MEAL LOGS] Dropping unknown columns before Supabase insert", {
+      unknownKeys,
+      sample: Object.fromEntries(Object.entries(payload || {}).slice(0, 5)),
+    });
+  }
+
+  const {
+    user_id,
+    family_group_id = null,
+    log_date,
+    meal_date,
+    meal_type,
+    meal_id = null,
+    name,
+    brand = null,
+    serving_size_g,
+    calories,
+    protein_g,
+    carbs_g,
+    fat_g,
+    source = null,
+    created_at = null,
+  } = payload || {};
+
+  const normalizedLogDate = normalizeLogDate(log_date || meal_date);
+  const normalizedMealType = normalizeMealLogType(meal_type);
+  const normalizedServingSize =
+    serving_size_g === null || serving_size_g === undefined || serving_size_g === ""
+      ? null
+      : Number(serving_size_g);
+
+  const sanitized = {
+    user_id,
+    family_group_id,
+    log_date: normalizedLogDate,
+    meal_type: normalizedMealType,
+    meal_id,
+    name: name ? String(name) : "Meal",
+    brand: brand ? String(brand) : null,
+    serving_size_g: normalizedServingSize,
+    calories: Math.round(Number(calories) || 0),
+    protein_g: Number(protein_g) || 0,
+    carbs_g: Number(carbs_g) || 0,
+    fat_g: Number(fat_g) || 0,
   };
-  return Object.entries(prepared).reduce((acc, [key, value]) => {
-    if (allowed.has(key)) {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+
+  if (source) sanitized.source = String(source);
+  if (created_at) sanitized.created_at = created_at;
+
+  return sanitized;
 }
 
 async function insertMealLog(payload) {
@@ -983,14 +1022,11 @@ async function addFoodResultToLog(food) {
   const nutrition = applyPortionMultiplier(nutritionSource, portion, {
     gramsOverride: selectedManualGrams,
   });
-  const baseNotes = mealNotesInput?.value?.trim() || null;
-  const notes = mergeNotesWithServing(baseNotes, nutritionSource, portion);
 
   await logMealToDiary(
     {
       title,
       meal_type: mealType,
-      notes,
       calories: nutrition.calories,
       protein: nutrition.protein,
       carbs: nutrition.carbs,
@@ -1346,17 +1382,21 @@ export async function logMealToDiary(meal, options = {}) {
   }
 
   const mealType = normalizeMealLogType(meal.meal_type || meal.mealType || options.mealType);
-  const notes = (meal.notes || meal.description || "").trim() || null;
   const totals = computeMealTotals(meal);
   const existingId = meal.id || null;
   const existingClientId = meal.client_id || meal.clientId || null;
   const tempId = existingClientId || existingId || `${LOCAL_ID_PREFIX}${Date.now()}`;
+  const servingSizeG =
+    meal.serving_size_g ?? meal.servingSizeG ?? meal.serving_size ?? meal.serving ?? null;
+  const mealSource = meal.source || null;
 
   const sourceMeal = {
-    ...meal,
+    id: existingId,
+    meal_id: meal.meal_id || meal.mealId || existingId || null,
     title,
     name: meal.name || title,
-    notes,
+    brand: meal.brand || meal.restaurant || mealSource || null,
+    serving_size_g: servingSizeG,
     calories:
       Math.round(coerceNumber(totals.calories ?? meal.calories ?? meal.nutrition?.calories)) || 0,
     protein: coerceNumber(
@@ -1368,18 +1408,16 @@ export async function logMealToDiary(meal, options = {}) {
     fat: coerceNumber(
       totals.fat ?? meal.fat_g ?? meal.fat ?? meal.nutrition?.fat_g ?? meal.nutrition?.fat
     ),
+    source: mealSource,
   };
 
-  const payload = {
-    ...buildMealLogPayload({
-      userId,
-      familyGroupId: currentFamilyId,
-      logDate: targetDate,
-      mealType,
-      sourceMeal,
-    }),
-    notes,
-  };
+  const payload = buildMealLogPayload({
+    userId,
+    familyGroupId: currentFamilyId,
+    logDate: targetDate,
+    mealType,
+    sourceMeal,
+  });
 
   const { data, error } = await insertMealLog(payload);
   if (error) {
@@ -1481,7 +1519,6 @@ function openMealDetailsModal(meal) {
         {
           title: meal.title,
           meal_type: meal.meal_type,
-          notes: meal.notes,
           calories: meal.calories,
           protein: meal.protein_g || meal.protein || meal.nutrition?.protein_g || meal.nutrition?.protein,
           carbs: meal.carbs_g || meal.carbs || meal.nutrition?.carbs_g || meal.nutrition?.carbs,
@@ -1499,7 +1536,6 @@ setDinnerLogHandler(async (meal) => {
     {
       title: meal.title,
       meal_type: "dinner",
-      notes: meal.description || meal.notes,
       calories: meal.calories || meal.nutrition?.calories,
       protein: meal.protein_g || meal.protein || meal.nutrition?.protein_g || meal.nutrition?.protein,
       carbs: meal.carbs_g || meal.carbs || meal.nutrition?.carbs_g || meal.nutrition?.carbs,
@@ -1928,7 +1964,6 @@ if (mealsForm) {
     const dateValue = mealDateInput.value;
     const mealType = mealTypeInput.value;
     const title = mealTitleInput.value.trim() || selectedFood?.name?.trim();
-    const notesRaw = mealNotesInput.value.trim();
 
     if (!dateValue || !mealType || !title) return;
 
@@ -1942,9 +1977,6 @@ if (mealsForm) {
     const totals = applyPortionMultiplier(nutritionSource, portion, {
       gramsOverride: selectedManualGrams,
     });
-    const notesWithServing = preparedFood
-      ? mergeNotesWithServing(notesRaw, nutritionSource, portion)
-      : notesRaw || null;
 
     if (!preparedFood && !hasManualMacros()) {
       if (mealsMessage) {
@@ -1967,7 +1999,6 @@ if (mealsForm) {
       {
         title,
         meal_type: mealType,
-        notes: notesWithServing,
         calories: totals.calories,
         protein: totals.protein,
         carbs: totals.carbs,
@@ -2017,7 +2048,6 @@ if (mealsList) {
       await logMealToToday({
         title: li.dataset.mealTitle,
         meal_type: li.dataset.mealType,
-        notes: li.dataset.mealNotes,
         calories: li.dataset.mealCalories,
         protein: li.dataset.mealProtein,
         carbs: li.dataset.mealCarbs,
