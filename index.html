@@ -670,10 +670,27 @@
                     <form id="meals-form" class="form-grid">
                       <div class="full-width">
                         <label for="meal-search">Food search</label>
+                        <div class="pill-toggle-row" role="group" aria-label="Food search source">
+                          <button
+                            type="button"
+                            class="chip pill meal-search-mode active"
+                            data-meal-search-mode="common"
+                          >
+                            Common
+                          </button>
+                          <button
+                            type="button"
+                            class="chip pill meal-search-mode"
+                            data-meal-search-mode="branded"
+                          >
+                            Branded
+                          </button>
+                          <span class="pill-toggle-hint">USDA for common foods • Open Food Facts for branded</span>
+                        </div>
                         <input
                           type="text"
                           id="meal-search"
-                          placeholder="Search 200+ foods"
+                          placeholder="Search for foods (e.g. egg, apple, doritos)"
                           autocomplete="off"
                         />
                         <div id="meal-search-results" class="meal-search-results">
