@@ -1883,7 +1883,6 @@ async function logUpcomingMealToToday(entryEl) {
     showToast("Meal is missing a title.");
     return;
   }
-  const notes = entryEl.dataset.mealNotes || null;
   const mealType = entryEl.dataset.mealType || "dinner";
   const calories = entryEl.dataset.mealCalories;
   const protein = entryEl.dataset.mealProtein;
@@ -1897,7 +1896,6 @@ async function logUpcomingMealToToday(entryEl) {
       client_id: clientId,
       title,
       meal_type: mealType,
-      notes,
       calories,
       protein,
       carbs,
